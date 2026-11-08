@@ -22,11 +22,19 @@ from scipy.sparse.linalg import LinearOperator
 
 from ..core.spmv import FulqrumSpMV
 from ..exceptions import FulqrumError
-from .common.wide import width_error
+from .common.wide import max_electrons, width_error
 from .distributed.dist_matvec import _default_2d_process_grid
 from .distributed.local_comm import LocalComm, run_ranks
 
 logger = logging.getLogger(__name__)
+
+
+def _sector_electrons(subspace):
+
+    alpha, beta = subspace.alpha_strs, subspace.beta_strs
+    if alpha is None or beta is None:
+        return None
+    return max_electrons(alpha), max_electrons(beta)
 
 
 def _check_gpu_preconditions(hsub, classname: str) -> None:
@@ -109,7 +117,10 @@ class GPUHamiltonian(LinearOperator):
         spmv = hsub.spmv
         if isinstance(spmv, FulqrumSpMV):
             num_alpha = int(spmv.subspace.num_alpha_qubits)
-            error = width_error((num_alpha, int(spmv.width) - num_alpha))
+            error = width_error(
+                (num_alpha, int(spmv.width) - num_alpha),
+                _sector_electrons(spmv.subspace),
+            )
             if error:
                 raise FulqrumError(f"GPUHamiltonian failed: {error}")
         _check_gpu_preconditions(hsub, "GPUHamiltonian")

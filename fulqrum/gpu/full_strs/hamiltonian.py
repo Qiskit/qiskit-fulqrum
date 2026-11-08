@@ -17,7 +17,7 @@ import time
 import cupy
 import numpy as np
 
-from ..common.wide import check_width
+from ..common.wide import check_width, popcount_w
 from ..distributed.rank_agreement import run_on_every_rank
 from .device import DeviceLayout
 from .host import HostOperator
@@ -139,10 +139,12 @@ class FullStrsHamiltonian:
 
             comm = MPI.COMM_SELF
         self._comm = comm
-        num_orbitals = run_on_every_rank(
-            comm, "operator width", lambda: _orbitals(operator)
+        num_orbitals, electrons = run_on_every_rank(
+            comm, "operator width", lambda: _orbitals_and_electrons(operator, keys)
         )
-        check_width(comm, (num_orbitals, num_orbitals), "FullStrsHamiltonian")
+        check_width(
+            comm, (num_orbitals, num_orbitals), "FullStrsHamiltonian", electrons
+        )
         self._binned = bool(binned)
         self._block = None
         self._copies = None
@@ -729,6 +731,24 @@ class FullStrsHamiltonian:
         d_x = cupy.asarray(np.ascontiguousarray(x, dtype=np.float64))
         y = self._matvec(d_x)
         return cupy.asnumpy(y)
+
+
+def _key_electrons(keys):
+
+    keys = np.asarray(keys)
+    if keys.ndim != 2 or keys.shape[0] == 0 or keys.shape[1] % 2:
+        return (None, None)
+    half = keys.shape[1] // 2
+    words = np.ascontiguousarray(keys, dtype=np.uint64)
+    return (
+        int(popcount_w(words[:, :half]).max()),
+        int(popcount_w(words[:, half:]).max()),
+    )
+
+
+def _orbitals_and_electrons(operator, keys):
+
+    return _orbitals(operator), _key_electrons(keys)
 
 
 def _orbitals(operator):

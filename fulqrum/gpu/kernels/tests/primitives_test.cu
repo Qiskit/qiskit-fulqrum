@@ -20,6 +20,7 @@
 #include "../device/tile_index.cuh"
 #include "../device/warp.cuh"
 #include "../formats/edge_word.hpp"
+#include "../formats/key_words.cuh"
 #include "../formats/params.hpp"
 
 namespace
@@ -133,10 +134,59 @@ __global__ void __launch_bounds__(kThreads) warp_kernel(const int* flags, const 
     }
 }
 
+
+template <int W>
+__global__ void __launch_bounds__(kThreads) key_words_kernel(const std::uint64_t* words,
+                                                             const int* low,
+                                                             const int* high,
+                                                             const std::int64_t n,
+                                                             std::uint64_t* hashes,
+                                                             int* counts,
+                                                             int* parities,
+                                                             int* bits)
+{
+    const std::int64_t i = fq::device::thread_column();
+    if(i >= n)
+    {
+        return;
+    }
+    const fq::key_words::Key<W> key = fq::key_words::load_w<W>(words, i);
+    hashes[i] = fq::key_words::hash_w<W>(key);
+    counts[i] = fq::key_words::popcount_w<W>(key);
+    parities[i] = fq::key_words::between_parity_w<W>(key, low[i], high[i]);
+    bits[i] = fq::key_words::bit_w<W>(key, low[i]) | (fq::key_words::is_empty_w<W>(key) ? 2 : 0);
+}
+
 }
 
 extern "C"
 {
+
+
+    int fq_test_key_words(const std::uint64_t* words,
+                          int num_words,
+                          const int* low,
+                          const int* high,
+                          std::int64_t n,
+                          std::uint64_t* hashes,
+                          int* counts,
+                          int* parities,
+                          int* bits)
+    {
+        if(num_words == 1)
+        {
+            key_words_kernel<1><<<blocks_for(n), kThreads>>>(words, low, high, n, hashes, counts, parities, bits);
+        }
+        else if(num_words == 2)
+        {
+            key_words_kernel<2><<<blocks_for(n), kThreads>>>(words, low, high, n, hashes, counts, parities, bits);
+        }
+        else
+        {
+            return int(cudaErrorInvalidValue);
+        }
+        return int(cudaGetLastError());
+    }
 
 
     int fq_test_sell_stream(const std::int64_t* offsets,

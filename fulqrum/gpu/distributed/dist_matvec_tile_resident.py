@@ -28,7 +28,7 @@ from scipy.sparse.linalg import LinearOperator
 from fulqrum.core.spmv import FulqrumSpMV
 
 from .. import autotune
-from ..common.wide import check_width
+from ..common.wide import check_width, max_electrons
 from ..config import GpuConfig, warn_unknown_names
 from ..logging import format_memory
 from . import _collective
@@ -422,10 +422,16 @@ class TileGPUResidentHamiltonian(LinearOperator):
         spmv = hsub.spmv
         if isinstance(spmv, FulqrumSpMV):
             num_alpha = int(spmv.subspace.num_alpha_qubits)
+            electrons = run_on_every_rank(
+                comm,
+                "sector electrons",
+                lambda: (max_electrons(alpha_strs), max_electrons(beta_strs)),
+            )
             check_width(
                 comm,
                 (num_alpha, int(spmv.width) - num_alpha),
                 "TileGPUResidentHamiltonian",
+                electrons,
             )
 
         gpu_ids = tuple(int(gid) for gid in gpu_ids)

@@ -15,7 +15,13 @@ import numpy as np
 import pytest
 
 from fulqrum.exceptions import FulqrumError
-from fulqrum.gpu.common.wide import MAX_KEY_WORDS, check_width, key_words, width_error
+from fulqrum.gpu.common.wide import (
+    MAX_KEY_WORDS,
+    check_width,
+    key_words,
+    max_electrons,
+    width_error,
+)
 from fulqrum.gpu.distributed.local_comm import LocalComm, run_ranks
 
 from .conftest import gpu_available
@@ -39,6 +45,70 @@ def test_width_error():
         f"this build supports at most {WIDE - 1} per sector"
     )
     assert width_error((WIDE + 1, WIDE)).startswith(f"sector 0 has {WIDE + 1}")
+
+
+FULL = "sector 1 is fully occupied with 64 orbitals"
+
+
+def test_a_full_sector_of_64_orbitals_is_rejected():
+    assert width_error((64, 64), (32, 64)).startswith(FULL)
+    assert width_error((64, 64), (64, 64)).startswith("sector 0 is fully occupied")
+
+
+@pytest.mark.parametrize(
+    "widths, electrons",
+    [((63, 63), (63, 63)), ((1, 1), (1, 1)), ((64, 64), (63, 1)), ((64, 64), None)],
+)
+def test_other_sectors_stay_legal(widths, electrons):
+    assert width_error(widths, electrons) is None
+
+
+def test_without_electron_counts_only_the_width_is_checked():
+    assert width_error((64, 64)) is None
+    assert width_error((64, 64), None) is None
+    assert width_error((64, WIDE), (64, 64)) == width_error((64, WIDE))
+    assert width_error((64, 64), (None, 64)).startswith(FULL)
+
+
+def test_max_electrons_reads_strings_ints_and_words():
+    assert max_electrons(["0011", "0111"]) == 3
+    assert max_electrons([3, 7, 1]) == 3
+    assert max_electrons(np.array([3, 15], np.uint64)) == 4
+    assert max_electrons(np.array([[1, 3], [0, 0]], np.uint64)) == 3
+    assert max_electrons([]) is None
+    assert max_electrons(np.zeros(0, np.uint64)) is None
+
+
+def test_a_colliding_key_overwrites_an_all_ones_string_in_the_hash_table():
+    from fulqrum.gpu.common.hash_utils import _splitmix64  # noqa: PLC0415
+    from fulqrum.gpu.distributed.hash_utils import (  # noqa: PLC0415
+        _build_hash_table_simple,
+        _ht_lookup_batch,
+    )
+
+    # The all-ones string equals the empty-slot marker, so a later key that
+    # probes its slot treats it as free and replaces it.
+    full = 2**64 - 1
+    home = _splitmix64(full) & 7
+    other = next(k for k in range(1, 1000) if _splitmix64(k) & 7 == home)
+    keys = np.array([full, other], np.uint64)
+    table, values, mask = _build_hash_table_simple(keys)
+    assert int(mask) == 7
+    assert _ht_lookup_batch(table, values, int(mask), keys).tolist() == [-1, 1]
+
+
+def test_check_width_rejects_a_full_sector_on_every_rank():
+
+    def body(comm):
+        electrons = (32, 64) if comm.Get_rank() == 1 else (32, 32)
+        try:
+            check_width(comm, (64, 64), "op", electrons)
+        except FulqrumError as error:
+            return error.message
+        return None
+
+    messages = run_ranks(LocalComm.create(2, timeout=60.0), body)
+    assert messages == [f"op failed: rank 1: {width_error((64, 64), (32, 64))}"] * 2
 
 
 def test_check_width_one_rank():

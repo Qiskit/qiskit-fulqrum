@@ -53,6 +53,17 @@ def library():
     lib.fq_test_row_accumulator.argtypes = [pointer, pointer, i32, i32, pointer]
     lib.fq_test_warp.argtypes = [pointer, i32, pointer, pointer]
     lib.fq_test_tile_geometry_size.restype = ctypes.c_size_t
+    lib.fq_test_key_words.argtypes = [
+        pointer,
+        i32,
+        pointer,
+        pointer,
+        i64,
+        pointer,
+        pointer,
+        pointer,
+        pointer,
+    ]
     return lib
 
 
@@ -174,3 +185,47 @@ def test_warp_any_and_broadcast_see_the_whole_warp(library):
 
 def test_the_tile_geometry_has_the_layout_of_the_header(library):
     assert library.fq_test_tile_geometry_size() == 56
+
+
+@pytest.mark.parametrize("n", [63, 64, 65, 100, 127, 128])
+def test_device_key_words_match_the_host_primitives(library, n):
+    from fulqrum.gpu.common import wide  # noqa: PLC0415
+
+    rng = np.random.default_rng(n)
+    count = 100000
+    words = wide.key_words(n)
+    host = rng.integers(0, 2**63, size=(count, words), dtype=np.uint64) << np.uint64(1)
+    host |= rng.integers(0, 2, size=(count, words), dtype=np.uint64)
+    if n % 64:
+        host[:, -1] &= np.uint64((1 << (n % 64)) - 1)
+    host[0] = np.uint64(2**64 - 1) if n % 64 == 0 else host[0]
+    low = rng.integers(0, n, size=count).astype(np.int32)
+    high = rng.integers(0, n, size=count).astype(np.int32)
+    d_words = cupy.asarray(np.ascontiguousarray(host))
+    d_low, d_high = cupy.asarray(low), cupy.asarray(high)
+    hashes = cupy.zeros(count, dtype=cupy.uint64)
+    counts = cupy.zeros(count, dtype=cupy.int32)
+    parities = cupy.zeros(count, dtype=cupy.int32)
+    bits = cupy.zeros(count, dtype=cupy.int32)
+    run(
+        library.fq_test_key_words(
+            address(d_words),
+            words,
+            address(d_low),
+            address(d_high),
+            count,
+            address(hashes),
+            address(counts),
+            address(parities),
+            address(bits),
+        )
+    )
+    flat = host[:, 0] if words == 1 else host
+    assert np.array_equal(cupy.asnumpy(hashes), wide.hash_w(flat))
+    assert np.array_equal(cupy.asnumpy(counts), wide.popcount_w(flat))
+    parity = wide.between_parity_w(flat, low, high)
+    assert np.array_equal(cupy.asnumpy(parities), parity)
+    got = cupy.asnumpy(bits)
+    assert np.array_equal(got & 1, wide.bit_w(flat, low))
+    empty = wide.eq_w(flat, np.broadcast_to(wide.empty_w(words), (count, words)))
+    assert np.array_equal((got & 2) != 0, empty)
