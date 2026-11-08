@@ -339,7 +339,12 @@ int launch_lbg_bucket(const FqTileGeometry* geometry, const FqVectors* vectors, 
     {
         return int(cudaSuccess);
     }
-    cudaMemsetAsync(lbg->out_panel, 0, sizeof(double) * (std::size_t)tables->num_parents * geometry->n_b_bra * lbg->out_stride, s);
+    const cudaError_t cleared = cudaMemsetAsync(
+        lbg->out_panel, 0, sizeof(double) * (std::size_t)tables->num_parents * geometry->n_b_bra * lbg->out_stride, s);
+    if(cleared != cudaSuccess)
+    {
+        return int(cleared);
+    }
     lbg_kernel<NMAX><<<static_cast<unsigned int>((items + 3) / 4), 128, 0, s>>>(*geometry, *tables, *lbg);
     const long long unpack = (long long)tables->num_parents * ((geometry->n_b_bra + 7) / 8);
     lbg_unpack_kernel<<<static_cast<unsigned int>((unpack + 7) / 8), 256, 0, s>>>(*geometry, *vectors, *tables, *lbg);
@@ -373,7 +378,11 @@ extern "C"
     int fq_launch_lbg_finite(const double* source, const long long n, std::int32_t* nonfinite, void* stream)
     {
         const auto s = static_cast<cudaStream_t>(stream);
-        cudaMemsetAsync(nonfinite, 0, sizeof(std::int32_t), s);
+        const cudaError_t cleared = cudaMemsetAsync(nonfinite, 0, sizeof(std::int32_t), s);
+        if(cleared != cudaSuccess)
+        {
+            return int(cleared);
+        }
         if(n > 0)
         {
             const long long blocks = (n + 255) / 256;

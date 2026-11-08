@@ -193,14 +193,22 @@ def test_memory_failure_does_not_materialize_product(monkeypatch):
     op.set_type(2)
     space = fq.Subspace([["01", "10"], ["01", "10"]])
     h = fq.SubspaceHamiltonian(op, space)
-    with monkeypatch.context() as resource:
+    zeros = np.zeros
+    failed = []
 
-        def allocation_failure(*args, **kwargs):
+    def allocation_failure(shape, *args, **kwargs):
+        # The CPU matvec allocates its output with np.zeros (core/spmv.pyx);
+        # fail only that subspace-sized allocation.
+        if shape == 4 or shape == (4,):
+            failed.append(shape)
             raise MemoryError("injected allocation failure")
+        return zeros(shape, *args, **kwargs)
 
-        resource.setattr(np, "empty", allocation_failure)
-        with pytest.raises(MemoryError):
+    with monkeypatch.context() as resource:
+        resource.setattr(np, "zeros", allocation_failure)
+        with pytest.raises(MemoryError, match="injected allocation failure"):
             h @ np.ones(4)
+    assert failed
     assert not space._storage_state()["map_materialized"]
     h @ np.ones(4)
     assert not space._storage_state()["map_materialized"]

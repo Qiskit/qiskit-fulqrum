@@ -179,7 +179,7 @@ cdef void validate_tile(FulqrumSpMV spmv, HalfKeyView* store, int sector) except
     for half in range(2):
         if store.half_words(half) != 1 or 2 * pairs[half] > MAX_DIRECTED_PAIRS:
             raise ValueError("GPU tile sector exceeds the packed format limits")
-        if store.num_half_keys(half) > 0x100000000:
+        if store.num_half_keys(half) >= 0x100000000:
             raise ValueError("GPU tile columns must fit in uint32")
 
 def sector_tiles(FulqrumSpMV spmv, int sector, size_t bra_begin, size_t bra_end, block_bounds,

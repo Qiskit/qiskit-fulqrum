@@ -907,7 +907,11 @@ extern "C"
             }
 
 
-            cudaMemsetAsync(tables->nonfinite, 0, sizeof(std::int32_t), cuda_stream);
+            const cudaError_t cleared = cudaMemsetAsync(tables->nonfinite, 0, sizeof(std::int32_t), cuda_stream);
+            if(cleared != cudaSuccess)
+            {
+                return int(cleared);
+            }
             const int status = with_panel_instance(tables->bucket, [&](auto kernel, auto pack, const int nmax, int) {
                 const dim3 pack_grid(static_cast<unsigned int>((tables->panel_columns + 31) / 32),
                                      static_cast<unsigned int>(tables->num_parents < 65535 ? tables->num_parents : 65535));

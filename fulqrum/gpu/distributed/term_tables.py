@@ -37,7 +37,7 @@ def _build_ht_u32_kv(keys_int, vals_int):
         cap <<= 1
     mask = int(cap - 1)
     ht_keys = np.full(cap, _EMPTY_KEY_U32, dtype=np.uint32)
-    ht_vals = np.full(cap, np.int32(-1), dtype=np.int32)
+    ht_vals = np.full(cap, _EMPTY_KEY_U32, dtype=np.uint32)
     bw = (cap + 31) // 32
     ht_bitset = np.full(bw, np.uint32(0xFFFFFFFF), dtype=np.uint32)
     for key, val in zip(keys_int, vals_int):
@@ -45,7 +45,7 @@ def _build_ht_u32_kv(keys_int, vals_int):
         while ht_keys[slot] != _EMPTY_KEY_U32:
             slot = (slot + 1) & mask
         ht_keys[slot] = np.uint32(key)
-        ht_vals[slot] = np.int32(val)
+        ht_vals[slot] = np.uint32(val)
         word, bit = slot >> 5, slot & 31
         ht_bitset[word] = np.uint32(int(ht_bitset[word]) & ~(1 << bit))
     return ht_keys, ht_vals, np.uint32(mask), ht_bitset
@@ -60,7 +60,7 @@ def _build_ht_u64_kv(keys_int, vals_int):
         cap <<= 1
     mask = int(cap - 1)
     ht_keys = np.full(cap, _EMPTY_KEY, dtype=np.uint64)
-    ht_vals = np.full(cap, np.int32(-1), dtype=np.int32)
+    ht_vals = np.full(cap, _EMPTY_KEY_U32, dtype=np.uint32)
     bw = (cap + 63) // 64
     ht_bitset = np.full(bw, np.uint64(0xFFFFFFFFFFFFFFFF), dtype=np.uint64)
     for key, val in zip(keys_int, vals_int):
@@ -69,7 +69,7 @@ def _build_ht_u64_kv(keys_int, vals_int):
         while ht_keys[slot] != _EMPTY_KEY:
             slot = (slot + 1) & mask
         ht_keys[slot] = np.uint64(k)
-        ht_vals[slot] = np.int32(val)
+        ht_vals[slot] = np.uint32(val)
         word, bit = slot >> 6, slot & 63
         ht_bitset[word] = np.uint64(int(ht_bitset[word]) & ~(1 << bit))
     return ht_keys, ht_vals, np.uint64(mask), ht_bitset

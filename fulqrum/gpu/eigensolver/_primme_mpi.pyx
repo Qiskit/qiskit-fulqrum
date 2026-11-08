@@ -153,10 +153,12 @@ cdef extern from *:
     static void fq_primme_spec_wait_output_free_(void) { fq_primme_spec_wait_output_free(); }
     extern "C" void fq_primme_spec_set_enabled(int enabled, const double *diag);
     extern "C" void fq_primme_spec_release(void);
+    extern "C" void fq_primme_spec_unblock(void);
     extern "C" void fq_primme_spec_stats(long long *counts, double *seconds);
     static void fq_primme_spec_set_enabled_(int enabled, const double *diag)
     { fq_primme_spec_set_enabled(enabled, diag); }
     static void fq_primme_spec_release_(void) { fq_primme_spec_release(); }
+    static void fq_primme_spec_unblock_(void) { fq_primme_spec_unblock(); }
     static void fq_primme_spec_stats_(long long *counts, double *seconds)
     { fq_primme_spec_stats(counts, seconds); }
     #else
@@ -166,6 +168,7 @@ cdef extern from *:
     static void fq_primme_spec_set_enabled_(int enabled, const double *diag)
     { (void)enabled; (void)diag; }
     static void fq_primme_spec_release_(void) { }
+    static void fq_primme_spec_unblock_(void) { }
     static void fq_primme_spec_stats_(long long *counts, double *seconds)
     { int i; for (i = 0; i < 5; i++) counts[i] = 0; for (i = 0; i < 3; i++) seconds[i] = 0.0; }
     #endif
@@ -182,6 +185,7 @@ cdef extern from *:
     void fq_spec_overlap_set_(fq_spec_start_fn start, fq_matvec_dot_fn dot)
     void fq_primme_spec_set_enabled_(int enabled, const double *diag)
     void fq_primme_spec_release_()
+    void fq_primme_spec_unblock_()
     void fq_primme_spec_stats_(long long *counts, double *seconds)
     long long fq_primme_spec_chunk_rows_() nogil
     int fq_primme_spec_wait_rows_(long long rows) nogil
@@ -199,6 +203,8 @@ cdef enum:
     PRIMME_broadcastReal = 14
     PRIMME_numEvals = 16
     PRIMME_target = 17
+    PRIMME_numTargetShifts = 18
+    PRIMME_targetShifts = 19
     PRIMME_locking = 20
     PRIMME_initSize = 21
     PRIMME_maxBasisSize = 23
@@ -346,7 +352,27 @@ cdef inline _Context _context(primme_params *primme):
 cdef object _as_local_block(double *ptr, PRIMME_INT ld, int block_size, Py_ssize_t n_local):
 
 
+    if n_local == 0 or block_size == 0:
+        return np.empty((n_local, block_size), dtype=np.float64)
     return np.asarray(<double[:ld:1, :block_size]>ptr)[:n_local, :]
+
+
+cdef void _abort_if_distributed(_Context ctx, str what) noexcept with gil:
+
+    if ctx.comm.Get_size() <= 1:
+        return
+    try:
+        import sys
+        import traceback
+
+        sys.stderr.write(
+            f"PRIMME {what} callback failed on rank {ctx.comm.Get_rank()}. "
+            "Aborting the MPI job to prevent other ranks from waiting indefinitely in collective operations.\n"
+        )
+        traceback.print_exc(file=sys.stderr)
+        sys.stderr.flush()
+    finally:
+        ctx.comm.Abort(1)
 
 
 cdef void c_matvec(
@@ -370,6 +396,7 @@ cdef void c_matvec(
     except BaseException as exc:  # noqa: BLE001
         ctx.exc = exc
         ierr[0] = 1
+        _abort_if_distributed(ctx, "matvec")
 
 
 cdef void c_matvec_gpu(
@@ -528,6 +555,7 @@ cdef void c_precond(
     except BaseException as exc:  # noqa: BLE001
         ctx.exc = exc
         ierr[0] = 1
+        _abort_if_distributed(ctx, "preconditioner")
 
 
 cdef void c_global_sum_real(
@@ -629,6 +657,12 @@ cdef bint _conv_decision(_Context ctx, double value, double resnorm, long long m
     return isconv
 
 
+def _test_abort_if_distributed(H, str what):
+
+    cdef _Context ctx = _Context(H, None, "abs", 0.0)
+    _abort_if_distributed(ctx, what)
+
+
 def _test_conv_sequence(conv, double tol, double energy_tol, int energy_window, double resnorm_cap,
                         steps, double sign=1.0):
 
@@ -667,6 +701,7 @@ cdef void c_conv(
     except BaseException as exc:  # noqa: BLE001
         ctx.exc = exc
         ierr[0] = 1
+        _abort_if_distributed(ctx, "convergence test")
 
 
 cdef dict _stats(primme_params *pp, np.ndarray rnorms, int nconv):
@@ -747,9 +782,10 @@ def eigsh(
     cdef np.ndarray[np.double_t, ndim=2, mode="fortran"] evecs
     cdef int err
     cdef int init_size
-    cdef int basis_size = 0
+    cdef PRIMME_INT basis_size = 0
     cdef int target
     cdef PRIMME_INT init_size_out
+    cdef double zero_shift = 0.0
     cdef double *evals_ptr
     cdef double *evecs_ptr
     cdef double *rnorms_ptr
@@ -850,6 +886,9 @@ def eigsh(
 
             target = _constant(_TARGETS[which])
             _set_int(pp, PRIMME_target, target)
+            if which in ("SM", "LM"):
+                _set_int(pp, PRIMME_numTargetShifts, 1)
+                _set_pointer(pp, PRIMME_targetShifts, <void *>&zero_shift)
 
             if method:
                 if primme_set_method(<primme_preset_method>_constant(method), pp) != 0:
@@ -873,7 +912,7 @@ def eigsh(
                 checked_multiply(checked_multiply(basis_size, basis_size), sizeof(double))
 
             evals = np.zeros(k, dtype=np.float64)
-            rnorms = np.zeros(k, dtype=np.float64)
+            rnorms = np.full(k, np.nan, dtype=np.float64)
             if use_gpu:
                 if gpu_init_size > 0:
                     _set_int(pp, PRIMME_initSize, gpu_init_size)
@@ -929,14 +968,29 @@ def eigsh(
                 raise RuntimeError(message) from ctx.exc
             raise RuntimeError(message)
 
+        init_size_out = 0
+        primme_get_member(pp, <primme_params_label>PRIMME_initSize, &init_size_out)
+        unconverged = (
+            np.flatnonzero(np.isnan(rnorms[:k]) | (rnorms[:k] < 0))
+            if err == -3
+            else np.empty(0, dtype=np.intp)
+        )
         result = [np.array(evals[:k], copy=True)]
+        result[0][unconverged] = np.nan
         if return_eigenvectors:
             if use_gpu:
                 result.append(gpu_evecs[:, :k].copy(order="F"))
             else:
                 result.append(np.array(evecs[:, :k], copy=True, order="F"))
+            result[1][:, unconverged] = np.nan
         if return_stats:
             stats = _stats(pp, rnorms, k)
+            if err != -3:
+                stats["nconv"] = k
+            elif len(unconverged):
+                stats["nconv"] = k - len(unconverged)
+            else:
+                stats["nconv"] = int(init_size_out)
             if not use_gpu:
                 stats["pinnedBasisGiB"] = float(pinned_gib)
                 stats["pinnedBasisSeconds"] = float(pinned_seconds)
@@ -961,6 +1015,7 @@ def eigsh(
     finally:
         if not use_gpu:
             fq_primme_host_pinned_set_(0)
+            fq_primme_spec_unblock_()
             if overlap_matvec is not None:
                 overlap_matvec.close()
             fq_primme_spec_set_enabled_(0, NULL)

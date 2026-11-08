@@ -298,16 +298,30 @@ def arm_cache_sizes(lengths: ArmCacheLengths, num_alpha: int, num_beta: int) -> 
 
 
 def hbm_fit_error(
-    predicted: dict, free_bytes: int, total_bytes: int, fraction: float
+    predicted: dict,
+    free_bytes: int,
+    total_bytes: int,
+    fraction: float,
+    pending: Optional[dict] = None,
 ) -> Optional[str]:
 
 
-    total = sum(predicted.values())
-    if total <= fraction * free_bytes:
+    if pending is None:
+        total = sum(predicted.values())
+        if total <= fraction * free_bytes:
+            return None
+        return (
+            f"predicted={total} B exceeds {fraction:.0%} of free_bytes={free_bytes} B "
+            f"(total={total_bytes} B). Breakdown: {predicted}."
+        )
+    resident = sum(predicted.values())
+    later = sum(pending.values())
+    if later <= fraction * free_bytes and resident + later <= total_bytes:
         return None
     return (
-        f"predicted={total} B exceeds {fraction:.0%} of free_bytes={free_bytes} B "
-        f"(total={total_bytes} B). Breakdown: {predicted}."
+        f"pending={later} B (to allocate) against {fraction:.0%} of "
+        f"free_bytes={free_bytes} B, resident={resident} B, "
+        f"total={total_bytes} B. Pending: {pending}. Resident: {predicted}."
     )
 
 

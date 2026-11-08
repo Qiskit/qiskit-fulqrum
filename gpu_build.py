@@ -632,11 +632,15 @@ PRIMME_REVISION = "aa98cd27c13b2dbd41daa25d574c8837b0779a11"
 
 
 def copy_primme_sources(destination):
-    """Export the pinned upstream source, preserving local submodule edits."""
+    """Export the pinned upstream revision.
+
+    Git checkouts ignore local submodule edits; an sdist copies its bundled export.
+    """
     source = ROOT / "third-party/primme"
     destination = Path(destination)
     destination.mkdir(parents=True, exist_ok=True)
     if (source / ".git").exists():
+        _warn_ignored_primme_edits(source)
         data = subprocess.check_output(
             ["git", "-C", str(source), "archive", PRIMME_REVISION]
         )
@@ -667,17 +671,36 @@ def copy_primme_sources(destination):
         )
 
 
+def _warn_ignored_primme_edits(source):
+    head = subprocess.run(
+        ["git", "-C", str(source), "rev-parse", "HEAD"], capture_output=True, text=True
+    )
+    dirty = subprocess.run(
+        ["git", "-C", str(source), "status", "--porcelain"],
+        capture_output=True,
+        text=True,
+    )
+    if head.stdout.strip() != PRIMME_REVISION or dirty.stdout.strip():
+        print(
+            f"WARNING: third-party/primme differs from {PRIMME_REVISION[:12]}; "
+            "the build uses the pinned revision plus patches/primme/*.patch and "
+            "ignores local submodule edits",
+            flush=True,
+        )
+
+
 def _primme_build_key(source, cuda_root, blas_path):
     digest = hashlib.sha256()
-    for path in sorted(source.rglob("*")):
-        if (
-            path.is_file()
-            and ".git" not in path.parts
-            and path.suffix not in (".o", ".a", ".so")
-            and "lib" not in path.relative_to(source).parts
-        ):
-            digest.update(str(path.relative_to(source)).encode())
-            digest.update(path.read_bytes())
+    if not (source / ".git").exists():
+        for path in sorted(source.rglob("*")):
+            if (
+                path.is_file()
+                and ".git" not in path.parts
+                and path.suffix not in (".o", ".a", ".so")
+                and "lib" not in path.relative_to(source).parts
+            ):
+                digest.update(str(path.relative_to(source)).encode())
+                digest.update(path.read_bytes())
     for path in sorted((ROOT / "patches/primme").glob("*.patch")):
         digest.update(path.name.encode())
         digest.update(path.read_bytes())

@@ -179,6 +179,25 @@ class GPUHamiltonian(LinearOperator):
         """
         return [op.last_timing for op in self._ranks]
 
+    def _run_and_recover(self, function):
+
+        import cupy  # noqa: PLC0415
+
+        try:
+            return run_ranks(self._comms, function)
+        except BaseException:
+            for gpu_id, op in zip(self._gpu_ids, self._ranks):
+                with cupy.cuda.Device(gpu_id):
+                    try:
+                        cupy.cuda.runtime.deviceSynchronize()
+                    except Exception:  # noqa: BLE001
+                        pass
+                    try:
+                        op.reset_cache()
+                    except Exception:  # noqa: BLE001
+                        pass
+            raise
+
     def reset_cache(self) -> None:
         """Clear cached GPU connection data on every worker.
 
@@ -233,7 +252,7 @@ class GPUHamiltonian(LinearOperator):
                 )
             out[b0:b1, a0:a1] = np.asarray(tile).reshape(b1 - b0, a1 - a0)
 
-        run_ranks(self._comms, product)
+        self._run_and_recover(product)
         return out.reshape(-1)
 
     def compute_rdms(self, evec, *, rank: int = 1, spin_summed: bool = False):
@@ -291,4 +310,4 @@ class GPUHamiltonian(LinearOperator):
                     spin_summed=spin_summed,
                 )
 
-        return run_ranks(self._comms, rdms)[0]
+        return self._run_and_recover(rdms)[0]

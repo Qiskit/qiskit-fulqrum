@@ -451,3 +451,19 @@ def test_fixed_reduce_with_split_kinds():
     np.testing.assert_array_equal(
         gpu_matvec(host, x, True, layout=fixed), gpu_matvec(host, x, True)
     )
+
+
+@requires_gpu
+@pytest.mark.parametrize("num_slices", [1, 3])
+def test_kernel_calibration_runs_on_buckets_with_many_members(num_slices):
+    from fulqrum.gpu.full_strs.probe import kernel_coefficients  # noqa: PLC0415
+    from fulqrum.test.test_full_strs_coefficients import random_operator  # noqa: PLC0415
+    from fulqrum.test.test_full_strs_matvec import clustered_keys  # noqa: PLC0415
+
+    rng = np.random.default_rng(71)
+    keys = clustered_keys(rng, 10, 5, 4, 3000, 60)
+    result = kernel_coefficients(random_operator(10, 72), keys, num_slices, repeats=1)
+    assert sum(map(sum, result["launches"])) > 0
+    coefficients = np.asarray(result["coefficients"])
+    assert np.isfinite(coefficients).all() and (coefficients > 0).all()
+    assert np.isfinite(result["entry_cost"]) and result["entry_cost"] > 0

@@ -28,11 +28,6 @@ logger = logging.getLogger(__name__)
 __all__ = ["distributed_primme_eigsh", "is_primme_mpi_available"]
 
 
-def _env_flag(name: str) -> bool:
-
-    return os.environ.get(name, "").strip().lower() in ("1", "true", "yes", "on")
-
-
 def _load_backend():
 
 
@@ -242,7 +237,12 @@ def distributed_primme_eigsh(
     )
     callbacks = _finish_callbacks(use_gpu, H, callbacks)
     started = time.perf_counter()
-    result = run_primme(backend, H, options, callbacks)
+    try:
+        result = run_primme(backend, H, options, callbacks)
+    finally:
+        if callbacks.primme_comm is not None:
+            callbacks.primme_comm.Free()
+            callbacks.primme_comm = None
     if H._comm.Get_rank() == 0:
         logger.info(
             "PRIMME solve returned: requested_eigenpairs=%d, leg=%s, elapsed=%.2f s",
@@ -407,7 +407,7 @@ def _gpu_leg_callbacks(
     import cupy  # noqa: PLC0415
 
     cupy.get_default_memory_pool().free_all_blocks()
-    managed_basis = _env_flag("FQ_PRIMME_MANAGED_BASIS")
+    managed_basis = bool(config.read("FQ_PRIMME_MANAGED_BASIS"))
     if options.ncv:
         _check_gpu_basis_fits(n_local, int(options.ncv), managed_basis)
     callbacks = SolverCallbacks(None, None)
@@ -460,13 +460,11 @@ def _host_leg_local(H, n_local, precond_diag_local, v0_local) -> SolverCallbacks
 
 
     callbacks = SolverCallbacks(precond_diag_local, v0_local)
-    if precond_diag_local is not None and os.environ.get(
-        "FQ_PRIMME_GPU_PRECOND", ""
-    ).lower() in ("1", "true", "yes", "on"):
+    if precond_diag_local is not None and config.read("FQ_PRIMME_GPU_PRECOND"):
         import cupy  # noqa: PLC0415
 
         cupy.get_default_memory_pool().free_all_blocks()
-        _pc_tile = int(os.environ.get("FQ_PRIMME_GPU_PRECOND_TILE", 1 << 24))
+        _pc_tile = int(config.read("FQ_PRIMME_GPU_PRECOND_TILE"))
         callbacks.gpu_precond = _make_host_gpu_precond(
             precond_diag_local, n_local, _pc_tile
         )
@@ -488,13 +486,26 @@ def _host_leg_collective(H, callbacks) -> None:
             callbacks.spec_matvec = bool(config.read("FQ_PRIMME_SPEC_MATVEC"))
             if H._comm.Get_size() > 1:
                 callbacks.primme_comm = H._comm.Dup()
+        spec_blocked = (
+            callbacks.spec_matvec
+            and callbacks.gpu_precond is not None
+            and callbacks.precond_diag_local is None
+        )
         if H._comm.Get_rank() == 0:
+            spec = "on" if callbacks.spec_matvec else "off"
+            if spec_blocked:
+                spec = "off (GPU preconditioner)"
+                logger.info(
+                    "PRIMME host leg: FQ_PRIMME_GPU_PRECOND=1 disables speculative "
+                    "matvecs (the spec pass needs the host preconditioner diagonal)",
+                    extra={"gpu_rank": 0},
+                )
             logger.info(
                 "PRIMME host leg: page_locked_basis=%s, matvec_overlap=%s (%s), spec_matvec=%s",
                 "on" if callbacks.pinned_basis else "off",
                 "on" if overlap else "off",
                 reason,
-                "on" if callbacks.spec_matvec else "off",
+                spec,
                 extra={"gpu_rank": 0},
             )
 
@@ -626,6 +637,8 @@ def _device_vector_wrapper(n_local: int):
 
     def _wrap(ptr):
 
+        if n == 0:
+            return cupy.empty(0, dtype=cupy.float64)
         mem = cupy.cuda.UnownedMemory(int(ptr), n * 8, owner=None)
         return cupy.ndarray(
             (n,), dtype=cupy.float64, memptr=cupy.cuda.MemoryPointer(mem, 0)
@@ -791,11 +804,14 @@ class _HostDirectMatvec:
             error, self._error = self._error, None
             raise error
 
-    def close(self):
+    def close(self, timeout=None):
 
         if self._thread is not None:
-            self._thread.join()
+            self._thread.join(timeout)
+            if self._thread.is_alive():
+                return False
             self._thread = None
+        return True
 
     def stats(self):
 
@@ -805,6 +821,27 @@ class _HostDirectMatvec:
             "overlapWaitSeconds": self._wait_seconds,
             "overlapThreadSeconds": self._thread_seconds,
         }
+
+
+def _abort_on_stuck_close(close, comm):
+
+    def _guarded():
+
+        timeout = float(config.read("FQ_PRIMME_CLOSE_TIMEOUT_S"))
+        if close(timeout=timeout):
+            return
+        import sys  # noqa: PLC0415
+
+        sys.stderr.write(
+            f"PRIMME overlapped matvec did not finish on rank {comm.Get_rank()} "
+            f"within {timeout:g} s after the solver stopped (a peer likely left a "
+            "collective matvec). Aborting the MPI job to prevent other ranks from "
+            "waiting indefinitely in collective operations.\n"
+        )
+        sys.stderr.flush()
+        comm.Abort(1)
+
+    return _guarded
 
 
 class _GuardedOverlap:
@@ -817,7 +854,11 @@ class _GuardedOverlap:
             inner.input_done, comm, "overlapped matvec"
         )
         self.wait = _abort_on_rank_error(inner.wait, comm, "overlapped matvec")
-        self.close = inner.close
+        self.close = (
+            _abort_on_stuck_close(inner.close, comm)
+            if comm.Get_size() > 1
+            else inner.close
+        )
         self.stats = inner.stats
         self.dot = inner.dot
 

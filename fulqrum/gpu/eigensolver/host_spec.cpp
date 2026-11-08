@@ -596,6 +596,13 @@ extern "C" void fq_primme_spec_finished(int kept, int fast)
 }
 
 
+extern "C" void fq_primme_spec_unblock(void)
+{
+    publish_rows(0, true);
+    release_output();
+}
+
+
 extern "C" int fq_primme_spec_drain(primme_params* primme)
 {
     if(g_state == 0)

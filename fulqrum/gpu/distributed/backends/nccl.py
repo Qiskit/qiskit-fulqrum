@@ -143,6 +143,12 @@ class _NcclBackend(_Backend):
                 f"but current GPU is {current}"
             )
 
+    def prepare(self, comms) -> None:
+
+        for comm in comms:
+            if comm is not None:
+                self._get_nccl_for(comm)
+
     def _get_nccl_for(self, comm):
 
 

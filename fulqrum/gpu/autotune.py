@@ -380,12 +380,46 @@ def resolve(
         _resolve_static(
             settings, result, "FQ_TUNE=off" if tune == "off" else "no device"
         )
+        if agree is not None:
+            agree(None)
         return result
     result.choices["fp64_mma"] = Choice(mma_fast, mma_source, mma_reason)
     _resolve_mma_levers(settings, result, tier, mma_fast)
     _resolve_memory(settings, result, tier, device, can_split_diagonal)
     _resolve_kernels(settings, result, device, kernels)
+    if agree is not None:
+        _agree_device_rules(result, agree)
     return result
+
+
+def _agree_device_rules(result: Resolution, agree) -> None:
+
+
+    mine = {
+        name: result.choices[name].value
+        for name in ("scratch_mib", "clique_rows", "aa_prefetch")
+        if result.choices[name].source != "explicit"
+    }
+    if result.choices["bb_prefetch"].source != "explicit":
+        mine["bb"] = (
+            result.choices["bb_prefetch"].value,
+            result.choices["bb_alphas"].value,
+        )
+    everyone = [values for values in agree(mine) if isinstance(values, dict)]
+    for name, value in mine.items():
+        values = [values[name] for values in everyone if name in values]
+        if len(set(values)) <= 1:
+            continue
+        reason = f"agreed over ranks from {sorted(set(values))}"
+        if name == "bb":
+            rank = {candidate: i for i, candidate in enumerate(BB_CANDIDATES)}
+            chosen = max(values, key=lambda c: rank.get(c, len(BB_CANDIDATES)))
+            result.choices["bb_prefetch"] = Choice(chosen[0], "rule", reason)
+            result.choices["bb_alphas"] = Choice(chosen[1], "rule", reason)
+        elif isinstance(value, bool):
+            result.choices[name] = Choice(all(values), "rule", reason)
+        else:
+            result.choices[name] = Choice(min(values), "rule", reason)
 
 
 def _resolve_static(settings: _Settings, result: Resolution, why: str) -> None:

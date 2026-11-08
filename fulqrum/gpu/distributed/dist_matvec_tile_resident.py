@@ -184,6 +184,11 @@ def _to_device(array, dtype=None):
     return cupy.asarray(host)
 
 
+# Categories allocated lazily, mostly by the first matvec. The pending
+# estimate does not yet cover all first-matvec allocations, so it can be low.
+_HBM_PENDING = frozenset({"v_local", "out_local", "scratch", "arm_caches"})
+
+
 def _wait_for_uploads() -> None:
 
     import cupy  # noqa: PLC0415
@@ -397,6 +402,12 @@ class TileGPUResidentHamiltonian(LinearOperator):
         if comm_backend not in self._VALID_BACKENDS:
             raise ValueError(
                 f"comm_backend={comm_backend!r} not one of {self._VALID_BACKENDS}"
+            )
+        tpb = int(threads_per_block)
+        if not (32 <= tpb <= 256 and tpb % 32 == 0):
+            raise ValueError(
+                f"threads_per_block={threads_per_block!r} must be a multiple of 32 "
+                "from 32 to 256 (the arm kernels are built for 256 threads)"
             )
 
         if comm is None:
@@ -1198,12 +1209,23 @@ class TileGPUResidentHamiltonian(LinearOperator):
         separate. These are the estimates used by ``verify_hbm_fits``, not a
         measurement of total device usage. Reading does not allocate GPU memory.
         """
+        resident, pending = self.predicted_hbm_split()
+        return {**resident, **pending}
+
+    def predicted_hbm_split(self) -> tuple[dict, dict]:
+        """Split ``predicted_hbm_bytes`` into allocated and not-yet-allocated bytes.
+
+        Returns ``(resident, pending)``. Resident categories are allocated by the
+        end of construction; pending ones are allocated lazily, mostly by the
+        first matvec. ``verify_hbm_fits`` compares only the pending bytes with
+        free memory, and the sum of both with total memory.
+        """
         mixed_recv = 0
         _msl = getattr(self, "_d_mixed_slots", None)
         if _msl is not None:
             mixed_recv += sum(int(s.nbytes) for s in _msl if s.base is None)
 
-        return {
+        categories = {
             **self._d_buffer_bytes,
             "operator": self._operator_bytes,
             "scratch": self._SCRATCH_BYTES,
@@ -1211,8 +1233,15 @@ class TileGPUResidentHamiltonian(LinearOperator):
             "arm_caches": self._predict_arm_cache_bytes(),
             "aabb_csr": int(self._aabb_csr_bytes),
             "aabb_parent_extra": int(self._aabb_parent_bytes),
+            "aabb_remote_alpha_metadata": int(self._aabb_remote_alpha_bytes),
             "aabb_remote_beta_metadata": int(self._aabb_remote_beta_bytes),
         }
+        pending_names = set(_HBM_PENDING)
+        if self._host_arms:
+            pending_names.discard("arm_caches")
+        resident = {k: v for k, v in categories.items() if k not in pending_names}
+        pending = {k: v for k, v in categories.items() if k in pending_names}
+        return resident, pending
 
     def partition_diagnostic(self) -> dict:
         """Return local connection counts and estimates for comparing partition work."""
@@ -1290,8 +1319,9 @@ class TileGPUResidentHamiltonian(LinearOperator):
             )
 
         free_bytes, total_bytes = cupy.cuda.runtime.memGetInfo()
+        resident, pending = self.predicted_hbm_split()
         error = hbm_fit_error(
-            self.predicted_hbm_bytes, free_bytes, total_bytes, self._HBM_FREE_FRACTION
+            resident, free_bytes, total_bytes, self._HBM_FREE_FRACTION, pending
         )
         if error is None:
             return None
@@ -1458,6 +1488,7 @@ class TileGPUResidentHamiltonian(LinearOperator):
         self._hierarchical_network_bytes = hierarchical_local
         self._hierarchical_exchange_active = True
         self._hierarchical_lean_ring_active = True
+        self._backend.prepare([node_comm])
         self._exchange_reason += (
             f"; domain sizes {[len(domain) for domain in domains]}, "
             f"{len(round_args)} rounds, remote bytes reduced "
@@ -1597,6 +1628,7 @@ class TileGPUResidentHamiltonian(LinearOperator):
         if not self._cupy_available:
             self._d_alpha_slot_persistent = None
             self._d_beta_slot_persistent = None
+            self._identity_slots = (None, None)
             self._d_exchange_pool = None
             self._d_hierarchical_stage = None
             self._d_hierarchical_gather = None
@@ -1615,6 +1647,10 @@ class TileGPUResidentHamiltonian(LinearOperator):
         )
         self._d_beta_slot_persistent = cupy.arange(
             max(int(self._n_b_peer_max), 1), dtype=cupy.int32
+        )
+        self._identity_slots = (
+            self._d_alpha_slot_persistent,
+            self._d_beta_slot_persistent,
         )
         self._allocate_exchange_pool()
         if self._hierarchical_exchange_active:
@@ -2016,10 +2052,10 @@ class TileGPUResidentHamiltonian(LinearOperator):
         self._d_grp_ladder_ptrs = _to_device(gpu_data["grp_ladder_ptrs"], np.uint32)
         self._d_oper_elems = _to_device(_OPER_ELEMS_HOST, np.int8)
         self._d_grp2_ht_keys = _to_device(g2_keys, np.uint32)
-        self._d_grp2_ht_vals = _to_device(g2_vals, np.int32)
+        self._d_grp2_ht_vals = _to_device(g2_vals, np.uint32)
         self._d_grp2_ht_bitset = _to_device(g2_bitset, np.uint32)
         self._d_grp4_ht_keys = _to_device(g4_keys, np.uint64)
-        self._d_grp4_ht_vals = _to_device(g4_vals, np.int32)
+        self._d_grp4_ht_vals = _to_device(g4_vals, np.uint32)
         self._d_grp4_ht_bitset = _to_device(g4_bitset, np.uint64)
         _wait_for_uploads()
 
@@ -3143,6 +3179,8 @@ class TileGPUResidentHamiltonian(LinearOperator):
         if self._host_arms:
             return
         self._caches_built = False
+        if self._d_build_error is not None:
+            self._d_build_error.fill(0)
         self._arm_caches.clear()
         self._bbbb_class_state.clear()
         self._bbbb_class_bytes = 0
@@ -3185,6 +3223,17 @@ class TileGPUResidentHamiltonian(LinearOperator):
             (0, self._n_b_local),
             stream_handle,
         )
+
+    def _check_identity_slots(self, arm) -> None:
+
+        expected = getattr(self, "_identity_slots", None)
+        current = (self._d_alpha_slot_persistent, self._d_beta_slot_persistent)
+        if expected is None or any(a is not b for a, b in zip(current, expected)):
+            raise RuntimeError(
+                f"{arm}: the source slot arrays are not the identity slots. Several "
+                "kernels index source columns directly, so slot compaction is "
+                "unsupported"
+            )
 
     def _launch_bra_diagonal(
         self,
@@ -3392,17 +3441,18 @@ class TileGPUResidentHamiltonian(LinearOperator):
                 )
                 t0 = time.perf_counter()
                 try:
-                    plan = aabb_lbg.build_plan(
-                        probe,
-                        clique_panel_row,
-                        int(self._n_b_local),
-                        n_src_rows,
-                        int(self._n_a_local),
-                        self._xterm_scratch_bytes,
-                        self._alpha_bra,
-                        int(self._num_alpha),
-                    )
-                    state = (plan, *self._xterm_buffers(plan.scratch_doubles))
+                    with self._compute_stream:
+                        plan = aabb_lbg.build_plan(
+                            probe,
+                            clique_panel_row,
+                            int(self._n_b_local),
+                            n_src_rows,
+                            int(self._n_a_local),
+                            self._xterm_scratch_bytes,
+                            self._alpha_bra,
+                            int(self._num_alpha),
+                        )
+                        state = (plan, *self._xterm_buffers(plan.scratch_doubles))
                     self._logger.debug(
                         f"Label-batched clique plan ready: rank={self._rank} src={src_rank} remote={bool(remote)} "
                         f"scratch={plan.scratch_doubles * 8 / 2**30:.2f} GiB build={time.perf_counter() - t0:.2f}s "
@@ -3465,17 +3515,17 @@ class TileGPUResidentHamiltonian(LinearOperator):
                 for c, p in zip(counts, per_parent)
             )
             doubles = max(b * p for b, p in zip(batch, per_parent))
-        if self._xterm_scratch_bytes:
-
-            scratch, _ = self._xterm_buffers(doubles)
-            state = (scratch, cupy.zeros(1, dtype=cupy.int32), columns, batch)
-        else:
-            state = (
-                cupy.empty(doubles, dtype=cupy.float64),
-                cupy.zeros(1, dtype=cupy.int32),
-                columns,
-                batch,
-            )
+        with self._compute_stream:
+            if self._xterm_scratch_bytes:
+                scratch, _ = self._xterm_buffers(doubles)
+                state = (scratch, cupy.zeros(1, dtype=cupy.int32), columns, batch)
+            else:
+                state = (
+                    cupy.empty(doubles, dtype=cupy.float64),
+                    cupy.zeros(1, dtype=cupy.int32),
+                    columns,
+                    batch,
+                )
         self._aabb_clique_panel_state[src_rank] = state
         launches = (
             sum(-(-c // b) for c, b in zip(counts, batch))
@@ -3608,6 +3658,7 @@ class TileGPUResidentHamiltonian(LinearOperator):
             import cupy  # noqa: PLC0415
 
             cupy.get_default_memory_pool().free_all_blocks()
+        self._check_identity_slots("source arms")
         launch = SourceLaunch(
             geometry=geometry,
             src_in=_device_address(d_src_in),

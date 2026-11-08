@@ -539,6 +539,14 @@ FLAGS = (
         "Test-only path to an alternative compiled PRIMME MPI extension.",
     ),
     _flag(
+        "FQ_PRIMME_GPU_DENSE_ASSUME_NONCOHERENT",
+        5,
+        TEST,
+        "bool",
+        False,
+        "Test-only: treat the GPU as unable to read pageable host memory, so FQ_PRIMME_GPU_DENSE declines to the host dense update.",
+    ),
+    _flag(
         "FQ_PRIMME_GPU_PRECOND",
         5,
         TUNABLE,
@@ -640,6 +648,15 @@ FLAGS = (
         "bool",
         True,
         "Overlap a GPU matvec for a new basis vector with CPU orthogonalization on the host PRIMME backend. Requires block size one. With multiple ranks, requires NCCL or MPI_THREAD_MULTIPLE support.",
+    ),
+    _flag(
+        "FQ_PRIMME_CLOSE_TIMEOUT_S",
+        5,
+        TUNABLE,
+        "float",
+        300.0,
+        "Seconds a multi-rank host PRIMME solve waits, after the solver stops, for an overlapped matvec still running on this rank. If it has not finished, the rank aborts the MPI job so that peers in a collective matvec are not left waiting. Successful solves join the matvec before this wait.",
+        minimum=0.001,
     ),
     _flag(
         "FQ_PRIMME_SPEC_MATVEC",

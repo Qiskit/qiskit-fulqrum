@@ -258,10 +258,10 @@ struct FqTermTables
     const std::uint32_t* ladder_offsets;
     const std::int8_t* oper_elems;
     const std::uint32_t* pair_keys;
-    const std::int32_t* pair_values;
+    const std::uint32_t* pair_values;
     const std::uint32_t* pair_empty;
     const std::uint64_t* quad_keys;
-    const std::int32_t* quad_values;
+    const std::uint32_t* quad_values;
     const std::uint64_t* quad_empty;
     const std::uint64_t* alpha_strings;
     const std::uint64_t* beta_strings;

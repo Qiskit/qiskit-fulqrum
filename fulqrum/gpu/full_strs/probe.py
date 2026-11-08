@@ -27,7 +27,8 @@ def kernel_coefficients(operator, keys, num_slices=1, repeats=3):
 
 
     host = HostOperator(operator, keys, num_slices=int(num_slices))
-    layout = DeviceLayout(host, "resident")
+    layout = DeviceLayout(host, "resident", fixed_reduce=False)
+    layout.partials = cupy.empty(max(1, layout.largest_class_members), dtype=np.float64)
     stream = cupy.cuda.Stream(non_blocking=True)
     layout.wait(stream)
     x = cupy.asarray(np.random.default_rng(0).normal(size=host.num_rows))

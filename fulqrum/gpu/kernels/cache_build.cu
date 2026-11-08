@@ -49,7 +49,7 @@ __global__ void __launch_bounds__(fq::launch::kArmThreads) alpha_doubles_build_k
         {
             const std::int64_t slot = base + (std::int64_t(e) << 5) + (a & 31);
             const int ja = tables.columns[slot];
-            const int group =
+            const long long group =
                 fq::arms::quad_group(terms, tables.p0[slot], tables.p1[slot], tables.p2[slot], tables.p3[slot]);
             double value = 0.0;
             if(group >= 0 && tables.alpha_slot[ja] >= 0 && jb_slot >= 0)
@@ -84,7 +84,7 @@ __global__ void __launch_bounds__(fq::launch::kArmThreads) beta_doubles_build_ke
             const std::uint8_t q1 = (std::uint8_t)((unsigned int)tables.p1[edge] + shift);
             const std::uint8_t q2 = (std::uint8_t)((unsigned int)tables.p2[edge] + shift);
             const std::uint8_t q3 = (std::uint8_t)((unsigned int)tables.p3[edge] + shift);
-            const int group = fq::arms::quad_group(terms, q0, q1, q2, q3);
+            const long long group = fq::arms::quad_group(terms, q0, q1, q2, q3);
             double value = 0.0;
             if(group >= 0 && ja_slot >= 0 && tables.beta_slot[jb] >= 0)
             {
@@ -104,7 +104,7 @@ __device__ __forceinline__ void write_factor_cache(const FqTermTables& terms,
                                                    const unsigned long long a_val,
                                                    const unsigned long long b_val,
                                                    const unsigned long long* col,
-                                                   const int group,
+                                                   const long long group,
                                                    const unsigned int q0,
                                                    const unsigned int q1,
                                                    const int other)
@@ -145,7 +145,7 @@ __global__ void __launch_bounds__(fq::launch::kArmThreads) alpha_singles_build_k
         {
             const std::int64_t edge = first_edge + k_edge;
             const int ja = tables.columns[edge];
-            const int group = fq::arms::pair_group(terms, tables.low[edge], tables.high[edge]);
+            const long long group = fq::arms::pair_group(terms, tables.low[edge], tables.high[edge]);
             if(group >= 0 && tables.alpha_slot[ja] >= 0 && jb_slot >= 0)
             {
                 const unsigned long long col[2] = {terms.alpha_strings[geometry.src_a0 + ja], b_val};
@@ -175,7 +175,7 @@ __global__ void __launch_bounds__(fq::launch::kArmThreads) beta_singles_build_ke
             const int jb = tables.columns[edge];
             const std::uint8_t q0 = (std::uint8_t)((unsigned int)tables.low[edge] + shift);
             const std::uint8_t q1 = (std::uint8_t)((unsigned int)tables.high[edge] + shift);
-            const int group = fq::arms::pair_group(terms, q0, q1);
+            const long long group = fq::arms::pair_group(terms, q0, q1);
             if(group >= 0 && ja_slot >= 0 && tables.beta_slot[jb] >= 0)
             {
                 const unsigned long long col[2] = {a_val, terms.beta_strings[geometry.src_b0 + jb]};

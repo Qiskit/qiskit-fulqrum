@@ -51,6 +51,10 @@ class _Backend:
 
         return None
 
+    def prepare(self, comms) -> None:
+
+        return None
+
     def sendrecv_replace_device(self, buf_dev, peer: int, tag: int, comm) -> None:
 
 

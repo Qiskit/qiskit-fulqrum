@@ -25,7 +25,7 @@ namespace fq::arms
 inline constexpr int kFactorMaxOrbitals = 64;
 
 
-__device__ __forceinline__ int pair_group(const FqTermTables& terms, const std::uint8_t p0, const std::uint8_t p1)
+__device__ __forceinline__ long long pair_group(const FqTermTables& terms, const std::uint8_t p0, const std::uint8_t p1)
 {
     const std::uint32_t key = pack2_d(p0, p1);
     std::uint32_t k = key;
@@ -41,7 +41,7 @@ __device__ __forceinline__ int pair_group(const FqTermTables& terms, const std::
         const std::uint32_t stored = __ldg(terms.pair_keys + slot);
         if(stored == key)
         {
-            return __ldg(terms.pair_values + slot);
+            return (long long)__ldg(terms.pair_values + slot);
         }
         if(stored == 0xFFFFFFFFu)
         {
@@ -52,7 +52,7 @@ __device__ __forceinline__ int pair_group(const FqTermTables& terms, const std::
 }
 
 
-__device__ __forceinline__ int quad_group(const FqTermTables& terms,
+__device__ __forceinline__ long long quad_group(const FqTermTables& terms,
                                           const std::uint8_t p0,
                                           const std::uint8_t p1,
                                           const std::uint8_t p2,
@@ -73,7 +73,7 @@ __device__ __forceinline__ int quad_group(const FqTermTables& terms,
         const unsigned long long stored = __ldg(keys + slot);
         if(stored == key)
         {
-            return __ldg(terms.quad_values + slot);
+            return (long long)__ldg(terms.quad_values + slot);
         }
         if(stored == 0xFFFFFFFFFFFFFFFFULL)
         {
@@ -124,7 +124,7 @@ __device__ __forceinline__ double quad_group_sum(const FqTermTables& terms,
                                                  const unsigned long long a_val,
                                                  const unsigned long long b_val,
                                                  const unsigned long long* col,
-                                                 const int group,
+                                                 const long long group,
                                                  const std::uint8_t p0,
                                                  const std::uint8_t p1,
                                                  const std::uint8_t p2,
@@ -163,7 +163,7 @@ __device__ __forceinline__ int factor_pair_group(const FqTermTables& terms,
                                                  const unsigned long long a_val,
                                                  const unsigned long long b_val,
                                                  const unsigned long long* col,
-                                                 const int group,
+                                                 const long long group,
                                                  const unsigned int q0,
                                                  const unsigned int q1,
                                                  double* c0_out,

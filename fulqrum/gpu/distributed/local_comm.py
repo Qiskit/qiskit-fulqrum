@@ -97,6 +97,17 @@ class _Group:
         for child in children:
             child.abort()
 
+    def reset(self) -> None:
+
+        with self.condition:
+            self.aborted = False
+            self.mailboxes = {}
+            self.slots = [None] * self.size
+            self.barrier = threading.Barrier(self.size, timeout=self.timeout)
+            children = list(self.children.values())
+        for child in children:
+            child.reset()
+
     def wait(self) -> None:
 
         if self.aborted:
@@ -245,13 +256,12 @@ class LocalComm:
             )
             if group.aborted:
                 raise LocalCommAborted("a rank of the in-process group failed")
-            if not ready:
-                group.aborted = True
-                group.condition.notify_all()
-                raise LocalCommAborted(
-                    f"rank {self._rank} timed out waiting for a message from rank {source}"
-                )
-            return group.mailboxes[key].popleft()
+            if ready:
+                return group.mailboxes[key].popleft()
+        group.abort()
+        raise LocalCommAborted(
+            f"rank {self._rank} timed out waiting for a message from rank {source}"
+        )
 
 
 def _buffer(spec):
@@ -286,6 +296,12 @@ def run_ranks(comms, function) -> list:
         thread.start()
     for thread in threads:
         thread.join()
+    if any(e is not None for e in errors):
+        for group in {id(comm._group): comm._group for comm in comms}.values():
+            group.reset()
+        splits = max(comm._splits for comm in comms)
+        for comm in comms:
+            comm._splits = splits
     first = next(
         (e for e in errors if e is not None and not isinstance(e, LocalCommAborted)),
         None,

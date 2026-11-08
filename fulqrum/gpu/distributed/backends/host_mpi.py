@@ -241,10 +241,12 @@ class _HostMpiBackend(_Backend):
                 f"host_mpi moves bytes: the send ({send_dev.dtype}) and receive ({recv_dev.dtype}) "
                 "buffers need the same dtype"
             )
+        sends = [(int(dst_peer), send_dev, 0, int(send_dev.size))]
+        receives = [(int(src_peer), recv_dev, 0, int(recv_dev.size))]
         self._transfer(
             comm,
-            [(int(dst_peer), send_dev, 0, int(send_dev.size))],
-            [(int(src_peer), recv_dev, 0, int(recv_dev.size))],
+            [lane for lane in sends if lane[3] > 0],
+            [lane for lane in receives if lane[3] > 0],
             stream,
             int(tag),
         )

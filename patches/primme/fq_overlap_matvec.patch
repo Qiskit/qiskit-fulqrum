@@ -20,10 +20,27 @@ diff --git a/src/eigs/main_iter.c b/src/eigs/main_iter.c
  #include "update_projection.h"
  #include "update_W.h"
  #include "auxiliary_eigs.h"
-@@ -686,6 +698,51 @@ int main_iter_Sprimme(HEVAL *evals, SCALAR *evecs, PRIMME_INT ldevecs,
+@@ -686,13 +698,75 @@ int main_iter_Sprimme(HEVAL *evals, SCALAR *evecs, PRIMME_INT ldevecs,
                       Num_malloc_SHprimme(ldRlocked * blockSize, &Rlocked, ctx));
              }
  
++#if defined(USE_HOST) && defined(USE_DOUBLE) && !defined(CHECK_TEMPLATE)
++/* Fulqrum: CHKERR plus joining the overlap thread before an error return. */
++#define FQ_CHKERR_WAIT(ERRN) { \
++   MEM_PUSH_FRAME; \
++   PROFILE_BEGIN(STR(ERRN)); \
++   int __err = (ERRN); assert(__err==0);\
++   PROFILE_END; \
++   MEM_POP_FRAME(&__err); \
++   if (__err) {\
++      if (fq_overlap) fq_primme_matvec_wait(primme, 0);\
++      PRINTFALL(1, "PRIMME: Error %d in (" __FILE__ ":%d): %s", __err, __LINE__, #ERRN );\
++      return __err;\
++   }\
++}
++#else
++#define FQ_CHKERR_WAIT(ERRN) CHKERR(ERRN)
++#endif
 +#if defined(USE_HOST) && defined(USE_DOUBLE) && !defined(CHECK_TEMPLATE)
 +            /* Fulqrum: with one new vector t, start the matvec of t before   */
 +            /* the orthogonalization. Then H*x = (H*t - W*c)/rho, with        */
@@ -72,7 +89,21 @@ diff --git a/src/eigs/main_iter.c b/src/eigs/main_iter.c
              /* Orthogonalize the corrections with respect to each other and   */
              /* the current basis. If basis hasn't expanded with any new       */
              /* vector, try a random vector                                    */
-@@ -706,6 +763,36 @@ int main_iter_Sprimme(HEVAL *evals, SCALAR *evecs, PRIMME_INT ldevecs,
+ 
+             for (i=0; i < maxNumRandoms; i++) {
+                int basisSizeOut;
+-               CHKERR(Bortho_block_Sprimme(V, ldV, VtBV, ldVtBV, fVtBV, ldfVtBV,
++               FQ_CHKERR_WAIT(Bortho_block_Sprimme(V, ldV, VtBV, ldVtBV, fVtBV, ldfVtBV,
+                      NULL, 0, basisSize, basisSize + blockSize - 1, evecs,
+                      ldevecs, primme->numOrthoConst + numLocked, BV, ldBV,
+                      i == 0 ? Rlocked : NULL, ldRlocked, primme->nLocal,
+@@ -701,11 +775,42 @@ int main_iter_Sprimme(HEVAL *evals, SCALAR *evecs, PRIMME_INT ldevecs,
+                if (blockSize > 0 || availableBlockSize <= 0) break;
+                PRINTF(5, "Warning: adding random vector "
+                          "to the search subspace");
+-               CHKERR(Num_larnv_Sprimme(2, primme->iseed, primme->nLocal,
++               FQ_CHKERR_WAIT(Num_larnv_Sprimme(2, primme->iseed, primme->nLocal,
+                      &V[ldV * basisSize], ctx));
                 blockSize = 1;
              }
  
@@ -105,11 +136,12 @@ diff --git a/src/eigs/main_iter.c b/src/eigs/main_iter.c
 +               CHKERR(Num_free_SHprimme(fq_c, ctx));
 +            }
 +#endif
++#undef FQ_CHKERR_WAIT
 +
              /* The method failing in expanding the search subspace may be an  */
              /* indication that a) the orthogonalization error is to large for */
              /* distinguishing the new components on the computed correction,  */
-@@ -798,6 +885,9 @@ int main_iter_Sprimme(HEVAL *evals, SCALAR *evecs, PRIMME_INT ldevecs,
+@@ -798,6 +903,9 @@ int main_iter_Sprimme(HEVAL *evals, SCALAR *evecs, PRIMME_INT ldevecs,
  
              /* Compute W = A*V for the orthogonalized corrections */
  

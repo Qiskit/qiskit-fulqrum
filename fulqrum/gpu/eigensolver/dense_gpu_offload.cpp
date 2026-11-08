@@ -20,6 +20,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <strings.h>
 #include <initializer_list>
 #include <vector>
 
@@ -119,6 +120,33 @@ extern "C" void fq_primme_gpu_last_error_clear()
 
 static cublasHandle_t g_handle = nullptr;
 
+static int coherent_host_memory()
+{
+    static int state = -1;
+    if(state < 0)
+    {
+        int device = 0, value = 0;
+        const char* forced = getenv("FQ_PRIMME_GPU_DENSE_ASSUME_NONCOHERENT");
+        const bool assume_noncoherent = forced && forced[0] && forced[0] != '0' &&
+                                        strcasecmp(forced, "false") != 0 &&
+                                        strcasecmp(forced, "no") != 0 &&
+                                        strcasecmp(forced, "off") != 0;
+        state = (!assume_noncoherent && cudaGetDevice(&device) == cudaSuccess &&
+                 cudaDeviceGetAttribute(&value, cudaDevAttrPageableMemoryAccess, device) ==
+                     cudaSuccess &&
+                 value)
+                    ? 1
+                    : 0;
+        if(!state)
+        {
+            fprintf(stderr,
+                    "fulqrum: FQ_PRIMME_GPU_DENSE needs a GPU that can read pageable host memory "
+                    "(cudaDevAttrPageableMemoryAccess); using the host dense path\n");
+        }
+    }
+    return state;
+}
+
 static int ensure_handle()
 {
     if(!g_handle)
@@ -204,6 +232,10 @@ extern "C" int fq_primme_dense_update_f64(const double* V,
 {
 
 
+    if(!coherent_host_memory())
+    {
+        return 1;
+    }
     if(BV != nullptr)
     {
         return 1;
@@ -629,6 +661,10 @@ extern "C" int fq_primme_ortho_kernel_f64(const double* Q,
 {
 
 
+    if(!coherent_host_memory())
+    {
+        return 1;
+    }
     if(Yortho != 0 && Yortho != 1)
     {
         return 1;

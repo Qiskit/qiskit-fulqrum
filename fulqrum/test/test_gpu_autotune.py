@@ -380,3 +380,47 @@ def test_the_build_parser_reads_ptxas_and_cuobjdump_output():
     facts = module.parse_ptxas_output(ptxas)
     assert facts[("_Zk", "sm_100")]["spill_store_bytes"] == 320
     assert module.parse_resource_usage(usage)[("_Zk", "sm_100")]["stack_bytes"] == 256
+
+
+def test_device_dependent_collective_settings_take_the_most_conservative_rank():
+    calls = []
+
+    def agree(value):
+        calls.append(value)
+        if isinstance(value, dict):
+            other = dict(value, scratch_mib=64, clique_rows=32, aa_prefetch=False)
+            other["bb"] = autotune.BB_CANDIDATES[-1]
+            return [value, other]
+        return [value, value]
+
+    result = _resolve(agree=agree)
+    assert len(calls) == 2
+    assert result.value("scratch_mib") == 64
+    assert result.value("clique_rows") == 32
+    assert result.value("aa_prefetch") is False
+    bb = (result.value("bb_prefetch"), result.value("bb_alphas"))
+    assert bb == autotune.BB_CANDIDATES[-1]
+    assert "agreed over ranks" in result.choices["scratch_mib"].reason
+
+
+def test_explicit_settings_are_not_renegotiated():
+    seen = []
+
+    def agree(value):
+        seen.append(value)
+        return [value, value]
+
+    result = _resolve({"FQ_AABB_CLIQUE_SCRATCH_LIMIT_MB": "100"}, agree=agree)
+    assert result.value("scratch_mib") == 100
+    assert "scratch_mib" not in seen[-1]
+
+
+def test_static_resolution_still_takes_part_in_the_agreement():
+    calls = []
+
+    def agree(value):
+        calls.append(value)
+        return [value, value]
+
+    _resolve({"FQ_TUNE": "off"}, agree=agree)
+    assert len(calls) == 2 and calls == [None, None]
