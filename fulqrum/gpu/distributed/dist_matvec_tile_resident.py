@@ -28,6 +28,7 @@ from scipy.sparse.linalg import LinearOperator
 from fulqrum.core.spmv import FulqrumSpMV
 
 from .. import autotune
+from ..common.wide import check_width
 from ..config import GpuConfig, warn_unknown_names
 from ..logging import format_memory
 from . import _collective
@@ -36,7 +37,11 @@ from .recorder import MatvecRecorder, RecorderSettings
 from .grid import GridComms, TileGrid, discover_sources
 from .operator_check import DIRECTION_TOLERANCE, unsupported_groups
 from .local_comm import LocalComm, mpi_namespace
-from .rank_agreement import raise_on_every_rank, run_on_every_rank
+from .rank_agreement import (
+    check_same_choice,
+    raise_on_every_rank,
+    run_on_every_rank,
+)
 from .exchange_plan import (
     EXCHANGE_RING,
     EXCHANGE_TWO_LEVEL,
@@ -352,7 +357,13 @@ class TileGPUResidentHamiltonian(LinearOperator):
         pre_init_elapsed, partition_elapsed = self._init_grid(
             process_grid, comm_backend, started
         )
-        self._init_streams()
+        run_on_every_rank(self._comm, "GPU stream setup", self._init_streams)
+        check_same_choice(
+            self._comm,
+            self._cupy_available,
+            "cupy available" if self._cupy_available else self._cupy_error,
+            "CuPy availability",
+        )
         self._init_options()
         self._init_device_state()
         self._init_records(pre_init_elapsed, partition_elapsed)
@@ -397,6 +408,15 @@ class TileGPUResidentHamiltonian(LinearOperator):
                 ) from exc
             comm = MPI.COMM_WORLD
 
+        spmv = hsub.spmv
+        if isinstance(spmv, FulqrumSpMV):
+            num_alpha = int(spmv.subspace.num_alpha_qubits)
+            check_width(
+                comm,
+                (num_alpha, int(spmv.width) - num_alpha),
+                "TileGPUResidentHamiltonian",
+            )
+
         gpu_ids = tuple(int(gid) for gid in gpu_ids)
         if len(gpu_ids) > 1:
             raise NotImplementedError(
@@ -420,12 +440,17 @@ class TileGPUResidentHamiltonian(LinearOperator):
         self._gpu_ids = gpu_ids
         if len(gpu_ids) != 1:
             raise ValueError("TileGPUResidentHamiltonian requires one GPU ID per rank")
-        try:
-            import cupy  # noqa: PLC0415
 
-            cupy.cuda.Device(gpu_ids[0]).use()
-        except ImportError:
-            pass
+        def select():
+
+            try:
+                import cupy  # noqa: PLC0415
+
+                cupy.cuda.Device(gpu_ids[0]).use()
+            except ImportError:
+                pass
+
+        run_on_every_rank(comm, "GPU device selection", select)
         self._threads_per_block = int(threads_per_block)
         self._intra_node_size = intra_node_size
         _bt_env = int(self._config.value("FQ_BUILD_THREADS"))
@@ -519,6 +544,7 @@ class TileGPUResidentHamiltonian(LinearOperator):
 
     def _init_streams(self) -> None:
 
+        self._cupy_error = None
         try:
             import cupy  # noqa: PLC0415
 
@@ -532,7 +558,8 @@ class TileGPUResidentHamiltonian(LinearOperator):
 
 
             self._copy_stream = cupy.cuda.Stream(non_blocking=True, priority=-1000)
-        except ImportError:
+        except ImportError as exc:
+            self._cupy_error = f"{type(exc).__name__}: {exc}"
             self._cupy_available = False
             self._d_v_local = None
             self._d_out_local = None
@@ -1751,13 +1778,20 @@ class TileGPUResidentHamiltonian(LinearOperator):
             steps[name] = now - clock[0]
             clock[0] = now
 
-        gpu_data = self._cached_gpu_data
-        if gpu_data is None:
-            gpu_data = _operator_tables(spmv)
+        cached = self._cached_gpu_data
         self._cached_gpu_data = None
-        step("operator_tables")
-        grp4_direct = self._read_operator_groups(spmv, gpu_data)
-        self._choose_table_source(spmv)
+
+        def groups():
+
+            gpu_data = cached if cached is not None else _operator_tables(spmv)
+            step("operator_tables")
+            grp4 = self._read_operator_groups(spmv, gpu_data)
+            return gpu_data, grp4, self._arm_reason(spmv)
+
+        gpu_data, grp4_direct, reason = run_on_every_rank(
+            self._comm, "operator groups", groups
+        )
+        self._choose_table_source(reason)
         step("operator_groups")
         self_tables = _build_tile_connection_tables(
             self._alpha_bra,
@@ -1866,14 +1900,24 @@ class TileGPUResidentHamiltonian(LinearOperator):
         self._construction_timing["aabb_csr_enabled"] = bool(self._aabb_factored)
         return grp4_direct
 
-    def _choose_table_source(self, spmv) -> None:
+    def _arm_reason(self, spmv) -> Optional[str]:
+
+
+        if self._config.value("FQ_ARM_TABLE_SOURCE") == "kernel":
+            return "FQ_ARM_TABLE_SOURCE=kernel"
+        return self._host_arm_values_reason(spmv)
+
+    def _choose_table_source(self, reason) -> None:
 
 
         table_source = self._config.value("FQ_ARM_TABLE_SOURCE")
-        if table_source == "kernel":
-            self._host_arm_reason = "FQ_ARM_TABLE_SOURCE=kernel"
-        else:
-            self._host_arm_reason = self._host_arm_values_reason(spmv)
+        self._host_arm_reason = reason
+        check_same_choice(
+            self._comm,
+            self._host_arm_reason is None,
+            self._host_arm_reason or "on",
+            "arm table source",
+        )
         if table_source == "host" and self._host_arm_reason is not None:
             raise ValueError(
                 f"FQ_ARM_TABLE_SOURCE=host cannot run: {self._host_arm_reason}"

@@ -20,6 +20,8 @@ cimport numpy as np
 from libc.math cimport fabs, fmax
 from libc.stdint cimport int64_t
 
+from fulqrum.gpu.distributed.rank_agreement import raise_on_every_rank
+
 
 cdef extern from "../../core/src/checked_size.hpp":
     size_t checked_multiply(size_t, size_t) except +
@@ -231,6 +233,8 @@ cdef enum:
     PRIMME_convTestFun = 80
     PRIMME_queue = 88
 
+
+_setup_fault_hook = None
 
 _TARGETS = {
     "SA": "primme_smallest",
@@ -771,12 +775,6 @@ def eigsh(
         spec_seconds[spec_i] = 0.0
     if k <= 0:
         raise ValueError("k must be positive")
-    if n_local < 0 or n_global < 0 or n_local > n_global:
-        raise ValueError("invalid distributed dimensions")
-    checked_multiply(checked_multiply(n_local, k), sizeof(double))
-    if ncv > 0:
-        checked_multiply(checked_multiply(n_local, ncv), sizeof(double))
-        checked_multiply(checked_multiply(ncv, ncv), sizeof(double))
     if use_gpu and not fq_primme_gpu_available_():
         raise RuntimeError(
             "GPU PRIMME path requested but this _primme_mpi build lacks "
@@ -784,107 +782,133 @@ def eigsh(
             "toolkit on PATH."
         )
 
-    pp = primme_params_create()
-    if pp == NULL:
-        raise MemoryError("could not allocate primme_params")
-
     try:
-        ctx = _Context(H, precond_diag_local, conv, tol)
-        ctx.monitor = monitor
-        ctx.energy_tol = energy_tol
-        ctx.energy_window = energy_window
-        ctx.resnorm_cap = resnorm_cap
-        ctx.sign = -1.0 if which == "LA" else 1.0
-        if primme_comm is not None:
-            ctx.comm = primme_comm
-        if not use_gpu:
-            ctx.overlap = overlap_matvec
-        ctx.gpu_matvec = gpu_matvec
-        ctx.gpu_precond = gpu_precond
-        _set_pointer(pp, PRIMME_matrix, <void *>ctx)
+        setup_exc = None
+        try:
+            fault = _setup_fault_hook(H) if _setup_fault_hook else None
+            if fault:
+                raise fault
+            if n_local < 0 or n_global < 0 or n_local > n_global:
+                raise ValueError("invalid distributed dimensions")
+            checked_multiply(checked_multiply(n_local, k), sizeof(double))
+            if ncv > 0:
+                checked_multiply(checked_multiply(n_local, ncv), sizeof(double))
+                checked_multiply(checked_multiply(ncv, ncv), sizeof(double))
+            pp = primme_params_create()
+            if pp == NULL:
+                raise MemoryError("could not allocate primme_params")
 
-        _set_int64(pp, PRIMME_n, n_global)
-        _set_int64(pp, PRIMME_nLocal, n_local)
-        _set_int(pp, PRIMME_numProcs, int(H._comm.Get_size()))
-        _set_int(pp, PRIMME_procID, int(H._comm.Get_rank()))
-        _set_int(pp, PRIMME_numEvals, k)
-        _set_double(pp, PRIMME_eps, tol)
-        _set_int(pp, PRIMME_printLevel, printLevel)
-        if use_gpu:
-            _set_pointer(pp, PRIMME_matrixMatvec, <void *>c_matvec_gpu)
-            own_cublas_handle = fq_primme_cublas_create_()
-            if own_cublas_handle == NULL:
-                raise RuntimeError(
-                    "cublasCreate failed while setting up the GPU "
-                    "PRIMME path (no CUDA device visible to this rank?)"
-                )
-            cublas_handle_slot = <size_t>own_cublas_handle
-            _set_pointer(pp, PRIMME_queue, <void *>&cublas_handle_slot)
-        elif gpu_matvec is not None:
-            _set_pointer(pp, PRIMME_matrixMatvec, <void *>c_matvec_gpu)
-        else:
-            _set_pointer(pp, PRIMME_matrixMatvec, <void *>c_matvec)
-        _set_pointer(pp, PRIMME_globalSumReal, <void *>c_global_sum_real)
-        _set_pointer(pp, PRIMME_broadcastReal, <void *>c_broadcast_real)
+            ctx = _Context(H, precond_diag_local, conv, tol)
+            ctx.monitor = monitor
+            ctx.energy_tol = energy_tol
+            ctx.energy_window = energy_window
+            ctx.resnorm_cap = resnorm_cap
+            ctx.sign = -1.0 if which == "LA" else 1.0
+            if primme_comm is not None:
+                ctx.comm = primme_comm
+            if not use_gpu:
+                ctx.overlap = overlap_matvec
+            ctx.gpu_matvec = gpu_matvec
+            ctx.gpu_precond = gpu_precond
+            _set_pointer(pp, PRIMME_matrix, <void *>ctx)
 
-        if gpu_precond is not None:
-            _set_int(pp, PRIMME_correctionParams_precondition, 1)
-            _set_pointer(pp, PRIMME_applyPreconditioner, <void *>c_precond_gpu)
-        elif precond_diag_local is not None:
-            _set_int(pp, PRIMME_correctionParams_precondition, 1)
-            _set_pointer(pp, PRIMME_applyPreconditioner, <void *>c_precond)
-        else:
-            _set_int(pp, PRIMME_correctionParams_precondition, 0)
+            _set_int64(pp, PRIMME_n, n_global)
+            _set_int64(pp, PRIMME_nLocal, n_local)
+            _set_int(pp, PRIMME_numProcs, int(H._comm.Get_size()))
+            _set_int(pp, PRIMME_procID, int(H._comm.Get_rank()))
+            _set_int(pp, PRIMME_numEvals, k)
+            _set_double(pp, PRIMME_eps, tol)
+            _set_int(pp, PRIMME_printLevel, printLevel)
+            if use_gpu:
+                _set_pointer(pp, PRIMME_matrixMatvec, <void *>c_matvec_gpu)
+                own_cublas_handle = fq_primme_cublas_create_()
+                if own_cublas_handle == NULL:
+                    raise RuntimeError(
+                        "cublasCreate failed while setting up the GPU "
+                        "PRIMME path (no CUDA device visible to this rank?)"
+                    )
+                cublas_handle_slot = <size_t>own_cublas_handle
+                _set_pointer(pp, PRIMME_queue, <void *>&cublas_handle_slot)
+            elif gpu_matvec is not None:
+                _set_pointer(pp, PRIMME_matrixMatvec, <void *>c_matvec_gpu)
+            else:
+                _set_pointer(pp, PRIMME_matrixMatvec, <void *>c_matvec)
+            _set_pointer(pp, PRIMME_globalSumReal, <void *>c_global_sum_real)
+            _set_pointer(pp, PRIMME_broadcastReal, <void *>c_broadcast_real)
 
-        if conv in ("abs", "rel", "energy"):
-            _set_pointer(pp, PRIMME_convTestFun, <void *>c_conv)
+            if gpu_precond is not None:
+                _set_int(pp, PRIMME_correctionParams_precondition, 1)
+                _set_pointer(pp, PRIMME_applyPreconditioner, <void *>c_precond_gpu)
+            elif precond_diag_local is not None:
+                _set_int(pp, PRIMME_correctionParams_precondition, 1)
+                _set_pointer(pp, PRIMME_applyPreconditioner, <void *>c_precond)
+            else:
+                _set_int(pp, PRIMME_correctionParams_precondition, 0)
 
-        target = _constant(_TARGETS[which])
-        _set_int(pp, PRIMME_target, target)
+            if conv in ("abs", "rel", "energy"):
+                _set_pointer(pp, PRIMME_convTestFun, <void *>c_conv)
 
-        if method:
-            if primme_set_method(<primme_preset_method>_constant(method), pp) != 0:
-                raise ValueError(f"PRIMME rejected method={method!r}")
+            target = _constant(_TARGETS[which])
+            _set_int(pp, PRIMME_target, target)
 
-        if maxiter >= 0:
-            _set_int64(pp, PRIMME_maxMatvecs, <PRIMME_INT>maxiter)
-        if ncv > 0:
-            _set_int(pp, PRIMME_maxBasisSize, ncv)
-        if maxBlockSize > 0:
-            _set_int(pp, PRIMME_maxBlockSize, maxBlockSize)
-        if minRestartSize > 0:
-            _set_int(pp, PRIMME_minRestartSize, minRestartSize)
-        if maxPrevRetain > 0:
-            _set_int(pp, PRIMME_restartingParams_maxPrevRetain, maxPrevRetain)
-        if initBasisMode:
-            _set_int(pp, PRIMME_initBasisMode, _constant(initBasisMode))
+            if method:
+                if primme_set_method(<primme_preset_method>_constant(method), pp) != 0:
+                    raise ValueError(f"PRIMME rejected method={method!r}")
 
-        if primme_get_member(pp, <primme_params_label>PRIMME_maxBasisSize, &basis_size) == 0 and basis_size > 0:
-            checked_multiply(checked_multiply(n_local, basis_size), sizeof(double))
-            checked_multiply(checked_multiply(basis_size, basis_size), sizeof(double))
+            if maxiter >= 0:
+                _set_int64(pp, PRIMME_maxMatvecs, <PRIMME_INT>maxiter)
+            if ncv > 0:
+                _set_int(pp, PRIMME_maxBasisSize, ncv)
+            if maxBlockSize > 0:
+                _set_int(pp, PRIMME_maxBlockSize, maxBlockSize)
+            if minRestartSize > 0:
+                _set_int(pp, PRIMME_minRestartSize, minRestartSize)
+            if maxPrevRetain > 0:
+                _set_int(pp, PRIMME_restartingParams_maxPrevRetain, maxPrevRetain)
+            if initBasisMode:
+                _set_int(pp, PRIMME_initBasisMode, _constant(initBasisMode))
 
-        evals = np.zeros(k, dtype=np.float64)
-        rnorms = np.zeros(k, dtype=np.float64)
+            if primme_get_member(pp, <primme_params_label>PRIMME_maxBasisSize, &basis_size) == 0 and basis_size > 0:
+                checked_multiply(checked_multiply(n_local, basis_size), sizeof(double))
+                checked_multiply(checked_multiply(basis_size, basis_size), sizeof(double))
+
+            evals = np.zeros(k, dtype=np.float64)
+            rnorms = np.zeros(k, dtype=np.float64)
+            if use_gpu:
+                if gpu_init_size > 0:
+                    _set_int(pp, PRIMME_initSize, gpu_init_size)
+                gpu_evecs_ptr = <size_t>int(gpu_evecs.data.ptr)
+            else:
+                evecs = np.zeros((int(n_local), k), dtype=np.float64, order="F")
+
+                if v0_local is not None:
+                    init_size = min(k, v0_local.shape[1])
+                    _set_int(pp, PRIMME_initSize, init_size)
+                    evecs[:, :init_size] = np.asarray(v0_local[:, :init_size], dtype=np.float64, order="F")
+
+                evals_ptr = &evals[0]
+                evecs_ptr = &evecs[0, 0]
+                rnorms_ptr = &rnorms[0]
+        except Exception as exc:
+            setup_exc = exc
+        try:
+            raise_on_every_rank(
+                H._comm,
+                None if setup_exc is None else f"{type(setup_exc).__name__}: {setup_exc}",
+                RuntimeError,
+                "eigensolver setup",
+            )
+        except RuntimeError as agreed:
+            if setup_exc is not None:
+                raise agreed from setup_exc
+            raise
         fq_primme_gpu_last_error_clear_()
 
         if use_gpu:
-            if gpu_init_size > 0:
-                _set_int(pp, PRIMME_initSize, gpu_init_size)
-            gpu_evecs_ptr = <size_t>int(gpu_evecs.data.ptr)
             err = fq_cublas_dprimme_(
                 &evals[0], <double *>gpu_evecs_ptr, &rnorms[0], pp
             )
         else:
-            evecs = np.zeros((int(n_local), k), dtype=np.float64, order="F")
-
-            if v0_local is not None:
-                init_size = min(k, v0_local.shape[1])
-                _set_int(pp, PRIMME_initSize, init_size)
-                evecs[:, :init_size] = np.asarray(v0_local[:, :init_size], dtype=np.float64, order="F")
-
-            evals_ptr = &evals[0]
-            evecs_ptr = &evecs[0, 0]
-            rnorms_ptr = &rnorms[0]
             fq_primme_host_pinned_set_(1 if pinned_basis else 0)
             fq_primme_spec_set_enabled_(
                 1 if (spec_matvec and ctx.overlap is not None) else 0,

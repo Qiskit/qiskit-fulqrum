@@ -20,7 +20,9 @@ import warnings
 import numpy as np
 from scipy.sparse.linalg import LinearOperator
 
+from ..core.spmv import FulqrumSpMV
 from ..exceptions import FulqrumError
+from .common.wide import width_error
 from .distributed.dist_matvec import _default_2d_process_grid
 from .distributed.local_comm import LocalComm, run_ranks
 
@@ -104,6 +106,12 @@ class GPUHamiltonian(LinearOperator):
             raise NotImplementedError(
                 "GPUHamiltonian currently supports real-valued operators only."
             )
+        spmv = hsub.spmv
+        if isinstance(spmv, FulqrumSpMV):
+            num_alpha = int(spmv.subspace.num_alpha_qubits)
+            error = width_error((num_alpha, int(spmv.width) - num_alpha))
+            if error:
+                raise FulqrumError(f"GPUHamiltonian failed: {error}")
         _check_gpu_preconditions(hsub, "GPUHamiltonian")
         import cupy  # noqa: PLC0415
 

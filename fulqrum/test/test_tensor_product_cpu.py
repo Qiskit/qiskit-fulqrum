@@ -321,5 +321,5 @@ def test_native_solver_rejects_basis_size_overflow_before_allocation(monkeypatch
         raise AssertionError("overflow must be rejected before array allocation")
 
     monkeypatch.setattr(np, "zeros", unexpected_allocation)
-    with pytest.raises(OverflowError):
+    with pytest.raises(RuntimeError, match="OverflowError"):
         distributed_primme_eigsh(operator, k=1, ncv=maximum, gpu=False)

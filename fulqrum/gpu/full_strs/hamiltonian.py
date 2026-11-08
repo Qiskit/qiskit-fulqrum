@@ -17,6 +17,8 @@ import time
 import cupy
 import numpy as np
 
+from ..common.wide import check_width
+from ..distributed.rank_agreement import run_on_every_rank
 from .device import DeviceLayout
 from .host import HostOperator
 from .plan import LayoutPlan, agree
@@ -137,6 +139,10 @@ class FullStrsHamiltonian:
 
             comm = MPI.COMM_SELF
         self._comm = comm
+        num_orbitals = run_on_every_rank(
+            comm, "operator width", lambda: _orbitals(operator)
+        )
+        check_width(comm, (num_orbitals, num_orbitals), "FullStrsHamiltonian")
         self._binned = bool(binned)
         self._block = None
         self._copies = None

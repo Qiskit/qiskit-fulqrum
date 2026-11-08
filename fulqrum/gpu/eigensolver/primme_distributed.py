@@ -22,6 +22,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from .. import config
+from ..distributed.rank_agreement import check_same_choice, run_on_every_rank
 
 logger = logging.getLogger(__name__)
 __all__ = ["distributed_primme_eigsh", "is_primme_mpi_available"]
@@ -225,10 +226,21 @@ def distributed_primme_eigsh(
         energy_window=energy_window,
         resnorm_cap=resnorm_cap,
     )
-    precond_diag_local, v0_local = _local_inputs(H, precond_diag_local, v0_local)
-    backend = _load_backend()
-    use_gpu = choose_leg(H, gpu, backend)
-    callbacks = make_callbacks(use_gpu, H, options, precond_diag_local, v0_local)
+
+    def setup():
+
+        inputs = _local_inputs(H, precond_diag_local, v0_local)
+        backend = _load_backend()
+        use_gpu = choose_leg(H, gpu, backend)
+        return backend, use_gpu, _local_callbacks(use_gpu, H, options, *inputs)
+
+    backend, use_gpu, callbacks = run_on_every_rank(
+        H._comm, "eigensolver setup", setup
+    )
+    check_same_choice(
+        H._comm, use_gpu, "GPU leg" if use_gpu else "host leg", "eigensolver leg"
+    )
+    callbacks = _finish_callbacks(use_gpu, H, callbacks)
     started = time.perf_counter()
     result = run_primme(backend, H, options, callbacks)
     if H._comm.Get_rank() == 0:
@@ -358,13 +370,26 @@ def make_callbacks(
 ) -> SolverCallbacks:
 
 
+    callbacks = _local_callbacks(use_gpu, H, options, precond_diag_local, v0_local)
+    return _finish_callbacks(use_gpu, H, callbacks)
+
+
+def _local_callbacks(
+    use_gpu, H, options, precond_diag_local, v0_local
+) -> SolverCallbacks:
+
+
     n_local = int(H.n_local)
     if use_gpu:
-        callbacks = _gpu_leg_callbacks(
-            H, n_local, options, precond_diag_local, v0_local
-        )
-    else:
-        callbacks = _host_leg_callbacks(H, n_local, precond_diag_local, v0_local)
+        return _gpu_leg_callbacks(H, n_local, options, precond_diag_local, v0_local)
+    return _host_leg_local(H, n_local, precond_diag_local, v0_local)
+
+
+def _finish_callbacks(use_gpu, H, callbacks) -> SolverCallbacks:
+
+
+    if not use_gpu:
+        _host_leg_collective(H, callbacks)
     callbacks.gpu_matvec = _abort_on_rank_error(callbacks.gpu_matvec, H._comm, "matvec")
     callbacks.gpu_precond = _abort_on_rank_error(
         callbacks.gpu_precond, H._comm, "preconditioner"
@@ -426,6 +451,14 @@ def _check_gpu_basis_fits(n_local: int, ncv: int, managed_basis: bool):
 def _host_leg_callbacks(H, n_local, precond_diag_local, v0_local) -> SolverCallbacks:
 
 
+    callbacks = _host_leg_local(H, n_local, precond_diag_local, v0_local)
+    _host_leg_collective(H, callbacks)
+    return callbacks
+
+
+def _host_leg_local(H, n_local, precond_diag_local, v0_local) -> SolverCallbacks:
+
+
     callbacks = SolverCallbacks(precond_diag_local, v0_local)
     if precond_diag_local is not None and os.environ.get(
         "FQ_PRIMME_GPU_PRECOND", ""
@@ -439,9 +472,16 @@ def _host_leg_callbacks(H, n_local, precond_diag_local, v0_local) -> SolverCallb
         )
         callbacks.precond_diag_local = None
     if getattr(H, "supports_device_matvec", False):
-        direct = _make_host_direct_matvec(H, n_local)
-        callbacks.gpu_matvec = direct
+        callbacks.gpu_matvec = _make_host_direct_matvec(H, n_local)
         callbacks.pinned_basis = bool(config.read("FQ_PRIMME_PINNED_BASIS"))
+    return callbacks
+
+
+def _host_leg_collective(H, callbacks) -> None:
+
+
+    if getattr(H, "supports_device_matvec", False):
+        direct = callbacks.gpu_matvec
         overlap, reason = _host_overlap_mode(H)
         if overlap:
             callbacks.overlap_matvec = direct
@@ -457,7 +497,6 @@ def _host_leg_callbacks(H, n_local, precond_diag_local, v0_local) -> SolverCallb
                 "on" if callbacks.spec_matvec else "off",
                 extra={"gpu_rank": 0},
             )
-    return callbacks
 
 
 def _host_overlap_mode(H):

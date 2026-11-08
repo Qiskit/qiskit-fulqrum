@@ -239,21 +239,23 @@ def compute_rdms_full_strs(ham, x, *, rank=1, spin_summed=False):
     import cupy  # noqa: PLC0415
 
     started = time.perf_counter()
-    if rank not in (1, 2):
-        raise ValueError(f"rank must be 1 or 2, got {rank!r}")
-    m = int(ham.num_orbitals)
-    if m > MAX_ORBITALS:
-        raise ValueError(
-            f"the RDM supports at most {MAX_ORBITALS} orbitals per sector, got {m}"
-        )
-    if tuple(x.shape) != (ham.n_local,):
-        raise ValueError(f"x must have shape ({ham.n_local},); got {tuple(x.shape)}")
     comm = ham._comm
+    m = int(ham.num_orbitals)
+    error = None
+    if rank not in (1, 2):
+        error = f"rank must be 1 or 2, got {rank!r}"
+    elif m > MAX_ORBITALS:
+        error = f"the RDM supports at most {MAX_ORBITALS} orbitals per sector, got {m}"
+    elif tuple(x.shape) != (ham.n_local,):
+        error = f"x must have shape ({ham.n_local},); got {tuple(x.shape)}"
+    raise_on_every_rank(comm, error, ValueError, "full-string RDM")
     mpi = mpi_namespace(comm)
     stream = ham._stream
     shapes = _array_shapes(m)
     _check_memory(cupy, comm, 8 * (sum(shapes.values()) + ham.n_local))
-    half = _half_visits(ham)
+    caller = cupy.cuda.get_current_stream()
+    stream.wait_event(caller.record())
+    half = min(comm.allgather(_half_visits(ham)))
 
     def allocate():
 
@@ -266,8 +268,6 @@ def compute_rdms_full_strs(ham, x, *, rank=1, spin_summed=False):
         return state, arrays
 
     state, arrays = run_on_every_rank(comm, "full-string RDM buffers", allocate)
-    caller = cupy.cuda.get_current_stream()
-    stream.wait_event(caller.record())
     x_ext = ham._rdm_input(state)
 
     def launch():
