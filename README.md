@@ -22,7 +22,7 @@ Fulqrum can utilize both CPU and GPU (Nvidia only) computing resources. However,
 | Cartesian Subspace (TPB) | ✓ | ✓ |
 | General Subspace (GDB) | ✓ | ✓ |
 | 1-RDM and 2-RDM | ✗ | ✓ |
-| Spin penality | ✓ | ✗ |
+| Spin penality | ✗ | ✗ |
 | Complex values | ✓ | ✗ |
 | Generic qubit operators | ✓ | ✗ |
 | Sample-based Quantum Diagonalization (SQD) compatible | ✓ | ✓ |
