@@ -22,12 +22,15 @@ from ..common.hash_utils import (
 )
 
 
-def _pack_half_strs_to_uint64(alpha, beta):
+def _pack_half_strs_to_uint64(alpha, beta, widths=(64, 64)):
 
 
-    alpha_arr = np.array([int(s, 2) for s in alpha], dtype=np.uint64)
-    beta_arr = np.array([int(s, 2) for s in beta], dtype=np.uint64)
-    return alpha_arr, beta_arr
+    from ..common.wide import pack_values  # noqa: PLC0415
+
+    return (
+        pack_values([int(s, 2) for s in alpha], widths[0]),
+        pack_values([int(s, 2) for s in beta], widths[1]),
+    )
 
 
 def _build_hash_table_simple(arr: np.ndarray):

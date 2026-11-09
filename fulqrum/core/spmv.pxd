@@ -54,4 +54,4 @@ cdef class FulqrumSpMV:
 
     cdef void _prepare_gpu_tables(self) except *
     cdef bint _prepare_tensor_product_cpu(self) except *
-    cdef _compute_diag_via_blas(self, np.uint64_t[::1], np.uint64_t[::1], size_t, size_t, unsigned int)
+    cdef _compute_diag_via_blas(self, object, object, size_t, size_t, unsigned int)

@@ -22,7 +22,7 @@ from scipy.sparse.linalg import LinearOperator
 
 from ..core.spmv import FulqrumSpMV
 from ..exceptions import FulqrumError
-from .common.wide import max_electrons, width_error
+from .common.wide import max_electrons, popcount_w, sort_strings, width_error
 from .distributed.dist_matvec import _default_2d_process_grid
 from .distributed.local_comm import LocalComm, run_ranks
 
@@ -50,9 +50,9 @@ def _check_gpu_preconditions(hsub, classname: str) -> None:
             f"{classname} requires a half-string Subspace. "
             "Construct it with: fq.Subspace([alpha_strs, beta_strs])."
         )
-    a_arr, b_arr = subspace.to_alpha_beta_arrays()
-    low_a = a_arr.size and min(int(x).bit_count() for x in a_arr) < 2
-    low_b = b_arr.size and min(int(x).bit_count() for x in b_arr) < 2
+    a_arr, b_arr = subspace._alpha_beta_words(2)
+    low_a = a_arr.size and int(popcount_w(a_arr).min()) < 2
+    low_b = b_arr.size and int(popcount_w(b_arr).min()) < 2
     if low_a or low_b:
         warnings.warn(
             f"{classname}: subspace contains alpha or beta half-strings with Hamming weight < 2. "
@@ -133,10 +133,10 @@ class GPUHamiltonian(LinearOperator):
         self._gpu_ids = tuple(int(gid) for gid in gpu_ids)
         if not self._gpu_ids:
             raise ValueError("GPUHamiltonian needs at least one GPU id")
-        alpha, beta = hsub.spmv.subspace.to_alpha_beta_arrays()
-        alpha = np.sort(np.asarray(alpha, dtype=np.uint64))
-        beta = np.sort(np.asarray(beta, dtype=np.uint64))
-        self._n_a, self._n_b = int(alpha.size), int(beta.size)
+        alpha, beta = hsub.spmv.subspace._alpha_beta_words(2)
+        alpha = sort_strings(alpha)
+        beta = sort_strings(beta)
+        self._n_a, self._n_b = int(alpha.shape[0]), int(beta.shape[0])
         super().__init__(
             shape=(self._n_a * self._n_b, self._n_a * self._n_b), dtype=np.float64
         )

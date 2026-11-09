@@ -51,6 +51,45 @@ cdef extern from "../src/diag.hpp":
                                  T* Fc_out,
                                  T* G_out) except + nogil
 
+    void compute_diag_factors_w12 "compute_diag_factors_words<1, 2, double>"(
+                                 const unsigned long long* alpha_uint,
+                                 const unsigned long long* beta_uint,
+                                 const QubitOperator_t& diag_oper,
+                                 const unsigned int num_alpha,
+                                 const size_t a0,
+                                 const size_t a1,
+                                 const size_t n_b,
+                                 double* d_alpha_out,
+                                 double* d_beta_out,
+                                 double* Fc_out,
+                                 double* G_out) except + nogil
+
+    void compute_diag_factors_w21 "compute_diag_factors_words<2, 1, double>"(
+                                 const unsigned long long* alpha_uint,
+                                 const unsigned long long* beta_uint,
+                                 const QubitOperator_t& diag_oper,
+                                 const unsigned int num_alpha,
+                                 const size_t a0,
+                                 const size_t a1,
+                                 const size_t n_b,
+                                 double* d_alpha_out,
+                                 double* d_beta_out,
+                                 double* Fc_out,
+                                 double* G_out) except + nogil
+
+    void compute_diag_factors_w22 "compute_diag_factors_words<2, 2, double>"(
+                                 const unsigned long long* alpha_uint,
+                                 const unsigned long long* beta_uint,
+                                 const QubitOperator_t& diag_oper,
+                                 const unsigned int num_alpha,
+                                 const size_t a0,
+                                 const size_t a1,
+                                 const size_t n_b,
+                                 double* d_alpha_out,
+                                 double* d_beta_out,
+                                 double* Fc_out,
+                                 double* G_out) except + nogil
+
     bool compute_diag_cross_factors[T](const QubitOperator_t& diag_oper,
                                        const unsigned int num_alpha,
                                        const unsigned int num_beta,

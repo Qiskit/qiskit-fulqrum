@@ -213,20 +213,25 @@ cdef class FulqrumSpMV():
         self.complex_diag_vec = np.empty(shape=(1,), dtype=complex)
 
     cdef _compute_diag_via_blas(self,
-                                np.uint64_t[::1] alpha_uint,
-                                np.uint64_t[::1] beta_uint,
+                                object alpha_strings,
+                                object beta_strings,
                                 size_t a0, # start: alpha str index
                                 size_t a1, # end: alpha str index
                                 unsigned int num_alpha_qubits):
         """Half-string diagonal slice via factored form + numpy BLAS."""
         if self.is_real != 1:
             raise ValueError("GPU diagonal helpers require real values")
-        if not 0 < num_alpha_qubits < self.width or num_alpha_qubits > 64 or self.width - num_alpha_qubits > 64:
-            raise ValueError("GPU diagonal helpers require 1 to 64 qubits per sector")
-        if a0 > a1 or a1 > <size_t>alpha_uint.shape[0]:
+        alpha_words, beta_words, words = _diag_strings(
+            alpha_strings, beta_strings, num_alpha_qubits, self.width)
+        cdef np.uint64_t[::1] alpha_uint = alpha_words
+        cdef np.uint64_t[::1] beta_uint = beta_words
+        cdef int alpha_word_count = words[0]
+        cdef int beta_word_count = words[1]
+        cdef size_t num_alpha_strings = alpha_uint.shape[0] // alpha_word_count
+        if a0 > a1 or a1 > num_alpha_strings:
             raise ValueError("Invalid alpha string range")
         cdef size_t na_local = a1 - a0
-        cdef size_t n_b = beta_uint.shape[0]
+        cdef size_t n_b = beta_uint.shape[0] // beta_word_count
         cdef size_t n_cross
         cdef double[::1] mv_d_alpha
         cdef double[::1] mv_d_beta
@@ -261,13 +266,13 @@ cdef class FulqrumSpMV():
             G_ptr  = &mv_G[0, 0]
 
         with nogil:
-            compute_diag_factors[double](
-                <const unsigned long long*>&alpha_uint[0],
-                <const unsigned long long*>&beta_uint[0],
-                self.diag_oper,
-                num_alpha_qubits, a0, a1, n_b,
-                &mv_d_alpha[0], &mv_d_beta[0],
-                Fc_ptr, G_ptr)
+            _diag_factors(alpha_word_count, beta_word_count,
+                          <const unsigned long long*>&alpha_uint[0],
+                          <const unsigned long long*>&beta_uint[0],
+                          self.diag_oper,
+                          num_alpha_qubits, a0, a1, n_b,
+                          &mv_d_alpha[0], &mv_d_beta[0],
+                          Fc_ptr, G_ptr)
 
         if n_cross > 0:
             out_2d = G_arr @ Fc_arr.T   # (n_b, na_local)
@@ -883,19 +888,19 @@ cdef class FulqrumSpMV():
         return CSRLikeLinearOperator(csrlike)
 
     def diagonal_slice_product_space(self,
-            np.uint64_t[::1] alpha_uint,
-            np.uint64_t[::1] beta_uint,
+            alpha_uint,
+            beta_uint,
             size_t a0, size_t a1,
             unsigned int num_alpha_qubits):
         """Diagonal vector constructor for tensor product Subspace."""
         if self.is_real != 1:
             raise ValueError("GPU diagonal helpers require real values")
-        if not 0 < num_alpha_qubits < self.width or num_alpha_qubits > 64 or self.width - num_alpha_qubits > 64:
-            raise ValueError("GPU diagonal helpers require 1 to 64 qubits per sector")
-        if a0 > a1 or a1 > <size_t>alpha_uint.shape[0]:
+        alpha_words, beta_words, words = _diag_strings(
+            alpha_uint, beta_uint, num_alpha_qubits, self.width)
+        if a0 > a1 or a1 > <size_t>(alpha_words.shape[0] // words[0]):
             raise ValueError("Invalid alpha string range")
         cdef size_t na_local = a1 - a0
-        cdef size_t n_b = beta_uint.shape[0]
+        cdef size_t n_b = beta_words.shape[0] // words[1]
         checked_multiply(checked_multiply(na_local, n_b), sizeof(double))
         if not self.has_nonzero_diag:
             return np.zeros(checked_multiply(na_local, n_b), dtype=np.float64)
@@ -903,19 +908,23 @@ cdef class FulqrumSpMV():
             alpha_uint, beta_uint, a0, a1, num_alpha_qubits)
 
     def diag_separable_pieces(self,
-            np.uint64_t[::1] alpha_uint,
-            np.uint64_t[::1] beta_uint,
+            alpha_strings,
+            beta_strings,
             size_t a0, size_t a1,
             unsigned int num_alpha_qubits):
         """Diagonal recompute (no persistent local rank copy)."""
         if self.is_real != 1:
             raise ValueError("GPU diagonal helpers require real values")
-        if not 0 < num_alpha_qubits < self.width or num_alpha_qubits > 64 or self.width - num_alpha_qubits > 64:
-            raise ValueError("GPU diagonal helpers require 1 to 64 qubits per sector")
-        if a0 > a1 or a1 > <size_t>alpha_uint.shape[0]:
+        alpha_words, beta_words, words = _diag_strings(
+            alpha_strings, beta_strings, num_alpha_qubits, self.width)
+        cdef np.uint64_t[::1] alpha_uint = alpha_words
+        cdef np.uint64_t[::1] beta_uint = beta_words
+        cdef int alpha_word_count = words[0]
+        cdef int beta_word_count = words[1]
+        if a0 > a1 or a1 > <size_t>(alpha_uint.shape[0] // alpha_word_count):
             raise ValueError("Invalid alpha string range")
         cdef size_t na_local = a1 - a0
-        cdef size_t n_b = beta_uint.shape[0]
+        cdef size_t n_b = beta_uint.shape[0] // beta_word_count
         cdef unsigned int num_beta_qubits = <unsigned int>self.subspace.width - num_alpha_qubits
         cdef double[::1] mv_d_alpha
         cdef double[::1] mv_d_beta
@@ -944,13 +953,13 @@ cdef class FulqrumSpMV():
         mv_const = const_arr
 
         with nogil:
-            compute_diag_factors[double](
-                <const unsigned long long*>&alpha_uint[0],
-                <const unsigned long long*>&beta_uint[0],
-                self.diag_oper,
-                num_alpha_qubits, a0, a1, n_b,
-                &mv_d_alpha[0], &mv_d_beta[0],
-                c_null, c_null)
+            _diag_factors(alpha_word_count, beta_word_count,
+                          <const unsigned long long*>&alpha_uint[0],
+                          <const unsigned long long*>&beta_uint[0],
+                          self.diag_oper,
+                          num_alpha_qubits, a0, a1, n_b,
+                          &mv_d_alpha[0], &mv_d_beta[0],
+                          c_null, c_null)
             ok = compute_diag_cross_factors[double](
                 self.diag_oper, num_alpha_qubits, num_beta_qubits,
                 &mv_V[0, 0], &mv_da_lin[0], &mv_db_lin[0], &mv_const[0])
@@ -958,12 +967,10 @@ cdef class FulqrumSpMV():
         if not ok:
             return d_alpha_arr, d_beta_arr, V_arr, False
 
-        a_slice = np.ascontiguousarray(np.asarray(alpha_uint)[a0:a1])
-        b_all = np.asarray(beta_uint)
-        pa = np.arange(num_alpha_qubits, dtype=np.uint64)
-        qb = np.arange(num_beta_qubits, dtype=np.uint64)
-        z_alpha = 1.0 - 2.0 * ((a_slice[:, None] >> pa[None, :]) & np.uint64(1)).astype(np.float64)
-        z_beta = 1.0 - 2.0 * ((b_all[:, None] >> qb[None, :]) & np.uint64(1)).astype(np.float64)
+        z_alpha = 1.0 - 2.0 * _occupation_bits(
+            np.asarray(alpha_uint).reshape(-1, alpha_word_count)[a0:a1], num_alpha_qubits)
+        z_beta = 1.0 - 2.0 * _occupation_bits(
+            np.asarray(beta_uint).reshape(-1, beta_word_count), num_beta_qubits)
         d_alpha_arr = d_alpha_arr + const_arr[0] + z_alpha @ da_lin_arr
         d_beta_arr = d_beta_arr + z_beta @ db_lin_arr
 
@@ -980,3 +987,51 @@ def quicksort_indices(int32_or_int64[::1] indices,
         start = indptr[kk]
         stop = indptr[kk+1] - 1
         quicksort_indices_data(&indices[0], &data[0], start, stop)
+
+
+def _diag_strings(alpha, beta, unsigned int num_alpha_qubits, width):
+    num_beta_qubits = int(width) - int(num_alpha_qubits)
+    if not 0 < num_alpha_qubits < width:
+        raise ValueError("GPU diagonal helpers require 1 to 128 qubits per sector")
+    words = ((int(num_alpha_qubits) + 63) // 64, (num_beta_qubits + 63) // 64)
+    if max(words) > 2:
+        raise ValueError("GPU diagonal helpers require 1 to 128 qubits per sector")
+    out = []
+    for name, strings, count in (("alpha", alpha, words[0]), ("beta", beta, words[1])):
+        array = np.asarray(strings)
+        if (count == 1 and array.ndim != 1) or (
+            count > 1 and (array.ndim != 2 or array.shape[1] != count)
+        ):
+            raise ValueError(
+                f"{name} strings must have shape (N,) for one word or (N, {count}); "
+                f"got {array.shape}")
+        out.append(np.ascontiguousarray(array, dtype=np.uint64).reshape(-1))
+    return out[0], out[1], words
+
+def _occupation_bits(words, num_qubits):
+    words = np.ascontiguousarray(words, dtype=np.uint64)
+    orbitals = np.arange(num_qubits)
+    shifts = (orbitals % 64).astype(np.uint64)
+    columns = words[:, orbitals // 64]
+    return ((columns >> shifts[None, :]) & np.uint64(1)).astype(np.float64)
+
+
+cdef void _diag_factors(int alpha_words, int beta_words,
+                        const unsigned long long* alpha_uint,
+                        const unsigned long long* beta_uint,
+                        const QubitOperator_t& diag_oper,
+                        unsigned int num_alpha, size_t a0, size_t a1, size_t n_b,
+                        double* d_alpha_out, double* d_beta_out,
+                        double* Fc_out, double* G_out) except * nogil:
+    if alpha_words == 1 and beta_words == 1:
+        compute_diag_factors[double](alpha_uint, beta_uint, diag_oper, num_alpha, a0, a1, n_b,
+                                     d_alpha_out, d_beta_out, Fc_out, G_out)
+    elif alpha_words == 1:
+        compute_diag_factors_w12(alpha_uint, beta_uint, diag_oper, num_alpha, a0, a1, n_b,
+                                 d_alpha_out, d_beta_out, Fc_out, G_out)
+    elif beta_words == 1:
+        compute_diag_factors_w21(alpha_uint, beta_uint, diag_oper, num_alpha, a0, a1, n_b,
+                                 d_alpha_out, d_beta_out, Fc_out, G_out)
+    else:
+        compute_diag_factors_w22(alpha_uint, beta_uint, diag_oper, num_alpha, a0, a1, n_b,
+                                 d_alpha_out, d_beta_out, Fc_out, G_out)

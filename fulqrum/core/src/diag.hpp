@@ -16,6 +16,7 @@
 #include <complex>
 #include <cstddef>
 #include <cstdlib>
+#include <type_traits>
 #include <vector>
 
 #include "base.hpp"
@@ -484,21 +485,41 @@ inline std::size_t count_diag_cross_terms(const QubitOperator& diag_oper,
 }
 
 /**
- * Compute the four factor arrays of the product-space diagonal decomposition.
+ * Return bit idx of a string stored as W words, low word first.
  */
-template <typename T>
-inline void compute_diag_factors(const unsigned long long* __restrict alpha_uint,
-                                 const unsigned long long* __restrict beta_uint,
-                                 const QubitOperator& diag_oper,
-                                 const unsigned int num_alpha,
-                                 const std::size_t a0,
-                                 const std::size_t a1,
-                                 const std::size_t n_b,
-                                 T* __restrict d_alpha_out,
-                                 T* __restrict d_beta_out,
-                                 T* __restrict Fc_out,
-                                 T* __restrict G_out)
+template <std::size_t W>
+inline unsigned int string_bit(const unsigned long long* bits, const unsigned int idx)
 {
+    if constexpr(W == 1)
+    {
+        return static_cast<unsigned int>((bits[0] >> idx) & 1u);
+    }
+    else
+    {
+        return static_cast<unsigned int>((bits[idx / 64u] >> (idx % 64u)) & 1u);
+    }
+}
+
+/**
+ * Compute the four factor arrays of the product-space diagonal decomposition,
+ * for alpha strings of WA words and beta strings of WB words
+ * (alpha_uint[i * WA + w] is word w of alpha string i).
+ */
+template <std::size_t WA, std::size_t WB, typename T>
+inline void compute_diag_factors_words(const unsigned long long* __restrict alpha_uint,
+                                       const unsigned long long* __restrict beta_uint,
+                                       const QubitOperator& diag_oper,
+                                       const unsigned int num_alpha,
+                                       const std::size_t a0,
+                                       const std::size_t a1,
+                                       const std::size_t n_b,
+                                       T* __restrict d_alpha_out,
+                                       T* __restrict d_beta_out,
+                                       T* __restrict Fc_out,
+                                       T* __restrict G_out)
+{
+    static_assert((WA == 1 || WA == 2) && (WB == 1 || WB == 2),
+                  "strings have one or two words");
     if(a0 > a1) throw std::invalid_argument("Invalid diagonal alpha range.");
     const std::size_t na_local = a1 - a0;
     const std::size_t n_terms = diag_oper.terms.size();
@@ -581,25 +602,28 @@ inline void compute_diag_factors(const unsigned long long* __restrict alpha_uint
 
     const std::size_t n_cross = cross_terms.size();
 
-    auto eval_half = [](unsigned long long bits, const HalfInfo& hi) -> double {
+    auto eval_half = [](auto words, const unsigned long long* bits, const HalfInfo& hi) -> double {
+        constexpr std::size_t W = decltype(words)::value;
         for(std::size_t k = 0; k < hi.proj_inds.size(); k++)
         {
-            if(((bits >> hi.proj_inds[k]) & 1u) != hi.proj_bits[k])
+            if(string_bit<W>(bits, hi.proj_inds[k]) != hi.proj_bits[k])
                 return 0.0;
         }
         double prod = 1.0;
         for(std::size_t k = 0; k < hi.inds.size(); k++)
         {
-            unsigned int bit = (bits >> hi.inds[k]) & 1u;
+            unsigned int bit = string_bit<W>(bits, hi.inds[k]);
             prod *= REAL_OPER_ELEMENTS[4u * hi.vals[k] + 3u * bit];
         }
         return prod;
     };
+    using AlphaWords = std::integral_constant<std::size_t, WA>;
+    using BetaWords = std::integral_constant<std::size_t, WB>;
 
 #pragma omp parallel for schedule(static)
     for(std::size_t ia = 0; ia < na_local; ia++)
     {
-        const unsigned long long a_bits = alpha_uint[a0 + ia];
+        const unsigned long long* a_bits = alpha_uint + (a0 + ia) * WA;
         double da = 0.0;
         for(std::size_t ti : alpha_term_idx)
         {
@@ -607,7 +631,7 @@ inline void compute_diag_factors(const unsigned long long* __restrict alpha_uint
             bool pass = true;
             for(std::size_t k = 0; k < term.proj_indices.size(); k++)
             {
-                if(((a_bits >> term.proj_indices[k]) & 1u) != (unsigned int)term.proj_bits[k])
+                if(string_bit<WA>(a_bits, term.proj_indices[k]) != (unsigned int)term.proj_bits[k])
                 {
                     pass = false;
                     break;
@@ -618,7 +642,7 @@ inline void compute_diag_factors(const unsigned long long* __restrict alpha_uint
             double prod = 1.0;
             for(std::size_t k = 0; k < term.indices.size(); k++)
             {
-                unsigned int bit = (a_bits >> term.indices[k]) & 1u;
+                unsigned int bit = string_bit<WA>(a_bits, term.indices[k]);
                 prod *= REAL_OPER_ELEMENTS[4u * term.values[k] + 3u * bit];
             }
             da += static_cast<double>(term.real_phase) * term.coeff.real() * prod;
@@ -628,15 +652,16 @@ inline void compute_diag_factors(const unsigned long long* __restrict alpha_uint
         {
             T* fc_row = Fc_out + ia * n_cross;
             for(std::size_t ct = 0; ct < n_cross; ct++)
-                fc_row[ct] = static_cast<T>(cross_terms[ct].weighted_coeff *
-                                            eval_half(a_bits, cross_terms[ct].alpha_part));
+                fc_row[ct] =
+                    static_cast<T>(cross_terms[ct].weighted_coeff *
+                                   eval_half(AlphaWords{}, a_bits, cross_terms[ct].alpha_part));
         }
     }
 
 #pragma omp parallel for schedule(static)
     for(std::size_t ib = 0; ib < n_b; ib++)
     {
-        const unsigned long long b_bits = beta_uint[ib];
+        const unsigned long long* b_bits = beta_uint + ib * WB;
         double db = 0.0;
         for(std::size_t ti : beta_term_idx)
         {
@@ -645,7 +670,7 @@ inline void compute_diag_factors(const unsigned long long* __restrict alpha_uint
             for(std::size_t k = 0; k < term.proj_indices.size(); k++)
             {
                 unsigned int shifted = term.proj_indices[k] - num_alpha;
-                if(((b_bits >> shifted) & 1u) != (unsigned int)term.proj_bits[k])
+                if(string_bit<WB>(b_bits, shifted) != (unsigned int)term.proj_bits[k])
                 {
                     pass = false;
                     break;
@@ -656,7 +681,7 @@ inline void compute_diag_factors(const unsigned long long* __restrict alpha_uint
             double prod = 1.0;
             for(std::size_t k = 0; k < term.indices.size(); k++)
             {
-                unsigned int bit = (b_bits >> (term.indices[k] - num_alpha)) & 1u;
+                unsigned int bit = string_bit<WB>(b_bits, term.indices[k] - num_alpha);
                 prod *= REAL_OPER_ELEMENTS[4u * term.values[k] + 3u * bit];
             }
             db += static_cast<double>(term.real_phase) * term.coeff.real() * prod;
@@ -666,9 +691,41 @@ inline void compute_diag_factors(const unsigned long long* __restrict alpha_uint
         {
             T* g_row = G_out + ib * n_cross;
             for(std::size_t ct = 0; ct < n_cross; ct++)
-                g_row[ct] = static_cast<T>(eval_half(b_bits, cross_terms[ct].beta_part));
+                g_row[ct] =
+                    static_cast<T>(eval_half(BetaWords{}, b_bits, cross_terms[ct].beta_part));
         }
     }
+}
+
+
+/**
+ * Compute the four factor arrays of the product-space diagonal decomposition
+ * for one-word strings.
+ */
+template <typename T>
+inline void compute_diag_factors(const unsigned long long* __restrict alpha_uint,
+                                 const unsigned long long* __restrict beta_uint,
+                                 const QubitOperator& diag_oper,
+                                 const unsigned int num_alpha,
+                                 const std::size_t a0,
+                                 const std::size_t a1,
+                                 const std::size_t n_b,
+                                 T* __restrict d_alpha_out,
+                                 T* __restrict d_beta_out,
+                                 T* __restrict Fc_out,
+                                 T* __restrict G_out)
+{
+    compute_diag_factors_words<1, 1, T>(alpha_uint,
+                                        beta_uint,
+                                        diag_oper,
+                                        num_alpha,
+                                        a0,
+                                        a1,
+                                        n_b,
+                                        d_alpha_out,
+                                        d_beta_out,
+                                        Fc_out,
+                                        G_out);
 }
 
 

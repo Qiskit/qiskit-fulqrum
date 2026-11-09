@@ -28,7 +28,7 @@ from scipy.sparse.linalg import LinearOperator
 from fulqrum.core.spmv import FulqrumSpMV
 
 from .. import autotune
-from ..common.wide import check_width, max_electrons
+from ..common.wide import check_width, key_words, max_electrons, sort_strings
 from ..config import GpuConfig, warn_unknown_names
 from ..logging import format_memory
 from . import _collective
@@ -163,6 +163,20 @@ def _last_value(array) -> int:
     if array is None or array.size == 0:
         return 0
     return int(array[-1:].get()[0])
+
+
+def _check_key_shapes(arrays, sector_words):
+
+    for index, array in enumerate(arrays):
+        words = sector_words[index % 2]
+        shape = np.shape(array)
+        if (words == 1 and len(shape) != 1) or (
+            words > 1 and (len(shape) != 2 or shape[1] != words)
+        ):
+            sector = "beta" if index % 2 else "alpha"
+            raise ValueError(
+                f"{sector} strings have shape {shape}, expected {words} word(s) per string"
+            )
 
 
 def _kernel_param_digest() -> str:
@@ -420,8 +434,10 @@ class TileGPUResidentHamiltonian(LinearOperator):
             comm = MPI.COMM_WORLD
 
         spmv = hsub.spmv
+        sector_words = (1, 1)
         if isinstance(spmv, FulqrumSpMV):
             num_alpha = int(spmv.subspace.num_alpha_qubits)
+            sector_words = (key_words(num_alpha), key_words(int(spmv.width) - num_alpha))
             electrons = run_on_every_rank(
                 comm,
                 "sector electrons",
@@ -442,6 +458,7 @@ class TileGPUResidentHamiltonian(LinearOperator):
             )
 
         self._hsub = hsub
+        self._key_words = sector_words
         self._alpha_strs = alpha_strs
         self._beta_strs = beta_strs
         self._comm = comm
@@ -543,6 +560,10 @@ class TileGPUResidentHamiltonian(LinearOperator):
 
         self._alpha_bra = self._alpha_uniq[self._a0 : self._a1]
         self._beta_bra = self._beta_uniq[self._b0 : self._b1]
+        _check_key_shapes(
+            (self._alpha_uniq, self._beta_uniq, self._alpha_bra, self._beta_bra),
+            self._key_words,
+        )
 
         bytes_per_double = 8
         self._d_buffer_bytes = {
@@ -1372,11 +1393,12 @@ class TileGPUResidentHamiltonian(LinearOperator):
         alpha = self._alpha_strs
         beta = self._beta_strs
         if isinstance(alpha, np.ndarray) and alpha.dtype.kind in "iu":
-            return np.sort(alpha), np.sort(np.asarray(beta))
+            return sort_strings(alpha), sort_strings(np.asarray(beta))
         from .hash_utils import _pack_half_strs_to_uint64  # noqa: PLC0415
 
-        alpha_arr, beta_arr = _pack_half_strs_to_uint64(alpha, beta)
-        return np.sort(alpha_arr), np.sort(beta_arr)
+        widths = tuple(64 * words for words in self._key_words)
+        alpha_arr, beta_arr = _pack_half_strs_to_uint64(alpha, beta, widths)
+        return sort_strings(alpha_arr), sort_strings(beta_arr)
 
     @staticmethod
     def _estimate_operator_bytes(hsub) -> int:

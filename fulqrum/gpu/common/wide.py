@@ -98,23 +98,48 @@ def _as_words(strings):
     return words
 
 
-def pack_strings(strs, n):
+def pack_values(values, n):
 
 
     n = int(n)
     if n <= 0:
         raise ValueError(f"the orbital count must be positive, got {n}")
     width = key_words(n)
-    out = np.zeros((len(strs), width), dtype=np.uint64)
+    values = [int(v) for v in values]
+    for row, value in enumerate(values):
+        if value < 0 or value >> n:
+            raise ValueError(f"string {row} has a bit at or above orbital {n}")
+    if width == 1:
+        return np.array(values, dtype=np.uint64)
+    out = np.empty((len(values), width), dtype=np.uint64)
+    for word in range(width):
+        shift = WORD_BITS * word
+        out[:, word] = np.array([(v >> shift) & WORD_MASK for v in values], np.uint64)
+    return out
+
+
+def pack_strings(strs, n):
+
+
+    n = int(n)
     for row, text in enumerate(strs):
         if len(text) != n:
             raise ValueError(
                 f"string {row} has {len(text)} characters, expected {n}"
             )
-        value = int(text, 2)
-        for word in range(width):
-            out[row, word] = (value >> (WORD_BITS * word)) & WORD_MASK
-    return out[:, 0].copy() if width == 1 else out
+    return pack_values([int(text, 2) for text in strs], n)
+
+
+def sort_strings(strings):
+
+
+    words = np.asarray(strings, dtype=np.uint64)
+    if words.ndim == 1:
+        return np.sort(words)
+    if words.ndim != 2:
+        raise ValueError(f"strings must have shape (N,) or (N, W), got {words.shape}")
+    order = np.lexsort(words.T)
+    return np.ascontiguousarray(words[order])
 
 
 def unpack_ints(strings):
