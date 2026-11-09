@@ -22,7 +22,6 @@ ERROR_TYPES = {
 
 def raise_on_every_rank(comm, error, error_type=ValueError, what="check"):
 
-
     errors = comm.allgather(error)
     found = [f"rank {rank}: {text}" for rank, text in enumerate(errors) if text]
     if found:
@@ -30,7 +29,6 @@ def raise_on_every_rank(comm, error, error_type=ValueError, what="check"):
 
 
 def run_on_every_rank(comm, what, function):
-
 
     result, error = None, None
     try:

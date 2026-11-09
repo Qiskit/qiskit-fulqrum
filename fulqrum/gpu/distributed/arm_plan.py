@@ -25,8 +25,6 @@ REMOTE_CLIQUE = 2
 
 @dataclass(frozen=True)
 class ArmSettings:
-
-
     factored: bool
     parent: bool
     remote_beta: str
@@ -35,8 +33,6 @@ class ArmSettings:
 
 @dataclass(frozen=True)
 class SourceFacts:
-
-
     is_bra: bool
     same_alpha: bool
     same_beta: bool
@@ -54,8 +50,6 @@ class SourceFacts:
 
 @dataclass(frozen=True)
 class ArmPlan:
-
-
     aabb_mode: int
     aabb_path: str
     remote_beta: int
@@ -63,7 +57,6 @@ class ArmPlan:
 
 
 def plan_arms(facts: SourceFacts, settings: ArmSettings) -> ArmPlan:
-
 
     if facts.same_beta and facts.doubles_edges and not facts.doubles_sell:
         raise ValueError(
@@ -78,7 +71,6 @@ def plan_arms(facts: SourceFacts, settings: ArmSettings) -> ArmPlan:
 
 
 def aabb_mode(facts: SourceFacts, settings: ArmSettings) -> int:
-
 
     if settings.factored and facts.singles_edges and not facts.singles_sell:
         raise ValueError(

@@ -637,7 +637,6 @@ def test_relay_route_model_and_lent_buffers():
     from fulqrum.gpu.distributed import rdm_cart  # noqa: PLC0415
 
     class One:
-
         def Get_rank(self):
             return 5
 

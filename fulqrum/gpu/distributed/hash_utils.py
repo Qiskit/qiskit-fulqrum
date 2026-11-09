@@ -24,7 +24,6 @@ from ..common.hash_utils import (
 
 def _pack_half_strs_to_uint64(alpha, beta):
 
-
     alpha_arr = np.array([int(s, 2) for s in alpha], dtype=np.uint64)
     beta_arr = np.array([int(s, 2) for s in beta], dtype=np.uint64)
     return alpha_arr, beta_arr
@@ -51,7 +50,6 @@ def _build_hash_table_simple(arr: np.ndarray):
 def _ht_lookup_batch(
     ht_keys: np.ndarray, ht_vals: np.ndarray, mask_int: int, keys: np.ndarray
 ) -> np.ndarray:
-
 
     mask = np.uint64(mask_int)
     slots = (_splitmix64_vec(keys) & mask).astype(np.intp)

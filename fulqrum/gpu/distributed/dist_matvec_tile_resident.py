@@ -188,7 +188,6 @@ def _wait_for_uploads() -> None:
 
 def _pack_term_tables(gpu_data) -> tuple:
 
-
     inds = np.ascontiguousarray(gpu_data["term_inds"]).astype(np.uint8)
     vals = np.ascontiguousarray(gpu_data["term_vals"]).astype(np.uint8)
     coeffs = np.ascontiguousarray(gpu_data["term_coeffs_re"]).astype(np.float64)
@@ -226,7 +225,6 @@ def _device_address(array) -> int:
 
 
 def _dev_nonnull(a) -> bool:
-
 
     return a is not None and a.size > 0
 
@@ -375,7 +373,6 @@ class TileGPUResidentHamiltonian(LinearOperator):
         config,
     ) -> None:
 
-
         self._config = config if config is not None else GpuConfig.from_environ()
 
         if not hsub.spmv.is_real:
@@ -437,7 +434,6 @@ class TileGPUResidentHamiltonian(LinearOperator):
             self._build_threads = max(1, int(os.environ.get("OMP_NUM_THREADS", "1")))
 
     def _init_grid(self, process_grid, comm_backend, started) -> tuple:
-
 
         if process_grid is None:
             process_grid = _default_2d_process_grid(self._nranks)
@@ -530,7 +526,6 @@ class TileGPUResidentHamiltonian(LinearOperator):
             self._d_beta_ring = None
             self._compute_stream = cupy.cuda.Stream(non_blocking=True)
 
-
             self._copy_stream = cupy.cuda.Stream(non_blocking=True, priority=-1000)
         except ImportError:
             self._cupy_available = False
@@ -542,7 +537,6 @@ class TileGPUResidentHamiltonian(LinearOperator):
             self._copy_stream = None
 
     def _init_options(self) -> None:
-
 
         try:
             self._exchange_mode = exchange_mode(self._config)
@@ -676,7 +670,6 @@ class TileGPUResidentHamiltonian(LinearOperator):
 
     def _resolve_settings(self):
 
-
         device = None
         if self._cupy_available:
             import cupy  # noqa: PLC0415
@@ -715,7 +708,6 @@ class TileGPUResidentHamiltonian(LinearOperator):
 
     def _init_device_state(self) -> None:
 
-
         self._d_mixed_slots = None
         self._d_hierarchical_stage = None
         self._d_hierarchical_gather = None
@@ -748,7 +740,6 @@ class TileGPUResidentHamiltonian(LinearOperator):
         self._const_energy = 0.0
 
     def _init_records(self, pre_init_elapsed, partition_elapsed) -> None:
-
 
         self._operator_bytes = self._estimate_operator_bytes(self._hsub)
 
@@ -826,7 +817,6 @@ class TileGPUResidentHamiltonian(LinearOperator):
         self._construction_timing["arm_timing_enabled"] = bool(self._arm_timing_enabled)
 
     def _init_tables(self) -> None:
-
 
         _t = time.perf_counter()
         self._construction_timing["aabb_arms_off"] = ""
@@ -1066,7 +1056,6 @@ class TileGPUResidentHamiltonian(LinearOperator):
 
     def _host_diag_local(self, spmv, num_alpha: int) -> np.ndarray:
 
-
         if int(self._has_diag):
             if not hasattr(spmv, "diagonal_slice_product_space"):
                 raise RuntimeError(
@@ -1133,7 +1122,6 @@ class TileGPUResidentHamiltonian(LinearOperator):
         doubles_sell: Optional[bool] = None,
     ) -> dict:
 
-
         tables = self._tile_tables.sources[src_rank]
         if doubles_sell is None:
             doubles_sell = tables.alpha.doubles_sell is not None
@@ -1143,7 +1131,6 @@ class TileGPUResidentHamiltonian(LinearOperator):
         return arm_cache_sizes(lengths, self._num_alpha, self._num_beta)
 
     def _pinned_staging_bytes(self) -> int:
-
 
         total = 0
         for attr in (
@@ -1278,7 +1265,6 @@ class TileGPUResidentHamiltonian(LinearOperator):
 
     def _record_free_hbm(self, tag: str) -> None:
 
-
         if not self._cupy_available:
             return
         try:
@@ -1362,7 +1348,6 @@ class TileGPUResidentHamiltonian(LinearOperator):
 
     def _build_hierarchical_exchange_metadata(self) -> None:
 
-
         self._hierarchical_exchange_active = False
         self._hierarchical_lean_ring_active = False
         self._hierarchical_round_args = []
@@ -1439,7 +1424,6 @@ class TileGPUResidentHamiltonian(LinearOperator):
 
     def _exchange_domains(self) -> tuple:
 
-
         if self._intra_node_size is None:
             node_comm = self._backend.comm_split_type_node(self._comm)
         else:
@@ -1459,7 +1443,6 @@ class TileGPUResidentHamiltonian(LinearOperator):
 
     def _two_level_plan(self, node_members, domains):
 
-
         sources_by_rank = self._comm.allgather(tuple(sorted(self._sources_2d)))
         plan = _hierarchical_exchange_plan(self._rank, domains, sources_by_rank)
         raise_on_every_rank(
@@ -1478,7 +1461,6 @@ class TileGPUResidentHamiltonian(LinearOperator):
         return plan
 
     def _validate_subspace(self) -> None:
-
 
         spmv = self._hsub.spmv
         if not isinstance(spmv, FulqrumSpMV):
@@ -1502,7 +1484,6 @@ class TileGPUResidentHamiltonian(LinearOperator):
 
     def _validate_operator_groups(self, spmv, num_alpha: int, grp4_direct) -> None:
 
-
         found = unsupported_groups(spmv, num_alpha, grp4_direct)
         self._construction_timing["operator_groups_checked"] = len(grp4_direct)
         if not found:
@@ -1520,7 +1501,6 @@ class TileGPUResidentHamiltonian(LinearOperator):
         )
 
     def _turn_off_factored_aabb_arms(self, need: str) -> None:
-
 
         explicit = {
             "FQ_AABB_CLIQUE_ENABLE": self._aabb_parent_enabled,
@@ -1553,7 +1533,6 @@ class TileGPUResidentHamiltonian(LinearOperator):
         return a1 - a0
 
     def _exchange_settings(self) -> dict:
-
 
         return {
             "exchange": self._exchange_name,
@@ -1610,7 +1589,6 @@ class TileGPUResidentHamiltonian(LinearOperator):
 
     def _build_exchange_steps(self) -> None:
 
-
         self._alpha_comm_world_ranks = np.asarray(
             self._alpha_comm.allgather(self._rank), dtype=np.int32
         )
@@ -1655,7 +1633,6 @@ class TileGPUResidentHamiltonian(LinearOperator):
 
     def _allocate_pinned_staging(self) -> None:
 
-
         self._beta_ring_send_pinned = None
         self._beta_ring_recv_pinned = None
         self._alpha_ring_send_pinned = None
@@ -1690,7 +1667,6 @@ class TileGPUResidentHamiltonian(LinearOperator):
             ]
 
     def _allocate_exchange_pool(self) -> None:
-
 
         import cupy  # noqa: PLC0415
 
@@ -1812,7 +1788,6 @@ class TileGPUResidentHamiltonian(LinearOperator):
 
     def _read_operator_groups(self, spmv, gpu_data):
 
-
         from fulqrum.gpu.distributed.tile_discovery import _group_flip_masks  # noqa: PLC0415
 
         num_alpha = int(spmv.subspace.num_alpha_qubits)
@@ -1868,7 +1843,6 @@ class TileGPUResidentHamiltonian(LinearOperator):
 
     def _choose_table_source(self, spmv) -> None:
 
-
         table_source = self._config.value("FQ_ARM_TABLE_SOURCE")
         if table_source == "kernel":
             self._host_arm_reason = "FQ_ARM_TABLE_SOURCE=kernel"
@@ -1882,7 +1856,6 @@ class TileGPUResidentHamiltonian(LinearOperator):
         self._construction_timing["host_arm_values"] = self._host_arm_reason or "on"
 
     def _upload_diagonal(self, spmv) -> None:
-
 
         import cupy  # noqa: PLC0415
 
@@ -1933,7 +1906,6 @@ class TileGPUResidentHamiltonian(LinearOperator):
 
     def _upload_term_tables(self, gpu_data) -> None:
 
-
         from fulqrum.gpu.distributed.dist_matvec import _OPER_ELEMS_HOST  # noqa: PLC0415
 
         if self._has_offdiag:
@@ -1981,7 +1953,6 @@ class TileGPUResidentHamiltonian(LinearOperator):
 
     def _upload_aabb_coefficients(self, spmv, gpu_data, grp4_direct) -> None:
 
-
         if grp4_direct is None:
             return
         if self._host_arms:
@@ -2020,7 +1991,6 @@ class TileGPUResidentHamiltonian(LinearOperator):
 
     def _set_bra_self_tables(self, self_tables) -> None:
 
-
         import cupy  # noqa: PLC0415
 
         self._alpha2_count = np.diff(
@@ -2039,7 +2009,6 @@ class TileGPUResidentHamiltonian(LinearOperator):
         self._d_beta_self_slot = cupy.arange(self._n_b_local, dtype=cupy.int32)
 
     def _build_source_tile_tables(self, self_tables) -> None:
-
 
         started = time.perf_counter()
         alpha_peers, beta_peers, source_coords = self._table_coordinates()
@@ -2065,7 +2034,6 @@ class TileGPUResidentHamiltonian(LinearOperator):
         timing["peer_csr_cache_n_distinct_beta_builds"] = float(len(beta_peers))
 
     def _build_aabb_plans(self, self_tables) -> None:
-
 
         if not self._aabb_factored:
             return
@@ -2107,7 +2075,6 @@ class TileGPUResidentHamiltonian(LinearOperator):
         )
 
     def _plan_arms(self) -> dict:
-
 
         settings = ArmSettings(
             factored=self._aabb_factored,
@@ -2170,7 +2137,6 @@ class TileGPUResidentHamiltonian(LinearOperator):
 
     def _validate_clique_plan(self, src_rank, arm_plan) -> None:
 
-
         if arm_plan.aabb_path not in (ARM_CLIQUE, ARM_TRANSPOSED_CLIQUE):
             return
         n_b_src = self._rank_tiles[src_rank][3] - self._rank_tiles[src_rank][2]
@@ -2217,7 +2183,6 @@ class TileGPUResidentHamiltonian(LinearOperator):
 
     def _host_arm_values_reason(self, spmv) -> Optional[str]:
 
-
         needed = {
             "a factored aabb table": self._aabb_factored,
             "FQ_AA_PAIR_TABLE": self._aa_pair_enabled,
@@ -2231,7 +2196,6 @@ class TileGPUResidentHamiltonian(LinearOperator):
         )
 
     def _build_host_arm_values(self) -> None:
-
 
         import cupy  # noqa: PLC0415
 
@@ -2314,7 +2278,6 @@ class TileGPUResidentHamiltonian(LinearOperator):
 
     def _fill_alpha_arms(self, src_rank, view, tile, aa_t, payload, keep) -> None:
 
-
         import cupy  # noqa: PLC0415
 
         ptr, columns = (
@@ -2382,7 +2345,6 @@ class TileGPUResidentHamiltonian(LinearOperator):
 
     def _fill_beta_arms(self, src_rank, view, tile, bb_t, payload, keep) -> None:
 
-
         import cupy  # noqa: PLC0415
 
         ptr, columns = (
@@ -2432,7 +2394,6 @@ class TileGPUResidentHamiltonian(LinearOperator):
     @staticmethod
     def _check_host_signs(src_rank, ptr, columns, tile, gpu_signs) -> None:
 
-
         own, jw = tile["own_signs"], tile["jw_signs"]
         if not np.all((own == 0) | (own == jw)):
             raise ValueError(
@@ -2447,7 +2408,6 @@ class TileGPUResidentHamiltonian(LinearOperator):
             )
 
     def _table_coordinates(self) -> tuple[dict, dict, dict]:
-
 
         alpha_peers, beta_peers = {}, {}
         source_coords = {self._rank: (self._coord_alpha, self._coord_beta)}
@@ -2626,7 +2586,6 @@ class TileGPUResidentHamiltonian(LinearOperator):
         d_bb_cpb,
     ):
 
-
         if self._host_arms:
             state = self._arm_pair_state.get(src_rank)
             return None if state is None else state["payload"]
@@ -2650,7 +2609,6 @@ class TileGPUResidentHamiltonian(LinearOperator):
         )
 
         def rank_table(kind, d, present, build):
-
 
             entry = self._arm_pair_rank.get(kind)
             if entry is None:
@@ -2805,13 +2763,11 @@ class TileGPUResidentHamiltonian(LinearOperator):
 
     def _raise_on_pair_payload_error(self, src_rank, payload) -> None:
 
-
         error = pair_payload_error(payload, self._n_b_local, self._n_a_local)
         if error is not None:
             raise RuntimeError(f"rank {self._rank} source {src_rank}: {error}")
 
     def _build_aabb_remote_alpha_plans(self, bptr, bj, bp0, bp1, to_device) -> None:
-
 
         import cupy
 
@@ -2901,7 +2857,6 @@ class TileGPUResidentHamiltonian(LinearOperator):
                     if not len(words):
                         continue
                     if self._aabb_residual_degree_order:
-
                         off, lengths, pack, order = degree_sorted_sell(*host_tables)
                         src_device = dict(
                             residual_off=to_device(off, dtype=np.int64),
@@ -2968,7 +2923,6 @@ class TileGPUResidentHamiltonian(LinearOperator):
         )
 
     def _build_aabb_remote_beta_plans(self, to_device) -> None:
-
 
         import cupy
 
@@ -3065,7 +3019,6 @@ class TileGPUResidentHamiltonian(LinearOperator):
 
     def _arm_cache_buffers(self, src_rank: int, sizes: dict) -> dict:
 
-
         import cupy  # noqa: PLC0415
 
         buffers = {}
@@ -3083,7 +3036,6 @@ class TileGPUResidentHamiltonian(LinearOperator):
         return buffers
 
     def rdm_scratch(self) -> list:
-
 
         buffers = [self._d_v_local, self._d_out_local, self._d_hierarchical_stage]
         buffers += list(self._d_hierarchical_gather or [])
@@ -3111,7 +3063,6 @@ class TileGPUResidentHamiltonian(LinearOperator):
         *,
         stream=None,
     ) -> None:
-
 
         if self._d_alpha_uniq is None:
             raise NotImplementedError(
@@ -3154,7 +3105,6 @@ class TileGPUResidentHamiltonian(LinearOperator):
         stream_handle,
     ) -> None:
 
-
         from .kernel_launch import launch_diagonal  # noqa: PLC0415
 
         geometry = (
@@ -3195,7 +3145,6 @@ class TileGPUResidentHamiltonian(LinearOperator):
             raise RuntimeError(f"diagonal arm: {error}") from error
 
     def _clique_cross(self, src_rank, path, remote):
-
 
         if path == ARM_CLIQUE:
             plan = self._aabb_parent_plan
@@ -3289,7 +3238,6 @@ class TileGPUResidentHamiltonian(LinearOperator):
 
     def _xterm_buffers(self, doubles):
 
-
         import cupy  # noqa: PLC0415
 
         if self._xterm_flag is None:
@@ -3311,7 +3259,6 @@ class TileGPUResidentHamiltonian(LinearOperator):
         grouped_edges,
         residual_edges,
     ):
-
 
         if path != ARM_CLIQUE:
             return None
@@ -3374,7 +3321,6 @@ class TileGPUResidentHamiltonian(LinearOperator):
 
     def _clique_panel(self, src_rank, path, remote, device, bucket_start):
 
-
         if (
             path != ARM_CLIQUE
             or remote
@@ -3422,7 +3368,6 @@ class TileGPUResidentHamiltonian(LinearOperator):
             )
             doubles = max(b * p for b, p in zip(batch, per_parent))
         if self._xterm_scratch_bytes:
-
             scratch, _ = self._xterm_buffers(doubles)
             state = (scratch, cupy.zeros(1, dtype=cupy.int32), columns, batch)
         else:
@@ -3447,7 +3392,6 @@ class TileGPUResidentHamiltonian(LinearOperator):
     def _launch_cross_clique_arm(
         self, src_rank, d_src_in, d_out, n_alpha_compact
     ) -> None:
-
 
         plan = self._arm_plans[src_rank]
         cross = self._clique_cross(src_rank, plan.aabb_path, plan.remote_beta)
@@ -3508,7 +3452,6 @@ class TileGPUResidentHamiltonian(LinearOperator):
         stream_handle,
     ) -> None:
 
-
         view = self._tile_tables.sources[src_rank].launch_view
         a0_peer, a1_peer, b0_peer, b1_peer, _, _ = self._rank_tiles[src_rank]
         geometry = (
@@ -3560,7 +3503,6 @@ class TileGPUResidentHamiltonian(LinearOperator):
         if (self._bbbb_class_enabled and same_alpha and built[0]) or (
             self._aaaa_class_enabled and same_beta and built[1]
         ):
-
             import cupy  # noqa: PLC0415
 
             cupy.get_default_memory_pool().free_all_blocks()
@@ -3618,7 +3560,6 @@ class TileGPUResidentHamiltonian(LinearOperator):
 
     def _source_order(self, src_rank, view, same_beta):
 
-
         if not (
             self._aaaa_group_auto
             and same_beta
@@ -3642,7 +3583,6 @@ class TileGPUResidentHamiltonian(LinearOperator):
         return dict(self._arm_order, aaaa=int(group))
 
     def _beta_double_class(self, src_rank, view, caches, same_alpha):
-
 
         if not (self._bbbb_class_enabled and same_alpha):
             return None
@@ -3699,7 +3639,6 @@ class TileGPUResidentHamiltonian(LinearOperator):
                 )
         self._compute_stream.synchronize()
         if tables.stats["tiles"] == 0:
-
             self._bbbb_class_state[src_rank] = None
             self._logger.debug(
                 f"Beta doubles use the CSR kernel: rank={self._rank} src={src_rank} classes=0 "
@@ -3733,7 +3672,6 @@ class TileGPUResidentHamiltonian(LinearOperator):
         return form
 
     def _alpha_double_class(self, src_rank, view, caches, same_beta):
-
 
         if not (self._aaaa_class_enabled and same_beta):
             return None
@@ -3792,8 +3730,6 @@ class TileGPUResidentHamiltonian(LinearOperator):
             else:
                 residual = leftover = None
                 if tables.stats["residual_edges"] > 0 and self._aaaa_leftover_xt:
-
-
                     leftover = (
                         tables.residual_offsets,
                         tables.residual_columns,
@@ -3804,7 +3740,6 @@ class TileGPUResidentHamiltonian(LinearOperator):
                             self._aaaa_class_slab, dtype=cupy.int32
                         )
                 elif tables.stats["residual_edges"] > 0:
-
                     residual = sell_from_csr(
                         tables.residual_offsets,
                         tables.residual_columns,
@@ -3883,7 +3818,6 @@ class TileGPUResidentHamiltonian(LinearOperator):
 
     def _source_caches(self, src_rank, same_alpha, same_beta) -> dict:
 
-
         if self._host_arms:
             return {name: self._arm_caches.get((name, src_rank)) for name in ARM_CACHES}
         return self._arm_cache_buffers(
@@ -3893,7 +3827,6 @@ class TileGPUResidentHamiltonian(LinearOperator):
     def _build_source_caches(
         self, src_rank, geometry, view, caches, same_alpha, same_beta, stream_handle
     ) -> None:
-
 
         import cupy  # noqa: PLC0415
 
@@ -3948,7 +3881,6 @@ class TileGPUResidentHamiltonian(LinearOperator):
         )
 
     def _add_aabb_events(self, launch, src_rank, same_alpha, same_beta) -> None:
-
 
         clique = isinstance(launch.cross, CliqueCross)
         recorder = self._recorder
@@ -4007,7 +3939,6 @@ class TileGPUResidentHamiltonian(LinearOperator):
 
     def _matvec(self, v, *, out=None):  # noqa: D401
 
-
         v_arr, v_is_device = self._matvec_input(v, out)
         self._matvec_call_idx += 1
         recorder = MatvecRecorder(
@@ -4040,7 +3971,6 @@ class TileGPUResidentHamiltonian(LinearOperator):
         return result
 
     def _matvec_input(self, v, out):
-
 
         v_size = getattr(v, "size", None)
         if v_size is None:
@@ -4076,7 +4006,6 @@ class TileGPUResidentHamiltonian(LinearOperator):
         return v_arr, v_is_device
 
     def _stage(self, v_arr, v_is_device, out, recorder):
-
 
         import cupy  # noqa: PLC0415
 
@@ -4150,7 +4079,6 @@ class TileGPUResidentHamiltonian(LinearOperator):
         label="",
     ):
 
-
         import cupy  # noqa: PLC0415
 
         if src_rank not in self._sources_2d:
@@ -4198,7 +4126,6 @@ class TileGPUResidentHamiltonian(LinearOperator):
 
     def _exchange(self, d_v, d_out, recorder) -> None:
 
-
         timing = recorder.timing
         d_send_view = d_v.ravel()
         slot_events: list = [None, None]
@@ -4245,7 +4172,6 @@ class TileGPUResidentHamiltonian(LinearOperator):
         timing["ringshift_path"] = not self._hierarchical_exchange_active
 
     def _exchange_two_level(self, executor, d_send_view, d_out, recorder) -> int:
-
 
         timing = recorder.timing
         timing["exchange_alpha"] = 0.0
@@ -4303,7 +4229,6 @@ class TileGPUResidentHamiltonian(LinearOperator):
 
     def _seed_ring_slot(self, slot_events, fill) -> None:
 
-
         if slot_events[0] is not None:
             self._copy_stream.wait_event(slot_events[0])
         with self._copy_stream:
@@ -4313,7 +4238,6 @@ class TileGPUResidentHamiltonian(LinearOperator):
     def _exchange_beta_ring(
         self, executor, slot_events, d_v, d_send_view, d_out, recorder
     ) -> None:
-
 
         timing = recorder.timing
         double_buffer = self._exchange_double_buffer_enabled
@@ -4374,7 +4298,6 @@ class TileGPUResidentHamiltonian(LinearOperator):
     def _exchange_alpha_ring(
         self, executor, slot_events, d_v, d_send_view, d_out, recorder
     ) -> None:
-
 
         timing = recorder.timing
         double_buffer = self._exchange_double_buffer_enabled
@@ -4437,7 +4360,6 @@ class TileGPUResidentHamiltonian(LinearOperator):
 
     def _exchange_mixed_window(self, executor, d_send_view, d_out, recorder) -> int:
 
-
         timing = recorder.timing
         timing["exchange_mixed"] = 0.0
         mixed_bytes = 0
@@ -4470,7 +4392,6 @@ class TileGPUResidentHamiltonian(LinearOperator):
         return mixed_bytes
 
     def _unstage(self, d_out, out, alias_ok, recorder):
-
 
         import cupy  # noqa: PLC0415
 

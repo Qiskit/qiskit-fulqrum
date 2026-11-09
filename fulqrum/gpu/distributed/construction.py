@@ -25,7 +25,6 @@ def _build_axis_connection_tables(
     masks_4: list,
 ) -> dict:
 
-
     n_bra = len(bra_vals)
     if not masks_2 and not masks_4:
         empty = _empty_csr_table(n_bra)

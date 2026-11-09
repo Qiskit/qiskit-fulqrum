@@ -26,7 +26,6 @@ _SM64_M2_U64 = np.uint64(0x94D049BB133111EB)
 
 def _splitmix64(key: int) -> int:
 
-
     k = int(key)
     k = ((k ^ (k >> 30)) * _SM64_M1) & 0xFFFFFFFFFFFFFFFF
     k = ((k ^ (k >> 27)) * _SM64_M2) & 0xFFFFFFFFFFFFFFFF
@@ -45,7 +44,6 @@ def _splitmix64_vec(keys: np.ndarray) -> np.ndarray:
 
 
 def _popcount_u64(v: np.ndarray, *, dtype=np.uint8) -> np.ndarray:
-
 
     x = v.astype(np.uint64, copy=True)
     x -= (x >> np.uint64(1)) & np.uint64(0x5555555555555555)

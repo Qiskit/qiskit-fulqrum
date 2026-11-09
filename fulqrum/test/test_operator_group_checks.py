@@ -25,7 +25,6 @@ from fulqrum.gpu.distributed.tile_discovery import (
 )  # noqa: E402
 
 
-
 def operator_case(name, directory):
     import fulqrum as fq
     from fulqrum.gpu.common.operator_arrays import to_gpu_arrays

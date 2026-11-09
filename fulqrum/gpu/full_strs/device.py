@@ -47,8 +47,6 @@ def _count_in_range(members, low, high):
 
 
 class ChunkClassView:
-
-
     def __init__(self, members, offsets, num_members, bucket_start):
         self.members = members
         self.offsets = offsets
@@ -62,8 +60,6 @@ class ChunkClassView:
 
 
 class ResidentChunk:
-
-
     def __init__(self, views, stream, scratch):
         self.arrays = []
         self.classes = []
@@ -96,8 +92,6 @@ class ResidentChunk:
 
 
 class StreamSlot:
-
-
     def __init__(self, max_members, max_groups, scratch_bytes):
         self.members = cupy.empty(max(1, max_members), dtype=np.int32)
         self.sizes = cupy.empty(max(1, max_groups), dtype=np.uint16)
@@ -106,7 +100,6 @@ class StreamSlot:
         self.released = None
 
     def load(self, views, stream):
-
 
         classes = []
         member_offset = 0
@@ -157,8 +150,6 @@ class StreamSlot:
 
 
 class DeviceLayout:
-
-
     def __init__(
         self,
         host,
@@ -212,9 +203,7 @@ class DeviceLayout:
         num_units = len(self.views)
         chunk_members = [sum(view[0].size for view in chunk) for chunk in self.views]
         chunk_groups = [sum(view[1].size for view in chunk) for chunk in self.views]
-        self.num_entries = int(
-            sum(chunk_members)
-        )
+        self.num_entries = int(sum(chunk_members))
         largest_class_groups = max(
             view[1].size for chunk in self.views for view in chunk
         )
@@ -385,11 +374,9 @@ class DeviceLayout:
     @staticmethod
     def _stream_bytes(members, groups, scan_bytes):
 
-
         return NUM_SLOTS * (4 * members + 6 * groups + scan_bytes)
 
     def _planned_plan_bytes(self):
-
 
         from concurrent.futures import ThreadPoolExecutor  # noqa: PLC0415
 
@@ -438,7 +425,6 @@ class DeviceLayout:
     @staticmethod
     def _reduce_entries(member_arrays, low, high):
 
-
         rows, positions = [], []
         base = 0
         for members in member_arrays:
@@ -453,7 +439,6 @@ class DeviceLayout:
         return cupy.concatenate(rows), cupy.concatenate(positions)
 
     def _build_reduce_plans(self):
-
 
         stream = self.upload_stream
         with stream:
@@ -511,7 +496,6 @@ class DeviceLayout:
 
     def release_host_chunks(self):
 
-
         release = getattr(self.host, "release_units", None)
         units = [
             unit
@@ -550,7 +534,6 @@ class DeviceLayout:
 
     def _classes(self, chunk, stream, slot_index):
 
-
         if self.resident[chunk]:
             return self.chunks[chunk].classes, None
         slot = self.slots[slot_index]
@@ -561,7 +544,6 @@ class DeviceLayout:
         return classes, slot
 
     def matvec(self, x, y, stream, binned=True, diagonal=True):
-
 
         if diagonal:
             kernel_launch.launch_diagonal(
@@ -649,7 +631,6 @@ class DeviceLayout:
         self, view, cls, x, stream, binned, partials, pointers, ranges, y=0
     ):
 
-
         halo = self.halo_keys.data.ptr if self.halo_keys.size else 0
         args = (
             self.keys.data.ptr,
@@ -674,7 +655,6 @@ class DeviceLayout:
                 )
 
     def class_partials(self, x, chunk, cls, stream, binned=True):
-
 
         if self.partials is None:
             self.partials = cupy.empty(

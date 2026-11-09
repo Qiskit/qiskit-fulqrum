@@ -296,7 +296,6 @@ class FullStrsHamiltonian:
         exchange,
     ):
 
-
         from fulqrum.gpu.distributed.rank_agreement import run_on_every_rank  # noqa: PLC0415
 
         from .distribute import build_distributed_groups  # noqa: PLC0415
@@ -350,9 +349,7 @@ class FullStrsHamiltonian:
 
             domain_comm, domains = exchange_domains(comm, self._domain_size)
             extend_to_domain_union(comm, domain_comm, domains, block, receiver)
-            fetch_halo_keys(
-                comm, block, receiver
-            )
+            fetch_halo_keys(comm, block, receiver)
         reference = comm.bcast(
             block_reference(block.keys, num_orbitals) if comm.Get_rank() == 0 else None,
             root=0,
@@ -421,7 +418,6 @@ class FullStrsHamiltonian:
         self, operator, block, receiver, num_orbitals, residency, device_budget_bytes
     ):
 
-
         from fulqrum.gpu.distributed.rank_agreement import run_on_every_rank  # noqa: PLC0415
 
         from .full_vectors import FullVectorExchange  # noqa: PLC0415
@@ -439,7 +435,6 @@ class FullStrsHamiltonian:
         exchange = FullVectorExchange(comm, stride, block.n_local)
         stream = cupy.cuda.Stream(non_blocking=True)
 
-
         with stream:
             keys = cupy.zeros(2 * size * stride, dtype=np.uint64)
         keys[2 * rank * stride : 2 * (rank * stride + block.n_local)].set(
@@ -451,9 +446,7 @@ class FullStrsHamiltonian:
         self._receiver = receiver
         self._host = _FullHost(rank_host, receiver, num_orbitals, size * stride)
         self._halo = exchange
-        reserve = (
-            self._host.num_rows - self._host.num_own
-        )
+        reserve = self._host.num_rows - self._host.num_own
         self._layout = run_on_every_rank(
             comm,
             "device layout",
@@ -500,7 +493,6 @@ class FullStrsHamiltonian:
         copies,
         exchange,
     ):
-
 
         from fulqrum.gpu.distributed.rank_agreement import run_on_every_rank  # noqa: PLC0415
 
@@ -610,7 +602,6 @@ class FullStrsHamiltonian:
 
     def _matvec(self, x, out=None):
 
-
         if out is None:
             out = cupy.empty(self.n_local, dtype=np.float64)
         caller = cupy.cuda.get_current_stream()
@@ -667,7 +658,6 @@ class FullStrsHamiltonian:
         return out
 
     def _rdm_input(self, x):
-
 
         if self._block is None:
             return x
@@ -736,8 +726,6 @@ def _orbitals(operator):
 
 
 class _RankHost:
-
-
     def __init__(self, rank_host, receiver, num_orbitals):
 
         self.rank_host = rank_host
@@ -774,8 +762,6 @@ class _RankHost:
 
 
 class _KeyHost(_RankHost):
-
-
     def chunk_kinds(self):
 
         return [(0, self.num_rows, 0, self.num_rows, 0, self.num_rows)]
@@ -786,8 +772,6 @@ class _KeyHost(_RankHost):
 
 
 class _FullHost(_RankHost):
-
-
     def __init__(self, rank_host, receiver, num_orbitals, num_rows):
 
         super().__init__(rank_host, receiver, num_orbitals)
@@ -803,8 +787,6 @@ class _FullHost(_RankHost):
 
 
 class _CopyHost:
-
-
     def __init__(self, rank_host, pieces, num_orbitals, share_begin, share_end):
 
         self.rank_host = rank_host

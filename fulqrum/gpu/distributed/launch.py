@@ -32,8 +32,6 @@ def offsets(array) -> int:
 
 @dataclass(frozen=True)
 class CliqueCross:
-
-
     residual_off: object
     residual_lengths: object
     residual_pack: object
@@ -69,8 +67,6 @@ class CliqueCross:
 
 @dataclass(frozen=True)
 class BetaDoubleClass:
-
-
     blocks: object
     block_offsets: object
     tile_info: object
@@ -86,8 +82,6 @@ class BetaDoubleClass:
 
 @dataclass(frozen=True)
 class AlphaDoubleClass:
-
-
     classes: object
     xt: object
     yt: object
@@ -100,8 +94,6 @@ class AlphaDoubleClass:
 
 @dataclass
 class SourceLaunch:
-
-
     geometry: tuple
     src_in: int
     out: int
@@ -128,7 +120,6 @@ class SourceLaunch:
 
 
 def _check(launch_call, arm: str, launch=None) -> None:
-
 
     if launch is None or launch.arm_events is None:
         try:
@@ -481,7 +472,6 @@ def _clique_tuple(
 
 def _cross_lbg(k, launch: SourceLaunch, clique: CliqueCross, geometry: tuple) -> None:
 
-
     from .aabb_lbg import RSL_ROWS_PER_JOB  # noqa: PLC0415
 
     plan, scratch, flag = (
@@ -720,7 +710,6 @@ def _cross(k, launch: SourceLaunch) -> None:
 
 def launch_steady_arms(launch: SourceLaunch) -> None:
 
-
     from . import kernel_launch  # noqa: PLC0415
 
     _alpha_doubles(kernel_launch, launch)
@@ -731,7 +720,6 @@ def launch_steady_arms(launch: SourceLaunch) -> None:
 
 
 def launch_cross(launch: SourceLaunch) -> None:
-
 
     from . import kernel_launch  # noqa: PLC0415
 
@@ -755,7 +743,6 @@ def build_source_caches(
     error: int,
     stream: int,
 ) -> None:
-
 
     from . import kernel_launch  # noqa: PLC0415
 

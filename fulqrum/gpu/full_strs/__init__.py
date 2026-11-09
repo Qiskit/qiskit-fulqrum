@@ -15,7 +15,6 @@
 
 def __getattr__(name):
 
-
     if name == "FullStrsHamiltonian":
         from .hamiltonian import FullStrsHamiltonian  # noqa: PLC0415
 

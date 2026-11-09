@@ -33,8 +33,6 @@ from .tile_tables import (
 
 @dataclass(frozen=True)
 class Csr:
-
-
     ptr: Any
     j: Any
     positions: tuple
@@ -42,8 +40,6 @@ class Csr:
 
 @dataclass(frozen=True)
 class SinglesSell:
-
-
     off: Any
     length: Any
     j: Any
@@ -54,8 +50,6 @@ class SinglesSell:
 
 @dataclass(frozen=True)
 class DoublesSell:
-
-
     off: Any
     length: Any
     j: Any
@@ -64,8 +58,6 @@ class DoublesSell:
 
 @dataclass(frozen=True)
 class AlphaTables:
-
-
     singles: Csr
     doubles: Csr
     apid: Any = None
@@ -80,16 +72,12 @@ class AlphaTables:
 
 @dataclass(frozen=True)
 class BetaTables:
-
-
     singles: Csr
     doubles: Csr
 
 
 @dataclass(frozen=True)
 class ArmCacheLengths:
-
-
     aaaa: int
     bbbb: int
     aa: int
@@ -98,8 +86,6 @@ class ArmCacheLengths:
 
 @dataclass(frozen=True)
 class SourceTables:
-
-
     alpha: AlphaTables
     beta: BetaTables
 
@@ -146,7 +132,6 @@ class SourceTables:
         self, same_alpha: bool, same_beta: bool, doubles_sell: bool, skip_unread: bool
     ) -> ArmCacheLengths:
 
-
         doubles = self.alpha.doubles_sell.j if doubles_sell else self.alpha.doubles.j
         aaaa, aa = int(doubles.size), int(self.alpha.singles.j.size)
         bbbb, bb = int(self.beta.doubles.j.size), int(self.beta.singles.j.size)
@@ -159,8 +144,6 @@ class SourceTables:
 
 @dataclass(frozen=True)
 class TileTables:
-
-
     alpha: dict
     beta: dict
     sources: dict
@@ -179,8 +162,6 @@ class TileTables:
 
 @dataclass(frozen=True)
 class TableOptions:
-
-
     num_alpha: int
     factored: bool
 
@@ -196,7 +177,6 @@ def build_tile_tables(
     flip_masks: dict,
     options: TableOptions,
 ) -> tuple:
-
 
     started = time.perf_counter()
     coord_alpha, coord_beta = coords
@@ -230,7 +210,6 @@ def build_tile_tables(
 def alpha_tables(
     singles: tuple, doubles: tuple, row_alpha, options: TableOptions
 ) -> AlphaTables:
-
 
     a2_ptr, a2_j, a2_p0, a2_p1 = singles[:4]
     a4_ptr, a4_j, a4_p0, a4_p1, a4_p2, a4_p3 = doubles
@@ -286,7 +265,6 @@ def array_bytes(value) -> int:
 
 def arm_cache_sizes(lengths: ArmCacheLengths, num_alpha: int, num_beta: int) -> dict:
 
-
     return dict(
         aaaa=lengths.aaaa,
         bbbb=lengths.bbbb,
@@ -301,7 +279,6 @@ def hbm_fit_error(
     predicted: dict, free_bytes: int, total_bytes: int, fraction: float
 ) -> Optional[str]:
 
-
     total = sum(predicted.values())
     if total <= fraction * free_bytes:
         return None
@@ -314,7 +291,6 @@ def hbm_fit_error(
 def values_on_edges(
     gpu_ptr, gpu_columns, host_offsets, host_columns, host_values
 ) -> np.ndarray:
-
 
     width = (
         int(
@@ -345,7 +321,6 @@ def values_on_edges(
 
 def pair_table(factors: np.ndarray, orbitals: int, tolerance: float) -> np.ndarray:
 
-
     num_pairs = orbitals * (orbitals - 1) // 2
     table = np.zeros((factors.shape[0], num_pairs))
     if num_pairs == 0 or factors.size == 0:
@@ -363,7 +338,6 @@ def pair_table(factors: np.ndarray, orbitals: int, tolerance: float) -> np.ndarr
 def aabb_coefficients(
     cross_sector: np.ndarray, num_alpha: int, num_beta: int
 ) -> np.ndarray:
-
 
     alpha_pairs = num_alpha * (num_alpha - 1) // 2
     beta_pairs = num_beta * (num_beta - 1) // 2
@@ -424,7 +398,6 @@ def _popcount_u64(x):
 
 def _alpha2_apid_asign(a2_ptr, a2_p0, a2_p1, row_alpha_dets, num_alpha):
 
-
     p0 = np.asarray(a2_p0, dtype=np.int64)
     p1 = np.asarray(a2_p1, dtype=np.int64)
     m = np.int64(num_alpha)
@@ -444,7 +417,6 @@ def _alpha2_apid_asign(a2_ptr, a2_p0, a2_p1, row_alpha_dets, num_alpha):
 
 
 def _sell_layout(ptr, warp=SELL_SLICE_ROWS):
-
 
     ptr = np.ascontiguousarray(ptr, dtype=np.int64)
     n_rows = len(ptr) - 1
@@ -467,7 +439,6 @@ def _sell_layout(ptr, warp=SELL_SLICE_ROWS):
 
 
 def _alpha2_sell(a2_ptr, a2_j, apid, asign, warp=SELL_SLICE_ROWS):
-
 
     off, row_len, dst = _sell_layout(a2_ptr, warp)
     total = int(off[-1])
@@ -508,7 +479,6 @@ def _alpha2_sell(a2_ptr, a2_j, apid, asign, warp=SELL_SLICE_ROWS):
 
 
 def _alpha4_sell(a4_ptr, a4_j, a4_p0, a4_p1, a4_p2, a4_p3, warp=SELL_SLICE_ROWS):
-
 
     off, row_len, dst = _sell_layout(a4_ptr, warp)
     total = int(off[-1])

@@ -25,7 +25,6 @@ NUM_BUCKETS = 7
 
 def kernel_coefficients(operator, keys, num_slices=1, repeats=3):
 
-
     host = HostOperator(operator, keys, num_slices=int(num_slices))
     layout = DeviceLayout(host, "resident")
     stream = cupy.cuda.Stream(non_blocking=True)
@@ -183,7 +182,6 @@ def _time_launch(layout, view, cls, bucket, first, count, x, stream, pointers, r
 
 
 def machine(comm):
-
 
     free, _ = cupy.cuda.runtime.memGetInfo()
     data = np.ones(8 << 20)

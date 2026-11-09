@@ -28,8 +28,6 @@ SEND_LOCAL = "send_local"
 
 @dataclass(frozen=True)
 class Step:
-
-
     channel: str
     transfer: str
     send_to: int
@@ -39,7 +37,6 @@ class Step:
 
 
 def ring_steps(channel, members, index, double_buffer):
-
 
     size = len(members)
     steps = []
@@ -72,7 +69,6 @@ def ring_steps(channel, members, index, double_buffer):
 
 def window_steps(hops, double_buffer):
 
-
     return [
         Step(
             "mixed",
@@ -94,7 +90,6 @@ EXCHANGE_MODES = (EXCHANGE_AUTO, EXCHANGE_RING, EXCHANGE_TWO_LEVEL)
 
 def exchange_mode(environ):
 
-
     mode = environ.get("FQ_EXCHANGE", EXCHANGE_AUTO).strip().lower()
     if mode not in EXCHANGE_MODES:
         raise ValueError(f"FQ_EXCHANGE must be one of {EXCHANGE_MODES}; got {mode!r}")
@@ -104,7 +99,6 @@ def exchange_mode(environ):
 def two_level_obstacle(
     nccl_on_every_rank, domains, host_mpi_on_every_rank=False, requested=False
 ):
-
 
     if not (nccl_on_every_rank or (host_mpi_on_every_rank and requested)):
         if host_mpi_on_every_rank:
@@ -120,7 +114,6 @@ def two_level_obstacle(
 
 
 def choose_exchange(mode, nccl_on_every_rank, domains, host_mpi_on_every_rank=False):
-
 
     if mode == EXCHANGE_RING:
         return EXCHANGE_RING, "FQ_EXCHANGE=ring"
@@ -139,13 +132,11 @@ def choose_exchange(mode, nccl_on_every_rank, domains, host_mpi_on_every_rank=Fa
 
 def settings_digest(settings):
 
-
     text = json.dumps(settings, sort_keys=True, default=list)
     return hashlib.sha256(text.encode()).hexdigest()[:16]
 
 
 def pairing_errors(steps_by_rank):
-
 
     size = len(steps_by_rank)
     sends, receives = [], []
@@ -176,7 +167,6 @@ def pairing_errors(steps_by_rank):
 
 def check_same_settings(comm, settings, what="exchange settings"):
 
-
     digest = settings_digest(settings)
     digests = comm.allgather(digest)
     error = None
@@ -189,7 +179,6 @@ def check_same_settings(comm, settings, what="exchange settings"):
 
 
 def check_pairing(comm, steps, name):
-
 
     steps_by_rank = comm.allgather([(int(dst), int(src)) for dst, src in steps])
     errors = pairing_errors(steps_by_rank)
@@ -205,7 +194,6 @@ def _mixed_window_schedule(
     dst_ranks,
     src_ranks,
 ):
-
 
     dst_set = set(int(r) for r in dst_ranks)
     src_set = set(int(r) for r in src_ranks)
@@ -233,8 +221,6 @@ def _mixed_window_schedule(
 
 @dataclass(frozen=True)
 class _HierarchicalExchangeRound:
-
-
     send_dst: int
     recv_src: int
     gathered_sources: tuple[int, ...]
@@ -242,8 +228,6 @@ class _HierarchicalExchangeRound:
 
 @dataclass(frozen=True)
 class _HierarchicalExchangePlan:
-
-
     domain_index: int
     domain_members: tuple[int, ...]
     domain_rank: int
@@ -256,7 +240,6 @@ def _hierarchical_exchange_plan(
     domains,
     sources_by_rank,
 ) -> _HierarchicalExchangePlan:
-
 
     domains = tuple(tuple(int(r) for r in domain) for domain in domains)
     sources = tuple(frozenset(int(s) for s in srcs) for srcs in sources_by_rank)
@@ -345,7 +328,6 @@ def _hierarchical_local_ring_sources(
     gathered_sources,
 ) -> tuple[tuple[int, int], ...]:
 
-
     gathered = tuple(int(src) for src in gathered_sources)
     domain_size = len(plan.domain_members)
     if len(gathered) != domain_size:
@@ -364,7 +346,6 @@ def _transfer_counts(
     send_peer: int, send_elems: int, recv_peer: int, recv_elems: int
 ) -> dict:
 
-
     empty64 = np.zeros(0, dtype=np.int64)
     empty32 = np.zeros(0, dtype=np.int32)
     send, recv = send_peer >= 0, recv_peer >= 0
@@ -379,7 +360,6 @@ def _transfer_counts(
 
 
 def _two_level_local_ring_args(plan, gathered_sources, tile_elems) -> tuple:
-
 
     domain_size = len(plan.domain_members)
     right_peer = (plan.domain_rank + 1) % domain_size
@@ -406,7 +386,6 @@ def _two_level_local_ring_args(plan, gathered_sources, tile_elems) -> tuple:
 
 def _two_level_round_args(plan, rank: int, tile_elems) -> list:
 
-
     round_args = []
     for exchange_round in plan.rounds:
         send_dst = int(exchange_round.send_dst)
@@ -431,7 +410,6 @@ def _two_level_round_args(plan, rank: int, tile_elems) -> list:
 
 
 def _two_level_remote_bytes(plan, domains, sources, round_args, tile_elems) -> tuple:
-
 
     domain_of = {
         member: index for index, members in enumerate(domains) for member in members

@@ -82,7 +82,9 @@ def fe4s4_determinants():
 
     out = []
     for sample in FE4S4_SAMPLES:
-        with lzma.open(fe4s4_data_dir() / f"fe4s4_1000_{sample}.txt.xz", "rt") as handle:
+        with lzma.open(
+            fe4s4_data_dir() / f"fe4s4_1000_{sample}.txt.xz", "rt"
+        ) as handle:
             out.extend(handle.read().split())
     return out
 

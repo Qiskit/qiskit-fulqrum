@@ -29,8 +29,6 @@ Tile = tuple[int, int, int, int, int, int]
 
 @dataclass(frozen=True)
 class TileGrid:
-
-
     p_alpha: int
     p_beta: int
     alpha_ranges: tuple[Range, ...]
@@ -40,7 +38,6 @@ class TileGrid:
     def build(
         cls, p_alpha: int, p_beta: int, alpha_strings, beta_strings
     ) -> "TileGrid":
-
 
         n_a, n_b = len(alpha_strings), len(beta_strings)
         return cls(
@@ -91,8 +88,6 @@ class TileGrid:
 
 @dataclass(frozen=True)
 class GridComms:
-
-
     world: object
     alpha: object
     beta: object
@@ -111,8 +106,6 @@ class GridComms:
 
 @dataclass(frozen=True)
 class SourceSet:
-
-
     sources: dict
     mixed_sources: list
     mixed_destinations: list
@@ -128,8 +121,6 @@ class SourceSet:
 
 @dataclass(frozen=True)
 class _ScanInput:
-
-
     grid: TileGrid
     rank: int
     alpha_strings: np.ndarray
@@ -151,7 +142,6 @@ class _ScanInput:
 
 
 def _scan(scan: _ScanInput, items: list) -> dict:
-
 
     if not items:
         return {}
@@ -269,7 +259,6 @@ def discover_sources(
     threads: int,
     cross_check_max_ranks: int,
 ) -> SourceSet:
-
 
     rank = comms.world.Get_rank()
     scan = _ScanInput(

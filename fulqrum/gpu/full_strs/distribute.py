@@ -36,8 +36,6 @@ PROBE_MIN_ROWS = 2_000_000
 
 @dataclass(frozen=True)
 class KeyBlock:
-
-
     keys: np.ndarray
     row_start: int
     num_rows: int
@@ -51,7 +49,6 @@ class KeyBlock:
 
     def owner_of(self, rows):
 
-
         return (
             np.searchsorted(
                 self.block_starts, np.asarray(rows, dtype=np.int64), side="right"
@@ -61,7 +58,6 @@ class KeyBlock:
 
 
 def exchange_rows(comm, send, send_counts):
-
 
     size, rank = comm.Get_size(), comm.Get_rank()
     send = np.ascontiguousarray(send)
@@ -98,7 +94,6 @@ def exchange_rows(comm, send, send_counts):
 
 
 def _exchange_mpi(comm, send, send_starts, recv, recv_starts, peers):
-
 
     from mpi4py import MPI  # noqa: PLC0415
     from mpi4py.util.dtlib import from_numpy_dtype  # noqa: PLC0415
@@ -142,12 +137,10 @@ def _pieces(start, stop, piece_rows):
 
 def sort_columns(keys):
 
-
     return keys[:, ::-1].T
 
 
 def sort_unique(keys):
-
 
     if keys.shape[0] == 0:
         return np.ascontiguousarray(keys)
@@ -161,7 +154,6 @@ def sort_unique(keys):
 
 def lower_bound(columns, value):
 
-
     low, high = 0, columns.shape[1]
     for column, target in zip(columns, value):
         part = column[low:high]
@@ -174,7 +166,6 @@ def lower_bound(columns, value):
 
 
 def _check_local(keys, num_orbitals):
-
 
     num_words = keys.shape[1] // 2
     if keys.shape[1] < 2 or keys.shape[1] % 2:
@@ -220,7 +211,6 @@ def _check_local(keys, num_orbitals):
 
 def _check_agreement(reports, size):
 
-
     widths = {report[0] for report in reports}
     if len(widths) != 1:
         return (
@@ -245,7 +235,6 @@ def _check_agreement(reports, size):
 
 
 def distribute_keys(comm, keys, num_orbitals):
-
 
     size = comm.Get_size()
     keys = np.asarray(keys)
@@ -296,7 +285,6 @@ def row_cuts(num_rows, size):
 
 def redistribute(comm, block, block_starts):
 
-
     size, rank = comm.Get_size(), comm.Get_rank()
     targets = np.asarray(block_starts, dtype=np.int64)
     error = None
@@ -330,7 +318,6 @@ def redistribute(comm, block, block_starts):
 
 def _splitters(comm, local):
 
-
     size = comm.Get_size()
     count = min(local.shape[0], max(2 * size, SAMPLE_FLOOR))
     positions = (np.arange(count, dtype=np.int64) * local.shape[0]) // max(count, 1)
@@ -341,7 +328,6 @@ def _splitters(comm, local):
 
 
 def group_kinds(block, alpha_kind=None, beta_kind=None):
-
 
     num_words = block.keys.shape[1] // 2
     counts = np.bitwise_count(block.keys[0]).astype(np.int64)
@@ -368,7 +354,6 @@ def join_groups(
     groups="by_rows",
     vectors="halo",
 ):
-
 
     error = None
     if groups not in GROUP_LAYOUTS:
@@ -421,7 +406,6 @@ def _join(
     global_stride=None,
 ):
 
-
     from .host import GroupReceiver, emit_records, join_runs  # noqa: PLC0415
 
     from concurrent.futures import ThreadPoolExecutor  # noqa: PLC0415
@@ -447,7 +431,6 @@ def _join(
             index,
             size,
         )
-
 
     with ThreadPoolExecutor(max_workers=1) as pool:
         pending = pool.submit(emit, indices[0]) if indices else None
@@ -542,7 +525,6 @@ def _forward(copy_comm, rows):
 
 def fetch_halo_keys(comm, block, receiver):
 
-
     size, rank = comm.Get_size(), comm.Get_rank()
     rows = receiver.halo_row_view()
     keys = run_on_every_rank(comm, "halo keys", receiver.halo_key_buffer)
@@ -579,7 +561,6 @@ def output_memberships(receiver):
 
 
 def work_cuts(comm, block, work):
-
 
     size, rank = comm.Get_size(), comm.Get_rank()
     work = np.asarray(work, dtype=np.int64)
@@ -631,7 +612,6 @@ def build_distributed_groups(
     vectors="halo",
 ):
 
-
     block = distribute_keys(comm, keys, num_orbitals)
     if share_starts is not None:
         block = redistribute(comm, block, share_starts)
@@ -653,9 +633,7 @@ def build_distributed_groups(
         groups=groups,
         vectors=vectors,
     )
-    if (
-        groups == "by_key"
-    ):
+    if groups == "by_key":
         work = np.array(
             [
                 receiver.chunk_views(c, cls)[0].size
@@ -709,7 +687,6 @@ def strictly_ascending(values, piece=1 << 26):
 
 def packing_lists(comm, block, halo_rows):
 
-
     size, rank = comm.Get_size(), comm.Get_rank()
     halo = np.ascontiguousarray(halo_rows, dtype=np.int64)
     halo_starts = np.searchsorted(halo, block.block_starts).astype(np.int64)
@@ -736,8 +713,6 @@ def packing_lists(comm, block, halo_rows):
 
 @dataclass
 class CopyLayout:
-
-
     share: KeyBlock
     block_keys: np.ndarray
     block_start: int
@@ -751,7 +726,6 @@ class CopyLayout:
 
 
 def block_work(receiver, block_starts, block):
-
 
     from .host import CLASSES  # noqa: PLC0415
 
@@ -784,7 +758,6 @@ def block_work(receiver, block_starts, block):
 
 def assign_sources(work, block, copies):
 
-
     loads = [float(work[block])] * copies
     assignment = np.full(len(work), -1, dtype=np.int64)
     order = sorted(
@@ -811,7 +784,6 @@ def build_copy_groups(
     coefficients=None,
     entry_cost=0.0,
 ):
-
 
     size, rank = comm.Get_size(), comm.Get_rank()
     copies = int(copies)
@@ -922,7 +894,6 @@ def build_copy_groups(
 
 def cut_by_work(comm, row_start, work, num_rows, parts):
 
-
     work = np.asarray(work, dtype=np.float64)
     totals = np.array(
         comm.allgather(float(work.sum()) if work.size else 0.0), dtype=np.float64
@@ -963,7 +934,6 @@ def equal_share_starts(block_starts, copies):
 
 def balanced_bounds(row_own, remote_loads):
 
-
     copies = len(remote_loads)
     rows = len(row_own)
     cumulative = np.concatenate(
@@ -981,7 +951,6 @@ def balanced_bounds(row_own, remote_loads):
 
 
 def copy_loads(comm, layout, entry_cost=0.0):
-
 
     bounds = layout.copy_comm.allgather(layout.share.row_start - layout.block_start) + [
         len(layout.block_keys)
@@ -1009,7 +978,6 @@ def copy_loads(comm, layout, entry_cost=0.0):
 
 
 def plan_copy_groups(comm, keys, num_orbitals, plan, alpha_kind=None, beta_kind=None):
-
 
     copies, slices, coefficients, entry = (
         plan.copies,
@@ -1124,7 +1092,6 @@ def layout_metrics(
     comm, keys, num_orbitals, num_slices, copies, alpha_kind=None, beta_kind=None
 ):
 
-
     from .plan import LayoutPlan  # noqa: PLC0415
 
     unit = [1.0] * 35
@@ -1180,7 +1147,6 @@ def plan_copies(
     alpha_kind=None,
     beta_kind=None,
 ):
-
 
     from .plan import choose_copies  # noqa: PLC0415
 

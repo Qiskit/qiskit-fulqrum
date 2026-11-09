@@ -30,8 +30,6 @@ from .diagnostics import (
 
 @dataclass(frozen=True)
 class RecorderSettings:
-
-
     comm_timing: bool
     parent_timing: bool
     source_timing: bool
@@ -39,8 +37,6 @@ class RecorderSettings:
 
 
 class MatvecRecorder:
-
-
     def __init__(
         self,
         settings: RecorderSettings,
@@ -51,7 +47,6 @@ class MatvecRecorder:
         copy_stream,
         source_tile: Callable,
     ):
-
 
         self.settings = settings
         self.comm = comm
@@ -81,7 +76,6 @@ class MatvecRecorder:
 
     def exchange_end(self, start, detail_pairs=None):
 
-
         end = self.copy_stream.record()
         if start is not None and end is not None:
             self.exchange_pairs.append((start, end))
@@ -96,7 +90,6 @@ class MatvecRecorder:
         )
 
     def source_launched(self, src_rank: int, start, end, d_out, label: str) -> None:
-
 
         import cupy  # noqa: PLC0415
 
@@ -127,7 +120,6 @@ class MatvecRecorder:
         self.timing["sync_exit_since_start"] = sync_exit - self.started
 
     def finish(self, d_in, d_out) -> None:
-
 
         _hv_tail_fingerprint(d_out, self.comm, self.rank, self.iteration)
         self._report_per_source()

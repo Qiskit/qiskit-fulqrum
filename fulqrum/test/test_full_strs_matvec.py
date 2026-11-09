@@ -24,7 +24,6 @@ from fulqrum.test.conftest import FE4S4_SAMPLES, fe4s4_fcidump
 from fulqrum.test.test_full_strs_coefficients import FE4S4, random_operator
 
 
-
 def labels_of(keys, norb):
     return [
         format(int(beta), f"0{norb}b") + format(int(alpha), f"0{norb}b")
@@ -114,7 +113,9 @@ def test_matvec_is_deterministic():
 @pytest.mark.long
 @pytest.mark.parametrize("sample", FE4S4_SAMPLES)
 def test_matvec_equals_the_cpu_matvec_on_fe4s4(sample, tmp_path):
-    op = fcidump_to_fq_fermionic_op(str(fe4s4_fcidump(tmp_path))).extended_jw_transformation()
+    op = fcidump_to_fq_fermionic_op(
+        str(fe4s4_fcidump(tmp_path))
+    ).extended_jw_transformation()
     with lzma.open(FE4S4 / f"fe4s4_1000_{sample}.txt.xz", "rt") as handle:
         text = np.array(handle.read().split(), dtype="U72")
     beta = np.array([int(s[:36], 2) for s in text], dtype=np.uint64)
