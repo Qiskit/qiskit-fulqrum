@@ -148,20 +148,43 @@ one represents _beta_ strings. Internally, `fulqrum` will sort each list and per
 
 ## Benchmarks
 
-### Fe4S4
+### CPU results
 
-#### CPU results
+Benchmark for finding the ground-state energy within the given subspace dimension.  Solvers configured so that they return the same energy to a relative tolerance of 1E-7.  Here both Fulqrum and SBD are used in matrix-free mode.
+
+#### Fe4S4
 
 12-core, 24-thread AMD 7900, 128 Gb memory
 
-| Solver | Subspace dimension | Runtime (s) | Memory (Gb) |
-| --- | --- | --- | --- |
-| Dice | 1e6 | 93.6 | 47.4 |
-| Fulqrum - primme | 1e6 | 7.4 | 3.8 |
-| Fulqrum - scipy | 1e6 | 8.1 | 3.8 |
-| SBD | 1e6 | 82.2 | 1.2 |
-| --- | --- | --- | --- |
-| Dice | 1e8 | - | - |
-| Fulqrum - primme | 1e8 | 405 | 13.4 |
-| Fulqrum - scipy | 1e8 | 527 | 24.6 |
-| SBD | 1e8 | 40225 | 82.2 |
+| Solver | Subspace dimension | Runtime (s) | Memory (Gb) | Speedup |
+| --- | --- | --- | --- | --- |
+| Dice | 1E6 | 93.6 | 47.4 | |
+| Fulqrum - primme | 1E6 | 7.4 | 3.8 | 11x |
+| Fulqrum - scipy | 1E6 | 8.1 | 3.8 | 10x |
+| SBD | 1E6 | 82.2 | 1.2 |  |
+| --- | --- | --- | --- | --- |
+| Dice | 1E8 | - | OOM | |
+| Fulqrum - primme | 1E8 | 405 | 13.4 | 99x |
+| Fulqrum - scipy | 1E8 | 527 | 24.6 | 76x |
+| SBD | 1E8 | 40225 | 82.2 |  | 
+
+
+Dual-socket Intel Xeon Platinum 8474C (48-core, 96 threads), 2 TB memory
+
+| Solver | Subspace dimension | Runtime (s) | Memory (Gb) | Speedup |
+| --- | --- | --- | --- | --- |
+| Dice | 1.6E7 | 589 | 436 | |
+| Fulqrum - primme | 1.6E7 | 53 | 7 | 11x |
+| SBD | 1.6E7 | 754 | 3 | |
+| --- | --- | --- | --- | --- |
+| Dice | 1E8 | - | OOM | |
+| Fulqrum - primme | 1E8 | 187 | 22 | 30x |
+| SBD | 1E8 | 5705 | 20 | |
+
+
+#### GPU results
+
+Results run on GB200 cluster; 4-GPUs per node
+
+
+
