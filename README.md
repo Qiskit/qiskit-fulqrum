@@ -186,7 +186,7 @@ Dual-socket Intel Xeon Platinum 8474C (48-core, 96 threads), 2 TB memory
 
 Results run on GB200 cluster; 4-GPUs per node
 
-#### Molten salts molecules (arXiv:2606.30402)
+#### Molten salt molecules (arXiv:2606.30402)
 
 | Molecule | Subspace dimension | Fulqrum time (s) | SBD time (s) | Speedup |
 | --- | --- | --- | --- | --- |
@@ -194,3 +194,29 @@ Results run on GB200 cluster; 4-GPUs per node
 | conf5-clust0015 | 5.8E9 | 110.3 | 1305.4 | 11.9x |
 | conf8-clust0017 | 5.8E9 | 127 | 2393 | 18.8x |
 | FLiBe | 5.4E8 | 60.2 | 1200 | 19.9x |
+
+#### Lysozyme fragments (arXiv:2605.01138)
+
+| Molecule | Subspace dimension | Fulqrum time (s) | SBD time (s) | Speedup |
+| --- | --- | --- | --- | --- |
+| atom_10 | 8.9E9 | 93.9 | 422.4 | 4.5x |
+| atom_17 | 4.7E9 | 68.4 | 172.4 | 2.5x |
+| atom_19 | 5.5E9 | 74.4 | 218.3 | 2.9x |
+| atom_83 | 7.6E9 | 80 | 461.5 | 5.8x |
+| atom_333 | 7.6E9 | 78.7 | 499.1 | 6.3x |
+| atom_444 | 7.9E9 | 81.6 | 439.4 | 5.4x |
+| atom_1590 | 5.1E9 | 63 | 243.6 | 3.9x |
+| atom_1795 | 6.5E9 | 74.3 | 287.5 | 3.9x |
+| atom_1799 | 7.2E9 | 77.5 | 326.4 | 4.2x |
+| atom_1859 | 4.5E9 | 63.6 | 148.9 | 2.3x |
+| atom_2014 | 1.6E10 | 147.8 | 1207.4 | 8.2x |
+| atom_2023 | 1.4E10 | 130.9 | 947.8 | 7.2x |
+| atom_2200 | 1.6E10 | 150.3 | 1237.2 | 8.2x |
+| atom_2209 | 1.8E10 | 157.5 | 1316 | 8.4x |
+| atom_2219 | 7.7E9 | 80.7 | 489.5 | 6.1x |
+| atom_2436 | 6.6E9 | 75 | 359.2 | 4.8x |
+| atom_2457 | 9.4E9 | 96.6 | 512.3 | 5.3x |
+| atom_2539 | 1.5E10 | 134.5 | 1038.5 | 7.7x |
+| atom_2548 | 1.7E10 | 150.1 | 1314.3 | 8.8x |
+| atom_2580 | 9.2E9 | 89.8 | 621.5 | 6.9x |
+| atom_1752 | 3.5E9 | 90 | 582.3 | 6.5x |
