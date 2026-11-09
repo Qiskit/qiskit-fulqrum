@@ -154,7 +154,7 @@ Benchmarks target finding the ground-state energy within the given subspace dime
 
 ### CPU results
 
-#### Fe4S4
+#### Fe4S4 (arXiv:2405.05068)
 
 12-core, 24-thread AMD 7900, 128 Gb memory
 
