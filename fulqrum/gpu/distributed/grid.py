@@ -190,6 +190,13 @@ def _signatures(scan: _ScanInput) -> tuple[int, int]:
         (beta_bra, scan.beta_strings, ("beta2", "beta4")),
     ):
         value = 0
+        if np.ndim(bra) > 1:
+            if any(scan.flip_masks.get(key) for key in keys):
+                raise ValueError(
+                    "flip masks are single-word; multi-word strings use dense discovery"
+                )
+            signature.append(value)
+            continue
         for key in keys:
             for mask, _positions in scan.flip_masks.get(key, []):
                 flipped = bra.astype(np.uint64) ^ np.uint64(mask)

@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from ..common.hash_utils import _popcount_u64
+from ..common.wide import popcount_w, xor_w
 from .hash_utils import _build_hash_table_simple, _ht_lookup_batch
 
 if TYPE_CHECKING:
@@ -26,8 +27,10 @@ if TYPE_CHECKING:
 try:
     from .tile_build import (
         build_tile_flip_csr_dense as _native_dense,
+        build_tile_flip_csr_dense_words as _native_dense_words,
         build_tile_flip_csr_masks as _native_masks,
         tile_has_popcount as _native_has_popcount,
+        tile_has_popcount_words as _native_has_popcount_words,
     )
 
     _NATIVE_TILE_BUILD = True
@@ -40,6 +43,55 @@ def _native_tile_build_enabled() -> bool:
     return _NATIVE_TILE_BUILD
 
 
+MASK_KEYS = {"alpha2": 0, "alpha4": 0, "beta2": 1, "beta4": 1}
+
+
+def masks_for_words(masks, key_words):
+
+
+    return {
+        key: ([] if key_words[sector] > 1 else list(masks.get(key, [])))
+        for key, sector in MASK_KEYS.items()
+    }
+
+
+def check_masks_fit(masks, key_words):
+
+    for key, sector in MASK_KEYS.items():
+        if key_words[sector] > 1 and masks.get(key):
+            raise ValueError(
+                f"{key} flip masks are single-word and cannot describe "
+                f"{key_words[sector]}-word strings"
+            )
+
+
+def _refuse_wide_masks(*arrays):
+
+    if any(np.ndim(array) > 1 for array in arrays):
+        raise ValueError(
+            "flip masks are single-word; multi-word strings use dense discovery"
+        )
+
+
+def _as_strings(values):
+
+    words = np.ascontiguousarray(values, dtype=np.uint64)
+    return words if words.ndim == 1 else words.reshape(words.shape[0], -1)
+
+
+def _contains_rows(left, right):
+
+
+    if np.ndim(left) == 1:
+        return np.intersect1d(left, right, assume_unique=True).size > 0
+    left = _as_strings(left)
+    right = _as_strings(right)
+    if left.shape[0] == 0 or right.shape[0] == 0:
+        return False
+    row = np.dtype((np.void, left.dtype.itemsize * left.shape[1]))
+    return bool(np.isin(left.view(row).ravel(), right.view(row).ravel()).any())
+
+
 def _tile_has_popcount(
     alpha_left, alpha_right, wanted: tuple[int, ...], threads: int = 1
 ) -> bool:
@@ -47,6 +99,8 @@ def _tile_has_popcount(
 
     if len(alpha_left) == 0 or len(alpha_right) == 0:
         return False
+    if np.ndim(alpha_left) > 1:
+        return _tile_has_popcount_words(alpha_left, alpha_right, wanted, threads)
     if _native_tile_build_enabled():
         bra = np.ascontiguousarray(alpha_left, dtype=np.uint64)
         src = np.ascontiguousarray(alpha_right, dtype=np.uint64)
@@ -62,6 +116,31 @@ def _tile_has_popcount(
     return False
 
 
+def _tile_has_popcount_words(left, right, wanted, threads=1):
+
+    bra = _as_strings(left)
+    src = _as_strings(right)
+    if _native_tile_build_enabled():
+        return any(
+            _native_has_popcount_words(bra, src, int(w), int(threads)) for w in wanted
+        )
+    wanted_arr = np.asarray(wanted, dtype=np.int32)
+    for start in range(0, bra.shape[0], 256):
+        block = bra[start : start + 256]
+        counts = _pair_popcounts(src, block)
+        if np.isin(counts, wanted_arr).any():
+            return True
+    return False
+
+
+def _pair_popcounts(src, bra):
+
+    words = xor_w(src[:, None, :], bra[None, :, :])
+    return popcount_w(words.reshape(-1, words.shape[-1])).reshape(
+        src.shape[0], bra.shape[0]
+    )
+
+
 def _tile_source_needed(
     alpha_bra: np.ndarray,
     beta_bra: np.ndarray,
@@ -72,8 +151,8 @@ def _tile_source_needed(
 ) -> bool:
 
 
-    a0 = np.intersect1d(alpha_bra, alpha_src, assume_unique=True).size > 0
-    b0 = np.intersect1d(beta_bra, beta_src, assume_unique=True).size > 0
+    a0 = _contains_rows(alpha_bra, alpha_src)
+    b0 = _contains_rows(beta_bra, beta_src)
     if a0 and b0:
         return True
 
@@ -210,6 +289,7 @@ def _tile_has_mask_connection(
 
     if len(bra_vals) == 0 or not masks:
         return False
+    _refuse_wide_masks(bra_vals)
     bra = bra_vals.astype(np.uint64)
     for mask, _positions in masks:
         candidates = bra ^ mask
@@ -262,6 +342,8 @@ def _build_tile_flip_csr_dense(
     threads: int = 1,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
 
+    if np.ndim(bra_vals) > 1:
+        return _build_tile_flip_csr_dense_words(bra_vals, src_vals, popcount, threads)
     if _native_tile_build_enabled():
         return _native_dense(
             np.ascontiguousarray(bra_vals, dtype=np.uint64),
@@ -351,6 +433,59 @@ def _build_tile_flip_csr_dense(
     return ptr, j_rel, out_bits[0], out_bits[1], out_bits[2], out_bits[3]
 
 
+def _word_bits(xors, nbits):
+
+
+    positions = [[] for _ in range(xors.shape[0])]
+    for word in range(xors.shape[1]):
+        column = xors[:, word].copy()
+        for _ in range(nbits):
+            rows = np.flatnonzero(column)
+            if rows.size == 0:
+                break
+            low = column[rows] & (~column[rows] + np.uint64(1))
+            bit = np.log2(low.astype(np.float64)).astype(np.int64)
+            for row, value in zip(rows.tolist(), (bit + 64 * word).tolist()):
+                positions[row].append(value)
+            column[rows] ^= low
+    out = np.zeros((4, xors.shape[0]), dtype=np.uint8)
+    for row, values in enumerate(positions):
+        out[: len(values), row] = values
+    return out
+
+
+def _build_tile_flip_csr_dense_words(bra_vals, src_vals, popcount, threads=1):
+
+
+    bra = _as_strings(bra_vals)
+    src = _as_strings(src_vals)
+    if _native_tile_build_enabled():
+        return _native_dense_words(bra, src, int(popcount), int(threads))
+    n_bra = bra.shape[0]
+    ptr = np.zeros(n_bra + 1, dtype=np.int64)
+    rows_list, cols_list, bits_list = [], [], []
+    if n_bra and src.shape[0]:
+        for start in range(0, n_bra, 256):
+            block = bra[start : start + 256]
+            counts = _pair_popcounts(src, block)
+            src_j, bidx = np.nonzero(counts == int(popcount))
+            if src_j.size == 0:
+                continue
+            order = np.lexsort((src_j, bidx))
+            src_j, bidx = src_j[order], bidx[order]
+            rows_list.append((bidx + start).astype(np.int32))
+            cols_list.append(src_j.astype(np.int32))
+            bits_list.append(_word_bits(xor_w(src[src_j], block[bidx]), int(popcount)))
+    if not rows_list:
+        z_i = np.zeros(1, dtype=np.int32)
+        z_u = np.zeros(1, dtype=np.uint8)
+        return ptr, z_i, z_u, z_u, z_u, z_u
+    rows = np.concatenate(rows_list)
+    bits = np.concatenate(bits_list, axis=1)
+    ptr[1:] = np.cumsum(np.bincount(rows, minlength=n_bra))
+    return (ptr, np.concatenate(cols_list), bits[0], bits[1], bits[2], bits[3])
+
+
 def _build_tile_flip_csr_from_masks(
     bra_vals: np.ndarray,
     src_vals: np.ndarray,
@@ -360,6 +495,7 @@ def _build_tile_flip_csr_from_masks(
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
 
 
+    _refuse_wide_masks(bra_vals, src_vals)
     if _native_tile_build_enabled():
         n_m = len(masks)
         mask_vals = np.fromiter(
@@ -492,8 +628,16 @@ def _build_tile_connection_tables(
     threads: int = 1,
 ):
 
-    alpha_ht = _build_hash_table_simple(alpha_src.astype(np.uint64))
-    beta_ht = _build_hash_table_simple(beta_src.astype(np.uint64))
+    alpha_ht = (
+        _build_hash_table_simple(alpha_src.astype(np.uint64))
+        if flip_masks["alpha2"] or flip_masks["alpha4"]
+        else None
+    )
+    beta_ht = (
+        _build_hash_table_simple(beta_src.astype(np.uint64))
+        if flip_masks["beta2"] or flip_masks["beta4"]
+        else None
+    )
 
     return {
         "alpha2": _build_tile_flip_csr_hybrid(

@@ -134,6 +134,8 @@ from .dist_matvec import (
 )
 from .tile_discovery import (
     _group_flip_masks,
+    check_masks_fit,
+    masks_for_words,
 )
 
 logger = logging.getLogger(__name__)
@@ -1420,7 +1422,7 @@ class TileGPUResidentHamiltonian(LinearOperator):
 
         spmv = self._hsub.spmv
         if hasattr(spmv, "flip_masks"):
-            return spmv.flip_masks
+            return masks_for_words(spmv.flip_masks, self._key_words)
         if isinstance(spmv, FulqrumSpMV) and hasattr(spmv, "num_alpha"):
             try:
                 gpu_data = self._cached_gpu_data
@@ -1428,7 +1430,10 @@ class TileGPUResidentHamiltonian(LinearOperator):
                     gpu_data = _operator_tables(spmv)
                 grp_oi = np.asarray(gpu_data["grp_offdiag_inds"])
                 grp_os = np.asarray(gpu_data["grp_offdiag_sizes"])
-                return _group_flip_masks(grp_oi, grp_os, int(spmv.num_alpha))
+                return masks_for_words(
+                    _group_flip_masks(grp_oi, grp_os, int(spmv.num_alpha)),
+                    self._key_words,
+                )
             except (RuntimeError, ValueError, KeyError) as error:
                 warnings.warn(
                     f"Unable to build operator flip masks on rank {self._rank}; "
@@ -1934,7 +1939,10 @@ class TileGPUResidentHamiltonian(LinearOperator):
             sub[name] = now - clock[0]
             clock[0] = now
 
-        self._flip_masks = _group_flip_masks(grp_oi, grp_os, num_alpha)
+        self._flip_masks = masks_for_words(
+            _group_flip_masks(grp_oi, grp_os, num_alpha), self._key_words
+        )
+        check_masks_fit(self._flip_masks, self._key_words)
         step("flip_masks")
         grp4_direct = None
         if num_groups > 0:
