@@ -33,10 +33,10 @@ def key_words(num_orbitals):
     return (int(num_orbitals) + 63) // 64
 
 
-def width_error(widths, electrons=None):
+def width_error(widths, electrons=None, max_words=MAX_KEY_WORDS):
 
 
-    limit = 64 * MAX_KEY_WORDS
+    limit = WORD_BITS * int(max_words)
     for i, width in enumerate(widths):
         if int(width) > limit:
             return (
@@ -54,10 +54,12 @@ def width_error(widths, electrons=None):
     return None
 
 
-def check_width(comm, widths, where, electrons=None):
+def check_width(comm, widths, where, electrons=None, max_words=MAX_KEY_WORDS):
 
 
-    raise_on_every_rank(comm, width_error(widths, electrons), FulqrumError, where)
+    raise_on_every_rank(
+        comm, width_error(widths, electrons, max_words), FulqrumError, where
+    )
 
 
 def max_electrons(strings):

@@ -375,8 +375,8 @@ def join_groups(
         error = f"groups must be one of {GROUP_LAYOUTS}, got {groups!r}"
     elif vectors not in ("halo", "full") or (vectors == "full" and groups != "by_key"):
         error = f"vectors must be 'halo', or 'full' with groups='by_key'; got {vectors!r} with {groups!r}"
-    elif block.keys.shape[1] != 2:
-        error = f"the group join supports one word per sector, got {block.keys.shape[1] // 2}"
+    elif block.keys.shape[1] not in (2, 4):
+        error = f"the group join supports one or two words per sector, got {block.keys.shape[1] // 2}"
     elif int(num_slices) < 1:
         error = f"the slice count must be positive, got {num_slices}"
     raise_on_every_rank(comm, error, what="group join")
@@ -422,7 +422,14 @@ def _join(
 ):
 
 
-    from .host import GroupReceiver, emit_records, join_runs  # noqa: PLC0415
+    from .host_words import host_module  # noqa: PLC0415
+
+    host = host_module(np.asarray(receive_keys).shape[1] // 2)
+    GroupReceiver, emit_records, join_runs = (
+        host.GroupReceiver,
+        host.emit_records,
+        host.join_runs,
+    )
 
     from concurrent.futures import ThreadPoolExecutor  # noqa: PLC0415
 

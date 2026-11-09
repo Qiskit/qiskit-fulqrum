@@ -18,7 +18,7 @@ import numpy as np
 
 from . import kernel_launch
 from .device import NUM_CLASSES, DeviceLayout
-from .host import HostOperator
+from .host_words import host_module
 
 NUM_BUCKETS = 7
 
@@ -26,7 +26,10 @@ NUM_BUCKETS = 7
 def kernel_coefficients(operator, keys, num_slices=1, repeats=3):
 
 
-    host = HostOperator(operator, keys, num_slices=int(num_slices))
+    keys = np.ascontiguousarray(keys, dtype=np.uint64)
+    host = host_module(keys.shape[1] // 2).HostOperator(
+        operator, keys, num_slices=int(num_slices)
+    )
     layout = DeviceLayout(host, "resident", fixed_reduce=False)
     layout.partials = cupy.empty(max(1, layout.largest_class_members), dtype=np.float64)
     stream = cupy.cuda.Stream(non_blocking=True)

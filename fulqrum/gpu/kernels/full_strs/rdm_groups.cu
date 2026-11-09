@@ -25,7 +25,6 @@ namespace
 namespace dev = fq::full_strs::device;
 
 constexpr int kRdmThreads = 256;
-constexpr int kKeyWords = 1;
 constexpr std::int64_t kMaxRdmBlocks = 65535;
 constexpr int kRdmSharedMembers = 1024;
 
@@ -442,38 +441,38 @@ __global__ void __launch_bounds__(kRdmThreads) pair_occupation_kernel(const FsKe
 }
 
 
-template <int CLS, int TILE, int MPL>
+template <int W, int CLS, int TILE, int MPL>
 int launch_rdm_tile(const FsKeys& keys, const FsGroups& groups, const FsRdm& out, const double* x,
                     const cudaStream_t stream)
 {
     const std::int64_t tiles_per_block = kRdmThreads / TILE;
     const std::int64_t blocks = std::min(kMaxRdmBlocks, (groups.num_groups + tiles_per_block - 1) / tiles_per_block);
-    rdm_tile_kernel<kKeyWords, CLS, TILE, MPL><<<static_cast<unsigned int>(std::max<std::int64_t>(1, blocks)),
+    rdm_tile_kernel<W, CLS, TILE, MPL><<<static_cast<unsigned int>(std::max<std::int64_t>(1, blocks)),
                                                 kRdmThreads, 0, stream>>>(keys, groups, out, x);
     return int(cudaGetLastError());
 }
 
 
-template <int CLS>
+template <int W, int CLS>
 int launch_rdm(const FsKeys& keys, const FsGroups& groups, const FsRdm& out, const double* x, const cudaStream_t stream)
 {
     switch(groups.bucket)
     {
     case 0:
-        return launch_rdm_tile<CLS, 4, 1>(keys, groups, out, x, stream);
+        return launch_rdm_tile<W, CLS, 4, 1>(keys, groups, out, x, stream);
     case 1:
-        return launch_rdm_tile<CLS, 8, 1>(keys, groups, out, x, stream);
+        return launch_rdm_tile<W, CLS, 8, 1>(keys, groups, out, x, stream);
     case 2:
-        return launch_rdm_tile<CLS, 16, 1>(keys, groups, out, x, stream);
+        return launch_rdm_tile<W, CLS, 16, 1>(keys, groups, out, x, stream);
     case 3:
-        return launch_rdm_tile<CLS, 32, 1>(keys, groups, out, x, stream);
+        return launch_rdm_tile<W, CLS, 32, 1>(keys, groups, out, x, stream);
     case 4:
-        return launch_rdm_tile<CLS, 32, 2>(keys, groups, out, x, stream);
+        return launch_rdm_tile<W, CLS, 32, 2>(keys, groups, out, x, stream);
     case 5:
     case 6:
     {
         const std::int64_t blocks = std::min(kMaxRdmBlocks, groups.num_groups);
-        rdm_block_kernel<kKeyWords, CLS><<<static_cast<unsigned int>(std::max<std::int64_t>(1, blocks)), kRdmThreads, 0,
+        rdm_block_kernel<W, CLS><<<static_cast<unsigned int>(std::max<std::int64_t>(1, blocks)), kRdmThreads, 0,
                                            stream>>>(keys, groups, out, x);
         return int(cudaGetLastError());
     }
@@ -482,19 +481,65 @@ int launch_rdm(const FsKeys& keys, const FsGroups& groups, const FsRdm& out, con
     }
     const std::int64_t warps_per_block = kRdmThreads / 32;
     const std::int64_t blocks = std::min(kMaxRdmBlocks, (groups.num_groups + warps_per_block - 1) / warps_per_block);
-    rdm_group_kernel<kKeyWords, CLS><<<static_cast<unsigned int>(std::max<std::int64_t>(1, blocks)), kRdmThreads, 0,
+    rdm_group_kernel<W, CLS><<<static_cast<unsigned int>(std::max<std::int64_t>(1, blocks)), kRdmThreads, 0,
                                        stream>>>(keys, groups, out, x);
     return int(cudaGetLastError());
 }
 
 
-template <int A, int B>
+template <int W, int A, int B>
 int launch_occupation(const FsKeys& keys, const double* x, double* occupation, const int m, const cudaStream_t stream)
 {
     const dim3 grid(static_cast<unsigned int>((m * m + kRdmThreads - 1) / kRdmThreads),
                     static_cast<unsigned int>(std::max<std::int64_t>(1, std::min<std::int64_t>(4096, keys.num_rows / 256))));
-    pair_occupation_kernel<kKeyWords, A, B><<<grid, kRdmThreads, 0, stream>>>(keys, x, occupation, m);
+    pair_occupation_kernel<W, A, B><<<grid, kRdmThreads, 0, stream>>>(keys, x, occupation, m);
     return int(cudaGetLastError());
+}
+
+
+int key_words(const FsKeys& keys)
+{
+    return keys.key_words == 0 ? 1 : keys.key_words;
+}
+
+
+template <int W>
+int launch_rdm_class(const FsKeys& keys, const FsGroups& groups, const FsRdm& out, const double* x,
+                     const cudaStream_t s)
+{
+    switch(groups.cls)
+    {
+    case dev::kAlphaSingle:
+        return launch_rdm<W, dev::kAlphaSingle>(keys, groups, out, x, s);
+    case dev::kAlphaDouble:
+        return launch_rdm<W, dev::kAlphaDouble>(keys, groups, out, x, s);
+    case dev::kBetaSingle:
+        return launch_rdm<W, dev::kBetaSingle>(keys, groups, out, x, s);
+    case dev::kBetaDouble:
+        return launch_rdm<W, dev::kBetaDouble>(keys, groups, out, x, s);
+    case dev::kMixed:
+        return launch_rdm<W, dev::kMixed>(keys, groups, out, x, s);
+    default:
+        return int(cudaErrorInvalidValue);
+    }
+}
+
+
+template <int W>
+int launch_occupation_sectors(const FsKeys& keys, const double* x, double* occupation, const int sectors,
+                              const int num_orbitals, const cudaStream_t s)
+{
+    switch(sectors)
+    {
+    case 0:
+        return launch_occupation<W, 0, 0>(keys, x, occupation, num_orbitals, s);
+    case 1:
+        return launch_occupation<W, 1, 1>(keys, x, occupation, num_orbitals, s);
+    case 2:
+        return launch_occupation<W, 0, 1>(keys, x, occupation, num_orbitals, s);
+    default:
+        return int(cudaErrorInvalidValue);
+    }
 }
 
 }
@@ -510,18 +555,12 @@ extern "C"
             return int(cudaSuccess);
         }
         const cudaStream_t s = static_cast<cudaStream_t>(stream);
-        switch(groups->cls)
+        switch(key_words(*keys))
         {
-        case dev::kAlphaSingle:
-            return launch_rdm<dev::kAlphaSingle>(*keys, *groups, *out, x, s);
-        case dev::kAlphaDouble:
-            return launch_rdm<dev::kAlphaDouble>(*keys, *groups, *out, x, s);
-        case dev::kBetaSingle:
-            return launch_rdm<dev::kBetaSingle>(*keys, *groups, *out, x, s);
-        case dev::kBetaDouble:
-            return launch_rdm<dev::kBetaDouble>(*keys, *groups, *out, x, s);
-        case dev::kMixed:
-            return launch_rdm<dev::kMixed>(*keys, *groups, *out, x, s);
+        case 1:
+            return launch_rdm_class<1>(*keys, *groups, *out, x, s);
+        case 2:
+            return launch_rdm_class<2>(*keys, *groups, *out, x, s);
         default:
             return int(cudaErrorInvalidValue);
         }
@@ -535,14 +574,12 @@ extern "C"
             return int(cudaSuccess);
         }
         const cudaStream_t s = static_cast<cudaStream_t>(stream);
-        switch(sectors)
+        switch(key_words(*keys))
         {
-        case 0:
-            return launch_occupation<0, 0>(*keys, x, occupation, num_orbitals, s);
         case 1:
-            return launch_occupation<1, 1>(*keys, x, occupation, num_orbitals, s);
+            return launch_occupation_sectors<1>(*keys, x, occupation, sectors, num_orbitals, s);
         case 2:
-            return launch_occupation<0, 1>(*keys, x, occupation, num_orbitals, s);
+            return launch_occupation_sectors<2>(*keys, x, occupation, sectors, num_orbitals, s);
         default:
             return int(cudaErrorInvalidValue);
         }

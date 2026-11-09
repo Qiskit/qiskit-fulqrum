@@ -675,6 +675,16 @@ FLAGS = (
         "Log rank-0 RDM stage timings at DEBUG level. Use Detailed or Trace logging to display them. Stage measurements synchronize the GPU.",
     ),
     _flag(
+        "FQ_FORCE_KEY_WORDS",
+        7,
+        TEST,
+        "int",
+        1,
+        "Test-only. With 2, `FullStrsHamiltonian` stores operators of at most 64 orbitals per sector with two words per sector, the high word zero, and runs its two-word code path.",
+        minimum=1,
+        maximum=2,
+    ),
+    _flag(
         "_FULQRUM_DEBUG_MATVEC",
         7,
         TEST,

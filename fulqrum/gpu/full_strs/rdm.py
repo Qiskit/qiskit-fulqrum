@@ -24,7 +24,7 @@ from ..distributed.rank_agreement import raise_on_every_rank, run_on_every_rank
 logger = logging.getLogger(__name__)
 __all__ = ["compute_rdms_full_strs"]
 
-MAX_ORBITALS = 64
+MAX_ORBITALS = 128
 ARRAY_NAMES = (
     "gamma_alpha",
     "gamma_beta",
@@ -43,6 +43,7 @@ ARRAY_NAMES = (
 
 def _array_shapes(m):
 
+    m = int(m)
     return {
         "gamma_alpha": m * m,
         "gamma_beta": m * m,
@@ -120,6 +121,7 @@ def _launch_pairs(ham, x_ext, arrays, stream, half=0):
                         stream.ptr,
                         bucket,
                         half,
+                        layout.key_words,
                     )
         if slot is not None:
             slot.released = stream.record()
@@ -140,6 +142,7 @@ def _launch_diagonal(ham, x, arrays, stream):
             sectors,
             ham.num_orbitals,
             stream.ptr,
+            ham._layout.key_words,
         )
     stream.synchronize()
 
@@ -202,11 +205,12 @@ def compute_rdms_full_strs(ham, x, *, rank=1, spin_summed=False):
     the full result as host NumPy ``float64`` arrays after GPU work and collective
     communication complete.
 
-    Amplitude ``x[i]`` belongs to determinant ``ham.keys[i]``, whose two uint64
-    words contain the alpha and beta occupations. Use this post-distribution
-    local key order. Pass only this rank's owned amplitudes; the operator handles
-    source-vector exchanges. The selected determinants need not form a complete
-    tensor-product subspace. The operator supports 1–64 orbitals per spin sector.
+    Amplitude ``x[i]`` belongs to determinant ``ham.keys[i]``, whose 2W uint64
+    words contain the W alpha words and then the W beta words. Use this
+    post-distribution local key order. Pass only this rank's owned amplitudes; the
+    operator handles source-vector exchanges. The selected determinants need not
+    form a complete tensor-product subspace. The operator supports 1–128 orbitals
+    per spin sector; the two-particle buffers take about ``24 m**4`` bytes.
 
     No normalization is applied. Scaling all amplitudes by a real factor scales
     every RDM by its square. For normalized RDMs, normalize the global state before

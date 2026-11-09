@@ -17,11 +17,14 @@ import time
 import cupy
 import numpy as np
 
-from ..common.wide import check_width, popcount_w
+from .. import config
+from ..common.wide import check_width, key_words, popcount_w
 from ..distributed.rank_agreement import run_on_every_rank
 from .device import DeviceLayout
-from .host import HostOperator
+from .host_words import host_module
 from .plan import LayoutPlan, agree
+
+MAX_KEY_WORDS = 2
 
 DEFAULT_NUM_SLICES = 4
 logger = logging.getLogger(__name__)
@@ -34,13 +37,15 @@ class FullStrsHamiltonian:
     more ranks. Each rank uses its current CUDA device; select it before
     construction and use that device context for subsequent calls.
     The operator must use block spin ordering, with alpha in the
-    low bits and beta in the high bits, equal sector widths of 1–64 orbitals,
+    low bits and beta in the high bits, equal sector widths of 1–128 orbitals,
     fixed sector electron counts and supported spin-conserving terms through
     two-body order. Unsupported operator groups are rejected.
 
-    Input ``keys`` has dtype uint64 and shape ``(n, 2)``. Each row contains the
-    alpha word followed by the beta word; bit k is orbital k's occupation in that
-    sector. The determinant set need not be a complete tensor-product subspace.
+    Input ``keys`` has dtype uint64 and shape ``(n, 2W)``, where W is 1 for at
+    most 64 orbitals per sector and 2 for 65–128. Each row contains the W alpha
+    words followed by the W beta words, low word first; bit k of word w is
+    orbital 64w + k's occupation in that sector. The determinant set need not be
+    a complete tensor-product subspace.
     Inputs may be unsorted or contain duplicates. Construction deduplicates,
     sorts and redistributes keys according to the selected layout. Afterwards,
     ``keys`` gives this rank's final key order, ``n_local`` its owned row count,
@@ -62,7 +67,7 @@ class FullStrsHamiltonian:
 
     Args:
         operator: Real type-2 ``QubitOperator`` in the block layout above.
-        keys: This rank's input determinant pairs, uint64 shape ``(n, 2)``.
+        keys: This rank's input determinants, uint64 shape ``(n, 2W)``.
             Input assignment and order may change during construction.
         comm: MPI or ``LocalComm`` communicator for all participating ranks.
             ``None`` uses ``MPI.COMM_SELF``.
@@ -143,8 +148,16 @@ class FullStrsHamiltonian:
             comm, "operator width", lambda: _orbitals_and_electrons(operator, keys)
         )
         check_width(
-            comm, (num_orbitals, num_orbitals), "FullStrsHamiltonian", electrons
+            comm,
+            (num_orbitals, num_orbitals),
+            "FullStrsHamiltonian",
+            electrons,
+            max_words=MAX_KEY_WORDS,
         )
+        keys = run_on_every_rank(
+            comm, "input keys", lambda: _key_rows(keys, num_orbitals)
+        )
+        self._key_words = np.shape(keys)[1] // 2
         self._binned = bool(binned)
         self._block = None
         self._copies = None
@@ -253,7 +266,7 @@ class FullStrsHamiltonian:
             return
         self._is_primary = True
         self.row_start = 0
-        self._host = HostOperator(
+        self._host = host_module(self._key_words).HostOperator(
             operator, keys, alpha_kind, beta_kind, num_slices=int(num_slices)
         )
         self._layout = DeviceLayout(
@@ -309,7 +322,8 @@ class FullStrsHamiltonian:
 
         from .distribute import build_distributed_groups  # noqa: PLC0415
         from .halo import HaloExchange  # noqa: PLC0415
-        from .host import RankOperator, block_reference  # noqa: PLC0415
+        host = host_module(self._key_words)
+        RankOperator, block_reference = host.RankOperator, host.block_reference
 
         comm = self._comm
         num_orbitals = run_on_every_rank(
@@ -433,7 +447,8 @@ class FullStrsHamiltonian:
         from fulqrum.gpu.distributed.rank_agreement import run_on_every_rank  # noqa: PLC0415
 
         from .full_vectors import FullVectorExchange  # noqa: PLC0415
-        from .host import RankOperator, block_reference  # noqa: PLC0415
+        host = host_module(self._key_words)
+        RankOperator, block_reference = host.RankOperator, host.block_reference
 
         comm = self._comm
         size, rank = comm.Get_size(), comm.Get_rank()
@@ -448,12 +463,14 @@ class FullStrsHamiltonian:
         stream = cupy.cuda.Stream(non_blocking=True)
 
 
+        row_words = 2 * self._key_words
         with stream:
-            keys = cupy.zeros(2 * size * stride, dtype=np.uint64)
-        keys[2 * rank * stride : 2 * (rank * stride + block.n_local)].set(
+            keys = cupy.zeros(row_words * size * stride, dtype=np.uint64)
+        first = row_words * rank * stride
+        keys[first : first + row_words * block.n_local].set(
             np.ascontiguousarray(block.keys).reshape(-1), stream=stream
         )
-        exchange.allgather(keys.view(np.float64), stream, width=2)
+        exchange.allgather(keys.view(np.float64), stream, width=row_words)
         stream.synchronize()
         self._block = block
         self._receiver = receiver
@@ -514,7 +531,8 @@ class FullStrsHamiltonian:
 
         from .distribute import plan_copy_groups  # noqa: PLC0415
         from .halo import CopyExchange, HaloExchange  # noqa: PLC0415
-        from .host import RankOperator, block_reference  # noqa: PLC0415
+        host = host_module(self._key_words)
+        RankOperator, block_reference = host.RankOperator, host.block_reference
 
         comm = self._comm
         num_orbitals = run_on_every_rank(
@@ -590,8 +608,8 @@ class FullStrsHamiltonian:
 
     @property
     def keys(self):
-        """Return this rank's post-distribution keys as a uint64 ``(n_local, 2)`` copy, alpha then
-        beta, sorted by ``(beta, alpha)``."""
+        """Return this rank's post-distribution keys as a uint64 ``(n_local, 2W)`` copy, alpha
+        words then beta words, sorted by ``(beta, alpha)``."""
         if self._block is not None:
             return self._block.keys.copy()
         return self._host.sorted_keys()
@@ -707,7 +725,8 @@ class FullStrsHamiltonian:
             first = self._comm.Get_rank() * self._full[1]
         else:
             first = 0
-        return self._layout.keys[2 * first : 2 * (first + self.n_local)]
+        row_words = 2 * self._key_words
+        return self._layout.keys[row_words * first : row_words * (first + self.n_local)]
 
     def compute_rdms(self, x, *, rank=1, spin_summed=False):
         """Collectively compute RDMs from this rank's NumPy or CuPy state slice, shape
@@ -731,6 +750,29 @@ class FullStrsHamiltonian:
         d_x = cupy.asarray(np.ascontiguousarray(x, dtype=np.float64))
         y = self._matvec(d_x)
         return cupy.asnumpy(y)
+
+
+def _forced_words():
+
+    return int(config.read("FQ_FORCE_KEY_WORDS"))
+
+
+def _key_rows(keys, num_orbitals):
+
+    words = key_words(num_orbitals)
+    rows = np.asarray(keys)
+    if rows.ndim != 2 or rows.shape[1] != 2 * words:
+        raise ValueError(
+            f"keys must have shape (n, {2 * words}) for {num_orbitals} orbitals per "
+            f"sector ({words} alpha words, then {words} beta words); got {rows.shape}"
+        )
+    forced = _forced_words()
+    if forced <= words:
+        return keys
+    padded = np.zeros((rows.shape[0], 2 * forced), dtype=rows.dtype)
+    padded[:, :words] = rows[:, :words]
+    padded[:, forced : forced + words] = rows[:, words:]
+    return padded
 
 
 def _key_electrons(keys):

@@ -22,7 +22,7 @@ struct FsKeys
     const std::uint64_t* halo_keys;
     std::int64_t num_rows;
     std::int32_t num_orbitals;
-    std::int32_t reserved;
+    std::int32_t key_words;
 };
 
 

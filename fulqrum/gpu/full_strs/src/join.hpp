@@ -36,13 +36,13 @@ namespace fq::full_strs
 {
 
 inline constexpr int kMemberClassShift = 61;
-inline constexpr int kMemberFirstShift = 54;
-inline constexpr int kMemberSecondShift = 47;
-inline constexpr Word kMemberOrbitalMask = 0x7F;
+inline constexpr int kMemberFirstShift = 53;
+inline constexpr int kMemberSecondShift = 45;
+inline constexpr Word kMemberOrbitalMask = 0xFF;
 inline constexpr std::int64_t kMaxJoinRows = std::int64_t(1) << kMemberSecondShift;
 inline constexpr Word kMemberRowMask = (Word(1) << kMemberSecondShift) - 1;
 inline constexpr Word kHeaderCountMask = (Word(1) << kMemberClassShift) - 1;
-inline constexpr int kMaxJoinOrbitals = 127;
+inline constexpr int kMaxJoinOrbitals = 255;
 inline constexpr std::size_t kJoinBuckets = 256;
 inline constexpr std::int64_t kMaxReceivedRows = std::int64_t(1) << 32;
 
@@ -168,11 +168,13 @@ inline RecordBatch emit_records(const Word* keys,
     constexpr std::size_t R = 1 + 2 * W;
     if(row_start < 0 || row_start + num_rows > kMaxJoinRows)
     {
-        throw std::invalid_argument("The join supports global rows below 2^47, got rows up to " + std::to_string(row_start + num_rows));
+        throw std::invalid_argument("The join supports global rows below 2^" + std::to_string(kMemberSecondShift) +
+                                    ", got rows up to " + std::to_string(row_start + num_rows));
     }
     if(num_orbitals > kMaxJoinOrbitals)
     {
-        throw std::invalid_argument("The join supports at most 127 orbitals per sector, got " + std::to_string(num_orbitals));
+        throw std::invalid_argument("The join supports at most " + std::to_string(kMaxJoinOrbitals) +
+                                    " orbitals per sector, got " + std::to_string(num_orbitals));
     }
     const int num_threads = max_threads();
     std::vector<std::vector<Word>> words(static_cast<std::size_t>(num_threads));

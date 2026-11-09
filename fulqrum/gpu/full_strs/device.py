@@ -236,11 +236,14 @@ class DeviceLayout:
             else np.zeros(0, dtype=np.uint64)
         )
 
-        self.key_rows = (
-            self.num_own if device_keys is None else int(device_keys.size) // 2
-        )
         diagonal = host.diagonal_view()
         tables = host.table_views()
+        self.key_words = len(tables["reference"]) // 2
+        self.key_rows = (
+            self.num_own
+            if device_keys is None
+            else int(device_keys.size) // (2 * self.key_words)
+        )
         fixed = (
             keys.nbytes
             + halo_keys.nbytes
@@ -316,7 +319,7 @@ class DeviceLayout:
                 self.tables[name][: tables[name].size].set(
                     tables[name], stream=self.upload_stream
                 )
-        self.reference = cupy.empty(2, dtype=np.uint64)
+        self.reference = cupy.empty(2 * self.key_words, dtype=np.uint64)
         self.reference.set(
             np.array(tables["reference"], dtype=np.uint64), stream=self.upload_stream
         )
@@ -546,6 +549,7 @@ class DeviceLayout:
         pointers["num_pairs"] = self.num_pairs
         pointers["num_quads"] = self.num_quads
         pointers["num_orbitals"] = self.num_orbitals
+        pointers["key_words"] = self.key_words
         return pointers
 
     def _classes(self, chunk, stream, slot_index):

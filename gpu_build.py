@@ -1014,6 +1014,13 @@ def gpu_extensions(root, include_dirs, compile_args, link_args, define_macros):
     )
     exts.append(
         _ext(
+            f"{root}.gpu.full_strs.host_w2",
+            f"{root}/gpu/full_strs/host_w2.pyx",
+            define_macros=list(define_macros) + [("FQ_W", "2")],
+        )
+    )
+    exts.append(
+        _ext(
             f"{root}.gpu.common.operator_arrays",
             f"{root}/gpu/common/operator_arrays.pyx",
         )

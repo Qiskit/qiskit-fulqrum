@@ -29,7 +29,6 @@ using dev::members_below;
 constexpr int kGroupThreads = 256;
 constexpr int kWarpsPerBlock = kGroupThreads / 32;
 constexpr std::int64_t kMaxGroupBlocks = 65535;
-constexpr int kKeyWords = 1;
 constexpr int kOffsetThreads = 256;
 constexpr int kBlockGroupThreads = 256;
 constexpr int kMaxSharedMembers = 1024;
@@ -278,30 +277,30 @@ inline unsigned int strided_grid(const std::int64_t items, const std::int64_t pe
 }
 
 
-template <int CLS>
+template <int W, int CLS>
 int launch_binned(const FsKeys& keys, const FsTables& tables, const FsGroups& groups, const double* x, cudaStream_t stream)
 {
     const std::int64_t n = groups.num_groups;
     switch(groups.bucket)
     {
     case 0:
-        tiny_group_kernel<kKeyWords, CLS><<<strided_grid(n, kGroupThreads), kGroupThreads, 0, stream>>>(keys, tables, groups, x);
+        tiny_group_kernel<W, CLS><<<strided_grid(n, kGroupThreads), kGroupThreads, 0, stream>>>(keys, tables, groups, x);
         break;
     case 1:
-        tile_group_kernel<kKeyWords, CLS, 8, 1><<<strided_grid(n, kGroupThreads / 8), kGroupThreads, 0, stream>>>(keys, tables, groups, x);
+        tile_group_kernel<W, CLS, 8, 1><<<strided_grid(n, kGroupThreads / 8), kGroupThreads, 0, stream>>>(keys, tables, groups, x);
         break;
     case 2:
-        tile_group_kernel<kKeyWords, CLS, 16, 1><<<strided_grid(n, kGroupThreads / 16), kGroupThreads, 0, stream>>>(keys, tables, groups, x);
+        tile_group_kernel<W, CLS, 16, 1><<<strided_grid(n, kGroupThreads / 16), kGroupThreads, 0, stream>>>(keys, tables, groups, x);
         break;
     case 3:
-        tile_group_kernel<kKeyWords, CLS, 32, 1><<<strided_grid(n, kGroupThreads / 32), kGroupThreads, 0, stream>>>(keys, tables, groups, x);
+        tile_group_kernel<W, CLS, 32, 1><<<strided_grid(n, kGroupThreads / 32), kGroupThreads, 0, stream>>>(keys, tables, groups, x);
         break;
     case 4:
-        tile_group_kernel<kKeyWords, CLS, 32, 2><<<strided_grid(n, kGroupThreads / 32), kGroupThreads, 0, stream>>>(keys, tables, groups, x);
+        tile_group_kernel<W, CLS, 32, 2><<<strided_grid(n, kGroupThreads / 32), kGroupThreads, 0, stream>>>(keys, tables, groups, x);
         break;
     case 5:
     case 6:
-        block_group_kernel<kKeyWords, CLS><<<strided_grid(n, 1), kBlockGroupThreads, 0, stream>>>(keys, tables, groups, x);
+        block_group_kernel<W, CLS><<<strided_grid(n, 1), kBlockGroupThreads, 0, stream>>>(keys, tables, groups, x);
         break;
     default:
         return int(cudaErrorInvalidValue);
@@ -374,13 +373,63 @@ __global__ void __launch_bounds__(kOffsetThreads) widen_sizes_kernel(const std::
 }
 
 
-template <int CLS>
+template <int W, int CLS>
 int launch_uniform(const FsKeys& keys, const FsTables& tables, const FsGroups& groups, const double* x, cudaStream_t stream)
 {
     const std::int64_t blocks = (groups.num_groups + kWarpsPerBlock - 1) / kWarpsPerBlock;
     const unsigned int grid = static_cast<unsigned int>(blocks < kMaxGroupBlocks ? blocks : kMaxGroupBlocks);
-    uniform_group_kernel<kKeyWords, CLS><<<grid, kGroupThreads, 0, stream>>>(keys, tables, groups, x);
+    uniform_group_kernel<W, CLS><<<grid, kGroupThreads, 0, stream>>>(keys, tables, groups, x);
     return int(cudaGetLastError());
+}
+
+
+int key_words(const FsKeys& keys)
+{
+    return keys.key_words == 0 ? 1 : keys.key_words;
+}
+
+
+template <int W>
+int launch_uniform_class(const FsKeys& keys, const FsTables& tables, const FsGroups& groups, const double* x,
+                         const cudaStream_t s)
+{
+    switch(groups.cls)
+    {
+    case dev::kAlphaSingle:
+        return launch_uniform<W, dev::kAlphaSingle>(keys, tables, groups, x, s);
+    case dev::kAlphaDouble:
+        return launch_uniform<W, dev::kAlphaDouble>(keys, tables, groups, x, s);
+    case dev::kBetaSingle:
+        return launch_uniform<W, dev::kBetaSingle>(keys, tables, groups, x, s);
+    case dev::kBetaDouble:
+        return launch_uniform<W, dev::kBetaDouble>(keys, tables, groups, x, s);
+    case dev::kMixed:
+        return launch_uniform<W, dev::kMixed>(keys, tables, groups, x, s);
+    default:
+        return int(cudaErrorInvalidValue);
+    }
+}
+
+
+template <int W>
+int launch_binned_class(const FsKeys& keys, const FsTables& tables, const FsGroups& groups, const double* x,
+                        const cudaStream_t s)
+{
+    switch(groups.cls)
+    {
+    case dev::kAlphaSingle:
+        return launch_binned<W, dev::kAlphaSingle>(keys, tables, groups, x, s);
+    case dev::kAlphaDouble:
+        return launch_binned<W, dev::kAlphaDouble>(keys, tables, groups, x, s);
+    case dev::kBetaSingle:
+        return launch_binned<W, dev::kBetaSingle>(keys, tables, groups, x, s);
+    case dev::kBetaDouble:
+        return launch_binned<W, dev::kBetaDouble>(keys, tables, groups, x, s);
+    case dev::kMixed:
+        return launch_binned<W, dev::kMixed>(keys, tables, groups, x, s);
+    default:
+        return int(cudaErrorInvalidValue);
+    }
 }
 
 }
@@ -396,18 +445,12 @@ extern "C"
             return int(cudaSuccess);
         }
         const cudaStream_t s = static_cast<cudaStream_t>(stream);
-        switch(groups->cls)
+        switch(key_words(*keys))
         {
-        case dev::kAlphaSingle:
-            return launch_uniform<dev::kAlphaSingle>(*keys, *tables, *groups, x, s);
-        case dev::kAlphaDouble:
-            return launch_uniform<dev::kAlphaDouble>(*keys, *tables, *groups, x, s);
-        case dev::kBetaSingle:
-            return launch_uniform<dev::kBetaSingle>(*keys, *tables, *groups, x, s);
-        case dev::kBetaDouble:
-            return launch_uniform<dev::kBetaDouble>(*keys, *tables, *groups, x, s);
-        case dev::kMixed:
-            return launch_uniform<dev::kMixed>(*keys, *tables, *groups, x, s);
+        case 1:
+            return launch_uniform_class<1>(*keys, *tables, *groups, x, s);
+        case 2:
+            return launch_uniform_class<2>(*keys, *tables, *groups, x, s);
         default:
             return int(cudaErrorInvalidValue);
         }
@@ -421,18 +464,12 @@ extern "C"
             return int(cudaSuccess);
         }
         const cudaStream_t s = static_cast<cudaStream_t>(stream);
-        switch(groups->cls)
+        switch(key_words(*keys))
         {
-        case dev::kAlphaSingle:
-            return launch_binned<dev::kAlphaSingle>(*keys, *tables, *groups, x, s);
-        case dev::kAlphaDouble:
-            return launch_binned<dev::kAlphaDouble>(*keys, *tables, *groups, x, s);
-        case dev::kBetaSingle:
-            return launch_binned<dev::kBetaSingle>(*keys, *tables, *groups, x, s);
-        case dev::kBetaDouble:
-            return launch_binned<dev::kBetaDouble>(*keys, *tables, *groups, x, s);
-        case dev::kMixed:
-            return launch_binned<dev::kMixed>(*keys, *tables, *groups, x, s);
+        case 1:
+            return launch_binned_class<1>(*keys, *tables, *groups, x, s);
+        case 2:
+            return launch_binned_class<2>(*keys, *tables, *groups, x, s);
         default:
             return int(cudaErrorInvalidValue);
         }

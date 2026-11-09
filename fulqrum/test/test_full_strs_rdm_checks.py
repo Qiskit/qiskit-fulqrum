@@ -41,7 +41,7 @@ def test_a_bad_input_on_one_rank_raises_on_every_rank(monkeypatch):
 
 @pytest.mark.parametrize(
     "rank, orbitals, message",
-    [(3, 4, "rank must be 1 or 2, got 3"), (1, 65, "at most 64 orbitals per sector")],
+    [(3, 4, "rank must be 1 or 2, got 3"), (1, 129, "at most 128 orbitals per sector")],
 )
 def test_rank_and_width_checks_keep_their_messages(
     monkeypatch, rank, orbitals, message
