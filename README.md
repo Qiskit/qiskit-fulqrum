@@ -13,7 +13,7 @@ Fulqrum is a set of tools for enabling the solution to large-scale Hamiltonian s
 
 Fulqrum also provides tools for generating compact subspaces that yield accurate solutions to quantum chemistry applications while potentially using orders of magnitude fewer bit-strings than standard quantum subspace methods alone.
 
-Fulqrum can utilize both CPU and GPU (Nvidia only) computing resources. However, at present, not all features are supported across all computing modes.  See the table below for feature availability:
+Fulqrum can utilize both CPU and GPU (Nvidia only) computing resources. However, at present, not all features are supported across all computing modes.  See the table below for current feature availability:
 
 | Feature | CPU-compatible | GPU-compatible |
 | --- | --- | --- |
@@ -44,7 +44,7 @@ Required Boost header files are included in the ``third-party/boost`` directory,
 
 ### Git submodule
 
-Fulqrum uses [`qiskit-addon-sqd-hpc`](https://github.com/Qiskit/qiskit-addon-sqd-hpc) as a Git submodule. Therefore, we can do either of the following to get actual and required files from that repo:
+Fulqrum uses [`qiskit-addon-sqd-hpc`](https://github.com/Qiskit/qiskit-addon-sqd-hpc) and [`primme`](https://github.com/primme/primme) as Git submodules. Therefore, we can do either of the following to get actual and required files from those repos:
 
 Clone Fulqrum with `--recurse-submodules` flag, and it will also clone files from the submodule.
 ```bash
