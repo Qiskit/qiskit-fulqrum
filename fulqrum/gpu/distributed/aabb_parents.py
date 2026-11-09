@@ -308,9 +308,11 @@ def choose_parent_plan(alpha, off, lengths, pack, num_alpha, min_parent=8, kind=
     return best
 
 
-def parent_masks(plan):
+def parent_masks(plan, words=1):
 
     import numpy as np
+
+    from ..common.wide import WORD_BITS, orbital_bits_w
 
     ptr, members = plan["parent_ptr"], plan["members"]
     sizes = np.diff(ptr.astype(np.int64))
@@ -328,30 +330,20 @@ def parent_masks(plan):
         raise ValueError("invalid parent member ranges")
     ids = np.arange(len(sizes), dtype=np.int32)
     if not len(sizes):
-        return np.empty(0, dtype=np.uint64), ids
+        shape = 0 if words == 1 else (0, int(words))
+        return np.empty(shape, dtype=np.uint64), ids
     orbitals = ((members >> np.uint64(32)) & np.uint64(0xFF)).astype(np.int32)
     phases = (members >> np.uint64(48)).astype(np.uint16).view(np.int16)
     boundary = np.zeros(len(members), dtype=bool)
     boundary[ptr[:-1]] = True
     if (
-        np.any(orbitals >= 64)
+        np.any(orbitals >= WORD_BITS * int(words))
         or np.any((phases != 1) & (phases != -1))
         or np.any((np.diff(orbitals) <= 0) & ~boundary[1:])
     ):
         raise ValueError("parent members must have ascending orbitals and +/-1 phases")
-    bits = np.uint64(1) << orbitals.astype(np.uint64)
-    return np.bitwise_or.reduceat(bits, ptr[:-1]), ids
-
-
-def _parity(words):
-
-
-    import numpy as np
-
-    x = np.array(words, dtype=np.uint64, copy=True)
-    for shift in (32, 16, 8, 4, 2, 1):
-        x ^= x >> np.uint64(shift)
-    return (x & np.uint64(1)).astype(np.int16)
+    masks = np.bitwise_or.reduceat(orbital_bits_w(orbitals, words), ptr[:-1], axis=0)
+    return (masks[:, 0] if words == 1 else masks), ids
 
 
 def _int32(values, name):
@@ -446,25 +438,37 @@ def parent_plan(alpha, off, lengths, pack, num_alpha, min_parent=8, kind="union"
 
     import numpy as np
 
-    if not isinstance(num_alpha, (int, np.integer)) or not 2 <= num_alpha <= 64:
-        raise ValueError("num_alpha must be in [2, 64]")
+    from ..common.wide import (
+        WORD_BITS,
+        below_parity_w,
+        between_mask_w,
+        popcount_w,
+        single_bit_index_w,
+        unique_w,
+    )
+
+    alpha = np.asarray(alpha)
+    width = alpha.shape[1] if alpha.ndim == 2 else 1
+    limit = WORD_BITS * width
+    if not isinstance(num_alpha, (int, np.integer)) or not 2 <= num_alpha <= limit:
+        raise ValueError(f"num_alpha must be in [2, {limit}]")
     if not isinstance(min_parent, (int, np.integer)) or not 2 <= min_parent <= 32:
         raise ValueError("min_parent must be in [2, 32]")
     if kind not in PARENT_KINDS:
         raise ValueError("kind must be union or intersection")
-    alpha = np.asarray(alpha)
     if (
-        alpha.ndim != 1
+        alpha.ndim not in (1, 2)
         or (alpha.size and alpha.dtype.kind not in "iu")
         or np.any(alpha < 0)
     ):
         raise ValueError("alpha must be a nonnegative integer vector")
     alpha = alpha.astype(np.uint64)
-    if (num_alpha < 64 and np.any(alpha >> np.uint64(num_alpha))) or len(
-        np.unique(alpha)
+    fits = between_mask_w(-1, num_alpha, width)
+    if np.any(alpha & ~(fits[0] if width == 1 else fits)) or len(
+        unique_w(alpha)[0]
     ) != len(alpha):
         raise ValueError("alpha strings must be unique and fit num_alpha")
-    populations = {int(a).bit_count() for a in alpha}
+    populations = set(popcount_w(alpha).tolist())
     if len(populations) > 1:
         raise ValueError("parent replay requires fixed alpha electron count")
     rows, words = unpack_sell(off, lengths, pack)
@@ -483,36 +487,28 @@ def parent_plan(alpha, off, lengths, pack, num_alpha, min_parent=8, kind="union"
         raise ValueError("duplicate directed alpha edges are not supported")
     unions = alpha[r] | alpha[j]
     removed_r, removed_j = unions ^ alpha[r], unions ^ alpha[j]
-    if (
-        np.any(removed_r == 0)
-        or np.any(removed_j == 0)
-        or np.any(removed_r & (removed_r - np.uint64(1)))
-        or np.any(removed_j & (removed_j - np.uint64(1)))
-    ):
+    if np.any(popcount_w(removed_r) != 1) or np.any(popcount_w(removed_j) != 1):
         raise ValueError("alpha edge is not a single excitation")
-    powers = np.uint64(1) << np.arange(num_alpha, dtype=np.uint64)
-    p, q = np.searchsorted(powers, removed_r), np.searchsorted(powers, removed_j)
+    p, q = single_bit_index_w(removed_r), single_bit_index_w(removed_j)
     lo, hi = np.minimum(p, q), np.maximum(p, q)
-    expected_pid = lo * (2 * num_alpha - lo - 1) // 2 + hi - lo - 1
+    expected_pid = lo * (2 * int(num_alpha) - lo - 1) // 2 + hi - lo - 1
     sign = (w >> np.uint64(48)).astype(np.uint16).view(np.int16)
     if kind == "union":
         parents_of_edges = unions
-        tr = 1 - 2 * _parity(unions & (removed_r - np.uint64(1)))
-        tj = 1 - 2 * _parity(unions & (removed_j - np.uint64(1)))
+        tr = below_parity_w(unions, p).astype(np.int16)
+        tj = below_parity_w(unions, q).astype(np.int16)
         expected_sign = -tr * tj
     else:
         parents_of_edges = alpha[r] & alpha[j]
-        tr = 1 - 2 * _parity(parents_of_edges & (removed_j - np.uint64(1)))
-        tj = 1 - 2 * _parity(parents_of_edges & (removed_r - np.uint64(1)))
+        tr = below_parity_w(parents_of_edges, q).astype(np.int16)
+        tj = below_parity_w(parents_of_edges, p).astype(np.int16)
         expected_sign = tr * tj
     if not np.array_equal(expected_pid, pid[live]) or not np.array_equal(
         sign, expected_sign
     ):
         raise ValueError("alpha strings disagree with packed orbital-pair IDs or signs")
 
-    keys, group, edge_counts = np.unique(
-        parents_of_edges, return_inverse=True, return_counts=True
-    )
+    keys, group, edge_counts = unique_w(parents_of_edges, return_counts=True)
     tagged = group.astype(np.uint64) << np.uint64(32)
     membership = np.unique(
         np.r_[tagged | r.astype(np.uint64), tagged | j.astype(np.uint64)]
@@ -527,9 +523,8 @@ def parent_plan(alpha, off, lengths, pack, num_alpha, min_parent=8, kind="union"
     selected[live] = chosen[group]
     selected_edges = int(selected.sum())
     mr, mg = mr[chosen[mg]], mg[chosen[mg]]
-    removed = keys[mg] ^ alpha[mr]
-    orbital = np.searchsorted(powers, removed)
-    phase = 1 - 2 * _parity(keys[mg] & (removed - np.uint64(1)))
+    orbital = single_bit_index_w(keys[mg] ^ alpha[mr])
+    phase = below_parity_w(keys[mg], orbital).astype(np.int16)
     flag = np.uint64(1 << INTERSECTION_BIT) if kind == "intersection" else np.uint64(0)
     order = np.lexsort((orbital, mg))
     members = (

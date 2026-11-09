@@ -21,6 +21,7 @@ from typing import Any, Optional
 
 import numpy as np
 
+from ..common.wide import between_parity_w
 from .construction import _build_axis_connection_tables
 from .tile_tables import (
     CROSS_MAX_PAIR,
@@ -425,17 +426,6 @@ def _host(array, dtype) -> np.ndarray:
     return host
 
 
-def _popcount_u64(x):
-
-    x = x.astype(np.uint64)
-    x = x - ((x >> np.uint64(1)) & np.uint64(0x5555555555555555))
-    x = (x & np.uint64(0x3333333333333333)) + (
-        (x >> np.uint64(2)) & np.uint64(0x3333333333333333)
-    )
-    x = (x + (x >> np.uint64(4))) & np.uint64(0x0F0F0F0F0F0F0F0F)
-    return ((x * np.uint64(0x0101010101010101)) >> np.uint64(56)).astype(np.uint8)
-
-
 def _alpha2_apid_asign(a2_ptr, a2_p0, a2_p1, row_alpha_dets, num_alpha):
 
 
@@ -447,14 +437,7 @@ def _alpha2_apid_asign(a2_ptr, a2_p0, a2_p1, row_alpha_dets, num_alpha):
     counts = np.diff(ptr)
     row = np.repeat(np.arange(len(ptr) - 1, dtype=np.int64), counts)
     a_val = np.asarray(row_alpha_dets, dtype=np.uint64)[row]
-    up0 = p0.astype(np.uint64)
-    up1 = p1.astype(np.uint64)
-    mask = ((np.uint64(1) << up1) - np.uint64(1)) ^ (
-        (np.uint64(1) << (up0 + np.uint64(1))) - np.uint64(1)
-    )
-    odd = _popcount_u64(a_val & mask) & np.uint8(1)
-    asign = np.where(odd, np.int8(-1), np.int8(1)).astype(np.int8)
-    return apid, asign
+    return apid, between_parity_w(a_val, p0, p1)
 
 
 def _sell_layout(ptr, warp=SELL_SLICE_ROWS):

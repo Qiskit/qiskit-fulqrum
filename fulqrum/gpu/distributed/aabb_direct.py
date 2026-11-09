@@ -62,18 +62,24 @@ def sorted_beta_graph(
 
     import numpy as np
 
+    from ..common.wide import WORD_BITS, between_parity_w
+
     ptr = _int32_array(ptr, "beta pointers")
     if not ptr.size or ptr[0] != 0 or np.any(np.diff(ptr.astype(np.int64)) < 0):
         raise ValueError("invalid beta CSR pointers")
-    if not 0 <= n_source <= np.iinfo(np.int32).max or not 1 <= num_beta <= 64:
+    bra = np.asarray(bra_beta, dtype=np.uint64)
+    width = bra.shape[1] if bra.ndim == 2 else 1
+    if (
+        not 0 <= n_source <= np.iinfo(np.int32).max
+        or not 1 <= num_beta <= WORD_BITS * width
+    ):
         raise ValueError("invalid beta dimensions")
     nnz, n_rows = int(ptr[-1]), len(ptr) - 1
     payload = [np.asarray(a) for a in (columns, p0, p1)]
     if any(a.ndim != 1 or len(a) < nnz for a in payload):
         raise ValueError("beta payload shorter than CSR pointers")
     j, p, q = [_int32_array(a[:nnz], "beta payload") for a in payload]
-    bra = np.asarray(bra_beta, dtype=np.uint64)
-    if bra.ndim != 1 or len(bra) != n_rows:
+    if bra.ndim not in (1, 2) or len(bra) != n_rows:
         raise ValueError("beta bra shape does not match pointers")
     if np.any(p >= q) or np.any(q >= num_beta):
         raise ValueError("beta pairs must satisfy 0 <= p < q < num_beta")
@@ -92,14 +98,9 @@ def sorted_beta_graph(
         raise ValueError("beta column outside input")
     order = np.lexsort((j, rows))
     rows, j, p, q = (a[order] for a in (rows, j, p, q))
-    pid = p * (2 * int(num_beta) - p - 1) // 2 + q - p - 1
-    mask = ((np.uint64(1) << q.astype(np.uint64)) - np.uint64(1)) ^ (
-        (np.uint64(1) << (p + 1).astype(np.uint64)) - np.uint64(1)
-    )
-    parity = bra[rows] & mask
-    for shift in (32, 16, 8, 4, 2, 1):
-        parity ^= parity >> np.uint64(shift)
-    sign = np.where((parity & np.uint64(1)) != 0, 65535, 1).astype(np.uint64)
+    pid = p.astype(np.int64) * (2 * int(num_beta) - p - 1) // 2 + q - p - 1
+    odd = between_parity_w(bra[rows], p, q) < 0
+    sign = np.where(odd, 65535, 1).astype(np.uint64)
     words = (
         j.astype(np.uint64)
         | (pid.astype(np.uint64) << np.uint64(32))

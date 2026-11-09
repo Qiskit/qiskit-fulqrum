@@ -15,6 +15,8 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from ..common.wide import unique_w
+
 ELEMENT_SCREEN = (
     1e-14
 )
@@ -73,7 +75,7 @@ def double_class_tables(
         xp.asarray(out_strings, dtype=xp.uint64)[rows]
         | xp.asarray(src_strings, dtype=xp.uint64)[columns]
     )
-    ukeys, cls = xp.unique(keys, return_inverse=True)
+    ukeys, cls = unique_w(keys, xp=xp)
     cls = cls.reshape(-1).astype(xp.int64)
     take = applied & xp.isfinite(values)
     take_idx = xp.flatnonzero(take)

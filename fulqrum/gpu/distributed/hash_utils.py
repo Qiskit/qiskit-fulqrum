@@ -35,6 +35,7 @@ def _pack_half_strs_to_uint64(alpha, beta, widths=(64, 64)):
 
 def _build_hash_table_simple(arr: np.ndarray):
 
+    assert np.ndim(arr) == 1, "string hash tables take single-word strings"
     n = len(arr)
     cap = 1
     while cap < 3 * n:

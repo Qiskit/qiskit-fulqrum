@@ -92,17 +92,9 @@ def pair_id(p, q, n):
 
 def between_parity_sign(bra, p, q):
 
-    import numpy as np
+    from ..common.wide import between_parity_w
 
-    lo = np.minimum(p, q).astype(np.uint64)
-    hi = np.maximum(p, q).astype(np.uint64)
-    mask = ((np.uint64(1) << hi) - np.uint64(1)) ^ (
-        (np.uint64(1) << (lo + np.uint64(1))) - np.uint64(1)
-    )
-    x = np.asarray(bra, dtype=np.uint64) & mask
-    for s in (32, 16, 8, 4, 2, 1):
-        x ^= x >> np.uint64(s)
-    return np.where((x & np.uint64(1)) != 0, -1, 1).astype(np.int8)
+    return between_parity_w(bra, p, q)
 
 
 def derive_pair_table(cpb, sign, pairs, n_pairs, n_other):

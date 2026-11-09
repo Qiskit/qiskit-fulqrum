@@ -221,6 +221,58 @@ def between_parity_w(strings, lo, hi):
     return np.where(odd, -1, 1).astype(np.int8)
 
 
+def below_parity_w(strings, orbital):
+
+
+    return between_parity_w(strings, -1, orbital)
+
+
+def single_bit_index_w(strings):
+
+
+    words = _as_words(strings)
+    rows = np.arange(words.shape[0])
+    word = np.argmax(words != 0, axis=1)
+    selected = words[rows, word]
+    below = _popcount_words(selected - np.uint64(1))
+    return (word * WORD_BITS + below).astype(np.int64)
+
+
+def orbital_bits_w(orbitals, words):
+
+
+    orbitals = np.asarray(orbitals, dtype=np.int64).reshape(-1)
+    out = np.zeros((orbitals.size, int(words)), dtype=np.uint64)
+    out[np.arange(orbitals.size), orbitals // WORD_BITS] = np.uint64(1) << (
+        orbitals % WORD_BITS
+    ).astype(np.uint64)
+    return out
+
+
+def unique_w(strings, xp=np, return_counts=False):
+
+
+    if strings.ndim == 1:
+        return xp.unique(strings, return_inverse=True, return_counts=return_counts)
+    n = strings.shape[0]
+    if n == 0:
+        empty = xp.zeros(0, dtype=xp.int64)
+        out = (strings[:0], empty)
+        return out + (empty,) if return_counts else out
+    order = xp.lexsort(strings.T)
+    ordered = strings[order]
+    first = xp.ones(n, dtype=bool)
+    first[1:] = xp.any(ordered[1:] != ordered[:-1], axis=1)
+    inverse = xp.empty(n, dtype=xp.int64)
+    inverse[order] = xp.cumsum(first) - 1
+    out = (ordered[first], inverse)
+    if not return_counts:
+        return out
+    starts = xp.flatnonzero(first)
+    ends = xp.concatenate((starts[1:], xp.asarray([n], dtype=starts.dtype)))
+    return out + (ends - starts,)
+
+
 def xor_w(a, b):
 
 
