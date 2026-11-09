@@ -148,9 +148,11 @@ one represents _beta_ strings. Internally, `fulqrum` will sort each list and per
 
 ## Benchmarks
 
-### CPU results
+Benchmarks for select quantum chemistry problems comparing the performance of Fulqrum to [`Dice`](https://github.com/sanshar/Dice) and [`SBD`](https://github.com/r-ccs-cms/sbd).
 
-Benchmark for finding the ground-state energy within the given subspace dimension.  Solvers configured so that they return the same energy to a relative tolerance of 1E-7.  Here both Fulqrum and SBD are used in matrix-free mode.
+Benchmarks target finding the ground-state energy within the given subspace dimension.  Solvers configured so that they return the same energy to a relative tolerance of 1E-7.  Here both Fulqrum and SBD are used in matrix-free mode.
+
+### CPU results
 
 #### Fe4S4
 
