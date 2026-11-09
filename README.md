@@ -182,9 +182,15 @@ Dual-socket Intel Xeon Platinum 8474C (48-core, 96 threads), 2 TB memory
 | SBD | 1E8 | 5705 | 20 | |
 
 
-#### GPU results
+### GPU results
 
 Results run on GB200 cluster; 4-GPUs per node
 
+#### Molten salts molecules (arXiv:2606.30402)
 
-
+| Molecule | Subspace dimension | Fulqrum time (s) | SBD time (s) | Speedup |
+| --- | --- | --- | --- | --- |
+| conf3-clust0021 | 2E9 | 40.7 | 237.8 | 5.8x |
+| conf5-clust0015 | 5.8E9 | 110.3 | 1305.4 | 11.9x |
+| conf8-clust0017 | 5.8E9 | 127 | 2393 | 18.8x |
+| FLiBe | 5.4E8 | 60.2 | 1200 | 19.9x |
