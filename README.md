@@ -48,14 +48,14 @@ Fulqrum uses [`qiskit-addon-sqd-hpc`](https://github.com/Qiskit/qiskit-addon-sqd
 
 Clone Fulqrum with `--recurse-submodules` flag, and it will also clone files from the submodule.
 ```bash
-git clone --recurse-submodules https://github.com/Qiskit/fulqrum.git
+git clone --recurse-submodules https://github.com/Qiskit/qiskit-fulqrum.git
 ```
 
 OR
 
 After cloning Fulqrum normally, do a submodule update.
 ```bash
-git clone https://github.com/Qiskit/fulqrum.git
+git clone https://github.com/Qiskit/qiskit-fulqrum.git
 cd fulqrum
 git submodule update --init --recursive
 ```
@@ -133,10 +133,6 @@ Example: run a workload with a larger row block and finer ladder bucketing:
 FQ_BLK=256 FQ_LADDER_WIDTH=4 python your_workload.py
 ```
 
-## Running benchmarks
-
-See the README.md in the `benchmarks` directory.
-
 
 ## Notes on `Subspace` input format
 
@@ -148,3 +144,8 @@ one represents _beta_ strings. Internally, `fulqrum` will sort each list and per
 2. **Full-string mode:** In this mode, `subspace_strs` has to be length-1 `tuple[list[str]]`. In this mode, no Cartesian product is taken internally, and the supplied _full_ bitstrings are used as is after sorting.
 
 **Note:** There is no special flag to denote half-string vs. full-string mode. `Fulqrum` will compute the length of the input `subspace_strs` and detect half-string or full-string mode automatically to construct the subspace. If `subspace_strs` has a different length other than 1 or 2 or its element(s) is not `list[str]`, it will throw an `TypeError`.
+
+
+## Benchmarks
+
+### $\mathrm{Fe}_{4}\mathrm{S}_{4}$
