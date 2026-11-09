@@ -3,20 +3,34 @@
 
 # Fulqrum
 
-![GitHub Release](https://img.shields.io/github/v/release/Qiskit/fulqrum)
+![GitHub Release](https://img.shields.io/github/v/release/Qiskit/qiskit-fulqrum)
 ![PyPI Downloads](https://img.shields.io/pypi/dm/fulqrum)
-![GitHub License](https://img.shields.io/github/license/Qiskit/fulqrum)
+![GitHub License](https://img.shields.io/github/license/Qiskit/qiskit-fulqrum)
 
-A generalized framework for quantum subspace eigensolving.
+A generalized framework for quantum subspace sparse linear algebra
 
-Fulqrum is a set of tools for enabling the solution to large-scale Hamiltonian subspace eigenproblems over extended alphabets.  Fulqrum was designed specifically with the goals of: (1) Providing a unified code base for solving both spin and fermionic systems. (2) Working for arbitrary numbers of qubits. (3) Reducing memory consumption, as compared to existing methods. And finally, (4) Decoupling operator construction from eigensolving itself.  In addition to satisfying these goals, Fulqrum is performant, and beats other eigensolvers in terms of total runtime.
+Fulqrum is a set of tools for enabling the solution to large-scale Hamiltonian subspace sparse linear algebra problems over extended alphabets.  Fulqrum was designed specifically with the goals of: (1) Providing a unified code base for solving both spin and fermionic systems. (2) Working for arbitrary numbers of qubits. (3) Reducing memory consumption, as compared to existing methods. And finally, in the case of eigenvalue problems, decoupling operator construction from eigensolving itself.
 
-In addition to eigensolving itself, Fulqrum provides tools for generating compact subspaces that yield accurate solutions while potentially  using orders of magnitude fewer bit-strings than standard quantum subspace methods alone.
+Fulqrum also provides tools for generating compact subspaces that yield accurate solutions to quantum chemistry applications while potentially using orders of magnitude fewer bit-strings than standard quantum subspace methods alone.
+
+Fulqrum can utilize both CPU and GPU (Nvidia only) computing resources. However, at present, not all features are supported across all computing modes.  See the table below for feature availability:
+
+| Feature | CPU-compatible | GPU-compatible |
+| --- | --- | --- |
+| Distributed (multi-node)| :x: | :heavy_check_mark: |
+| Max. qubits | 65,536 | 128 |
+| Cartesian Subspace (TPB) | :heavy_check_mark: | :heavy_check_mark: |
+| General Subspace (GDB) | :heavy_check_mark: | :heavy_check_mark: |
+| 1-RDM and 2-RDM | :x: | :heavy_check_mark: |
+| Spin penality | :heavy_check_mark: | :x: |
+| Complex values | :heavy_check_mark: | :x: |
+| Generic qubit operators | :heavy_check_mark: | :x: |
+| Sample-based Quantum Diagonalization (SQD) compatible | :heavy_check_mark: | :heavy_check_mark: |
 
 
 ## Documentation
 
-Docs: https://qiskit.github.io/fulqrum
+Docs: https://qiskit.github.io/qiskit-fulqrum/
 
 
 ## Installation
