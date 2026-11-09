@@ -17,11 +17,11 @@ Fulqrum can utilize both CPU and GPU (Nvidia only) computing resources. However,
 
 | Feature | CPU-compatible | GPU-compatible |
 | --- | --- | --- |
-| Distributed (multi-node)| :x: | :heavy_check_mark: |
+| Distributed (multi-node)| :x: | ✓ |
 | Max. qubits | 65,536 | 128 |
-| Cartesian Subspace (TPB) | :heavy_check_mark: | :heavy_check_mark: |
-| General Subspace (GDB) | :heavy_check_mark: | :heavy_check_mark: |
-| 1-RDM and 2-RDM | :x: | :heavy_check_mark: |
+| Cartesian Subspace (TPB) | ✓ | ✓ |
+| General Subspace (GDB) | ✓ | ✓ |
+| 1-RDM and 2-RDM | :x: | ✓ |
 | Spin penality | :heavy_check_mark: | :x: |
 | Complex values | :heavy_check_mark: | :x: |
 | Generic qubit operators | :heavy_check_mark: | :x: |
