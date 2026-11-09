@@ -148,4 +148,20 @@ one represents _beta_ strings. Internally, `fulqrum` will sort each list and per
 
 ## Benchmarks
 
-### $\mathrm{Fe}_{4}\mathrm{S}_{4}$
+### Fe4S4
+
+#### CPU results
+
+12-core, 24-thread AMD 7900, 128 Gb memory
+
+| Solver | Subspace dimension | Runtime (s) | Memory (Gb) |
+| --- | --- | --- | --- |
+| Dice | 1e6 | 93.6 | 47.4 |
+| Fulqrum - primme | 1e6 | 7.4 | 3.8 |
+| Fulqrum - scipy | 1e6 | 8.1 | 3.8 |
+| SBD | 1e6 | 82.2 | 1.2 |
+| --- | --- | --- | --- |
+| Dice | 1e8 | - | - |
+| Fulqrum - primme | 1e8 | 405 | 13.4 |
+| Fulqrum - scipy | 1e8 | 527 | 24.6 |
+| SBD | 1e8 | 40225 | 82.2 |
