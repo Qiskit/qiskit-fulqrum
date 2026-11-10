@@ -217,6 +217,35 @@ def _to_device(array, dtype=None):
 
 # Categories allocated lazily, mostly by the first matvec. The pending
 # estimate does not yet cover all first-matvec allocations, so it can be low.
+def _direct_integrals(gpu_data, num_alpha):
+
+    grp_oi = np.ascontiguousarray(gpu_data["grp_offdiag_inds"])
+    grp_os = np.ascontiguousarray(gpu_data["grp_offdiag_sizes"])
+    _, grp4_direct = _build_direct_integral_tables(
+        gpu_data, grp_oi, grp_os, int(gpu_data["num_groups"]), num_alpha
+    )
+    return grp4_direct
+
+
+def tile_operator_error(spmv, gpu_data, num_alpha, key_words) -> str | None:
+
+
+    num_groups = int(gpu_data["num_groups"])
+    if num_groups == 0:
+        return None if tuple(key_words) == (1, 1) else "the operator has no groups"
+    grp_oi = np.ascontiguousarray(gpu_data["grp_offdiag_inds"])
+    grp_os = np.ascontiguousarray(gpu_data["grp_offdiag_sizes"])
+    found = unsupported_groups(spmv, num_alpha, _direct_integrals(gpu_data, num_alpha))
+    if found:
+        return f"{len(found)} operator group(s) are not supported ({found[0][2]})"
+    for check in (_assert_aaaa_bbbb_proj_invariance, _assert_aa_bb_factor_cache_invariance):
+        try:
+            check(gpu_data, grp_oi, grp_os, num_groups, num_alpha)
+        except AssertionError as error:
+            return str(error).split(".")[0]
+    return None
+
+
 _HBM_PENDING = frozenset({"v_local", "out_local", "scratch", "arm_caches"})
 
 
@@ -577,7 +606,11 @@ class TileGPUResidentHamiltonian(LinearOperator):
 
         _pre_init_mpi_elapsed = time.perf_counter() - started
         _t_part = time.perf_counter()
-        if isinstance(self._hsub.spmv, FulqrumSpMV):
+        prepared = getattr(self._hsub, "_tile_operator_tables", None)
+        if prepared is not None:
+            self._cached_gpu_data = prepared
+            self._hsub._tile_operator_tables = None
+        elif isinstance(self._hsub.spmv, FulqrumSpMV):
             try:
                 self._cached_gpu_data = _operator_tables(self._hsub.spmv)
             except Exception:  # noqa: BLE001
@@ -2009,9 +2042,7 @@ class TileGPUResidentHamiltonian(LinearOperator):
         step("flip_masks")
         grp4_direct = None
         if num_groups > 0:
-            _, grp4_direct = _build_direct_integral_tables(
-                gpu_data, grp_oi, grp_os, num_groups, num_alpha
-            )
+            grp4_direct = _direct_integrals(gpu_data, num_alpha)
             step("direct_integrals")
             self._validate_operator_groups(spmv, num_alpha, grp4_direct)
             step("validate_groups")
@@ -3899,10 +3930,11 @@ class TileGPUResidentHamiltonian(LinearOperator):
             caches["bb_cpb"],
         )
         cross = None
-        if arm_plan.aabb_mode == 12:
+        if arm_plan.aabb_mode == 12 and arm_plan.aabb_path == ARM_DIRECT:
+            cross = self._aabb_direct.get(src_rank)
+        elif arm_plan.aabb_mode == 12:
             cross = (
                 self._clique_cross(src_rank, arm_plan.aabb_path, arm_plan.remote_beta)
-                or self._aabb_direct.get(src_rank)
                 or "sell"
             )
             if cross == "sell" and self._wide_strings:

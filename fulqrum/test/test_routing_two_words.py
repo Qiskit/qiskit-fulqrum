@@ -193,3 +193,13 @@ def test_direct_cross_launches_the_direct_kernel():
     source.cross = "sell"
     with pytest.raises(ValueError, match="single-word"):
         launch._cross(Kernels(), source)
+
+
+def test_the_planner_refuses_the_sell_path_for_two_words(monkeypatch):
+    from fulqrum.gpu.distributed import arm_plan
+
+    monkeypatch.setattr(arm_plan, "_aabb_path", lambda *args: arm_plan.BASELINE)
+    facts = next(every_source())
+    with pytest.raises(ValueError, match="SELL kernel"):
+        plan_arms(facts, WIDE)
+    assert plan_arms(facts, RECIPE).aabb_path == arm_plan.BASELINE

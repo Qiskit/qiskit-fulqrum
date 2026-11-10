@@ -760,7 +760,7 @@ def test_full_strs_rdms_wait_for_the_caller_stream():
     norb = 10
     sector = [sum(1 << o for o in occ) for occ in combinations(range(norb), 3)]
     keys = sort_unique(np.array([(a, b) for b in sector for a in sector], np.uint64))
-    h = FullStrsHamiltonian(random_operator(norb, 3), keys)
+    h = FullStrsHamiltonian(random_operator(norb, 3), keys, engine="general")
     x_host = np.random.default_rng(1).normal(size=h.n_local).astype(np.float32)
     x_host /= np.linalg.norm(x_host)
     reference = np.asarray(

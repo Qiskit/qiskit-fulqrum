@@ -78,9 +78,12 @@ def plan_arms(facts: SourceFacts, settings: ArmSettings) -> ArmPlan:
         )
     mode = aabb_mode(facts, settings)
     remote = _remote_beta(facts, settings, mode)
-    return ArmPlan(
-        mode, _aabb_path(facts, settings, mode, remote), remote, facts.doubles_sell
-    )
+    path = _aabb_path(facts, settings, mode, remote)
+    if settings.wide and mode == 12 and path == BASELINE:
+        raise ValueError(
+            "sectors wider than 64 orbitals cannot use the mixed-spin SELL kernel"
+        )
+    return ArmPlan(mode, path, remote, facts.doubles_sell)
 
 
 def aabb_mode(facts: SourceFacts, settings: ArmSettings) -> int:

@@ -19,10 +19,11 @@ import numpy as np
 
 from .. import config
 from ..common.wide import check_width, key_words, popcount_w
-from ..distributed.rank_agreement import run_on_every_rank
+from ..distributed.rank_agreement import raise_on_every_rank, run_on_every_rank
 from .device import DeviceLayout
 from .host_words import host_module
 from .plan import LayoutPlan, agree
+from .tile_dispatch import ENGINES
 
 MAX_KEY_WORDS = 2
 
@@ -106,6 +107,16 @@ class FullStrsHamiltonian:
             ``"full"`` exchanges the full vector internally and enables atomic
             reduction. Full-vector mode requires by-key grouping and one copy.
             Caller inputs still contain only ``n_local`` amplitudes.
+        engine: ``"auto"`` (default), ``"general"`` or ``"tile"``. When the
+            deduplicated keys are every combination of their alpha and beta
+            strings, ``"auto"`` uses the Cartesian tile engine on a ``1 x P``
+            grid split by beta strings. It falls back to the general engine
+            when the keys are not such a product, a general-engine option
+            above is not at its default, or the operator fails the tile
+            engine's checks. ``"tile"`` requires the tile engine and raises if
+            it cannot run; ``"general"`` always uses the general engine. The
+            chosen engine is available as the ``engine`` attribute; keys, local
+            vectors, the diagonal and RDMs keep the same order and conventions.
 
     Raises:
         ValueError: Keys, operator terms, storage options or layout combinations
@@ -137,8 +148,11 @@ class FullStrsHamiltonian:
         groups="by_rows",
         atomic_reduce=False,
         vectors="halo",
+        engine="auto",
     ):
         started = time.perf_counter()
+        if engine not in ENGINES:
+            raise ValueError(f"engine must be one of {ENGINES}, got {engine!r}")
         if comm is None:
             from mpi4py import MPI  # noqa: PLC0415
 
@@ -158,6 +172,39 @@ class FullStrsHamiltonian:
             comm, "input keys", lambda: _key_rows(keys, num_orbitals)
         )
         self._key_words = np.shape(keys)[1] // 2
+        self._tile = None
+        self._block = None
+        self._copies = None
+        self._full = None
+        self.engine = "general"
+        defaults = (
+            num_slices == DEFAULT_NUM_SLICES
+            and binned is True
+            and residency == "auto"
+            and device_budget_bytes is None
+            and alpha_kind is None
+            and beta_kind is None
+            and recut is None
+            and exchange == "stepped"
+            and copies == 1
+            and plan is None
+            and fixed_reduce is True
+            and release_host_copies is True
+            and domain_size is None
+            and groups == "by_rows"
+            and atomic_reduce is False
+            and vectors == "halo"
+        )
+        if engine == "tile" and not defaults:
+            raise ValueError(
+                "engine='tile' takes no general-engine options; leave them at their defaults"
+            )
+        if (
+            engine != "general"
+            and defaults
+            and self._init_tile(operator, keys, num_orbitals, engine, started)
+        ):
+            return
         self._binned = bool(binned)
         self._block = None
         self._copies = None
@@ -285,6 +332,72 @@ class FullStrsHamiltonian:
         self.supports_device_matvec = True
         self.diag_local = np.array(self._host.diagonal_view(), dtype=np.float64)
         self._log_ready(started)
+
+    def _init_tile(self, operator, keys, num_orbitals, engine, started):
+
+        from ..distributed.dist_matvec_tile_resident import (  # noqa: PLC0415
+            TileGPUResidentHamiltonian,
+        )
+        from .distribute import distribute_keys, redistribute  # noqa: PLC0415
+        from .tile_dispatch import beta_cuts, prepare  # noqa: PLC0415
+
+        comm = self._comm
+        block = distribute_keys(comm, keys, num_orbitals)
+        prepared, reason = prepare(comm, operator, block, self._key_words, num_orbitals)
+        if prepared is None:
+            if engine == "tile":
+                raise ValueError(f"engine='tile' cannot run: {reason}")
+            if comm.Get_rank() == 0:
+                logger.debug(
+                    "Full-string GPU Hamiltonian uses the general engine: %s",
+                    reason,
+                    extra={"gpu_rank": 0},
+                )
+            return False
+        hsub, alpha, beta = prepared
+        block = redistribute(
+            comm, block, beta_cuts(len(alpha), len(beta), comm.Get_size())
+        )
+        self._tile = TileGPUResidentHamiltonian(
+            hsub,
+            alpha,
+            beta,
+            comm=comm,
+            process_grid=(1, comm.Get_size()),
+            gpu_ids=(int(cupy.cuda.runtime.getDevice()),),
+        )
+        tile = self._tile
+        raise_on_every_rank(
+            comm,
+            None
+            if tile.n_local == block.n_local
+            else f"the tile holds {tile.n_local} rows, the key block {block.n_local}",
+            RuntimeError,
+            "tile engine layout",
+        )
+        self.engine = "tile"
+        self._is_primary = True
+        self._tile_keys = block.keys
+        self._host = _TileHost(num_orbitals)
+        self.n_local = block.n_local
+        self.row_start = block.row_start
+        self.shape = (block.num_rows, block.num_rows)
+        self.dtype = np.dtype(np.float64)
+        self.supports_device_matvec = True
+        self.diag_local = np.array(tile.diag_local, dtype=np.float64)
+        self.plan = LayoutPlan(copies=1, num_slices=DEFAULT_NUM_SLICES)
+        self.plan.share_starts = [int(v) for v in block.block_starts]
+        self.plan.measured["engine"] = "tile"
+        if comm.Get_rank() == 0:
+            logger.debug(
+                "Full-string GPU Hamiltonian uses the tile engine: grid=1x%d alpha=%d beta=%d",
+                comm.Get_size(),
+                len(alpha),
+                len(beta),
+                extra={"gpu_rank": 0},
+            )
+        self._log_ready(started)
+        return True
 
     def _log_ready(self, started):
 
@@ -610,6 +723,8 @@ class FullStrsHamiltonian:
     def keys(self):
         """Return this rank's post-distribution keys as a uint64 ``(n_local, 2W)`` copy, alpha
         words then beta words, sorted by ``(beta, alpha)``."""
+        if self._tile is not None:
+            return self._tile_keys.copy()
         if self._block is not None:
             return self._block.keys.copy()
         return self._host.sorted_keys()
@@ -627,16 +742,20 @@ class FullStrsHamiltonian:
     @property
     def num_streamed_slices(self):
         """The number of key slices streamed from host memory at every matvec."""
-        return self._layout.num_streamed
+        return 0 if self._tile is not None else self._layout.num_streamed
 
     @property
     def device_bytes(self):
         """The device memory of the stored groups, tables, keys, diagonal and matvec buffers, in bytes."""
+        if self._tile is not None:
+            return dict(self._tile.predicted_hbm_bytes)
         return self._layout.device_bytes()
 
     def _matvec(self, x, out=None):
 
 
+        if self._tile is not None:
+            return self._tile._matvec(x, out=out)
         if out is None:
             out = cupy.empty(self.n_local, dtype=np.float64)
         caller = cupy.cuda.get_current_stream()
@@ -734,6 +853,8 @@ class FullStrsHamiltonian:
         device work and collectives complete; ``rank`` selects the RDM order (1 or 2), and no
         normalization is applied. Spin blocks, spin-summed forms, and conventions follow PySCF
         ``make_rdm12s(reorder=True)``."""
+        if self._tile is not None:
+            return self._tile.compute_rdms(x, rank=rank, spin_summed=spin_summed)
         from .rdm import compute_rdms_full_strs  # noqa: PLC0415
 
         return compute_rdms_full_strs(self, x, rank=rank, spin_summed=spin_summed)
@@ -801,6 +922,14 @@ def _orbitals(operator):
             f"the operator must have an even, positive qubit count, got {width}"
         )
     return width // 2
+
+
+class _TileHost:
+
+
+    def __init__(self, num_orbitals):
+
+        self.num_orbitals = int(num_orbitals)
 
 
 class _RankHost:

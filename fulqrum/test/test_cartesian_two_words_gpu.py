@@ -180,3 +180,88 @@ def test_single_word_term_arrays_keep_their_types(pair):
     data = to_gpu_arrays(narrow.spmv, skip_diag=True)
     for name in ("term_num_ops", "term_num_proj", "term_inds", "grp_offdiag_sizes"):
         assert np.asarray(data[name]).dtype == np.uint8, name
+
+
+def separated_hamiltonians():
+    """Return narrow and padded operators whose low and high beta thirds share no single move."""
+    import itertools
+
+    import fulqrum as fq
+    from fulqrum.test.test_full_strs_coefficients import random_operator
+
+    small = len(ACTIVE)
+
+    def subsets(orbitals):
+        return [sum(1 << o for o in c) for c in itertools.combinations(orbitals, 3)]
+
+    low = sorted(subsets(range(6)))[:6]
+    middle = sorted({sum(1 << o for o in (5, 6, x)) for x in range(5)})
+    high = sorted(subsets(range(6, 12)))[:6]
+    beta = sorted(set(low + middle + high))
+    alpha = sorted(subsets(range(small)))[:30:3]
+
+    def text(value, width, place):
+        wide = sum(1 << ACTIVE[k] for k in range(small) if (value >> k) & 1)
+        return format(wide if place else value, f"0{width}b")
+
+    def build(width, place):
+        operator = random_operator(width, 21, active=ACTIVE if place else None)
+        operator.set_type(2)
+        subspace = fq.Subspace(
+            [
+                [text(a, width, place) for a in alpha],
+                [text(b, width, place) for b in beta],
+            ]
+        )
+        return fq.SubspaceHamiltonian(operator, subspace)
+
+    return build(small, False), build(WIDTH, True)
+
+
+def assembled_products(hsub, grid):
+    from fulqrum.gpu.distributed import _collective
+    from fulqrum.gpu.distributed.dist_matvec_tile_resident import (
+        TileGPUResidentHamiltonian,
+    )
+    from fulqrum.gpu.distributed.local_comm import LocalComm, run_ranks
+
+    _collective.reset_for_testing()
+    subspace = hsub.spmv.subspace
+    n_a, n_b = len(subspace.alpha_strs), len(subspace.beta_strs)
+    x = np.random.default_rng(13).standard_normal(n_a * n_b)
+
+    def body(comm):
+        import cupy
+
+        cupy.cuda.Device(0).use()
+        op = TileGPUResidentHamiltonian(
+            hsub,
+            subspace.alpha_strs,
+            subspace.beta_strs,
+            comm=comm,
+            process_grid=grid,
+            comm_backend="inproc",
+        )
+        full = x.reshape(op._n_b, op._n_a)
+        tile = np.ascontiguousarray(full[op._b0 : op._b1, op._a0 : op._a1]).ravel()
+        y = np.asarray(op._matvec(tile))
+        return (op._a0, op._a1, op._b0, op._b1), y, list(op._arm_plan_lines)
+
+    out = np.zeros((n_b, n_a))
+    lines = []
+    for (a0, a1, b0, b1), y, plan in run_ranks(
+        LocalComm.create(grid[0] * grid[1], timeout=300.0), body
+    ):
+        out[b0:b1, a0:a1] = y.reshape(b1 - b0, a1 - a0)
+        lines += plan
+    return out, lines
+
+
+def test_a_source_without_mixed_spin_work_is_skipped_for_two_words():
+    narrow, wide = separated_hamiltonians()
+    expected, _ = assembled_products(narrow, (1, 3))
+    got, lines = assembled_products(wide, (1, 3))
+    assert any("key_words=2,2 aabb=none" in line for line in lines)
+    assert any("aabb=direct" in line for line in lines)
+    assert not any("aabb=baseline" in line for line in lines)
+    assert np.abs(got - expected).max() <= 1e-13 * np.abs(expected).max()

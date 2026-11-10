@@ -22,6 +22,7 @@ unavailable. The MPI test additionally requires mpi4py + the
 ``_primme_mpi`` extension built with ``FQ_ENABLE_PRIMME_MPI=1``.
 """
 
+import os
 import shutil
 import subprocess
 import sys
@@ -175,7 +176,7 @@ lowest = MPI.COMM_WORLD.allreduce((float(diag.min()), MPI.COMM_WORLD.Get_rank())
 v0 = np.zeros((diag.size, 1))
 if MPI.COMM_WORLD.Get_rank() == lowest:
     v0[int(np.argmin(diag)), 0] = 1.0
-evals, _ = distributed_primme_eigsh(H, k=1, which='SA', precond_diag_local=diag, v0_local=v0)
+evals, _ = distributed_primme_eigsh(H, k=1, which='SA', tol=1e-10, precond_diag_local=diag, v0_local=v0)
 if MPI.COMM_WORLD.Get_rank() == 0:
     print(f'__RESULT__ {float(evals[0]):.15e}')
 """
@@ -201,11 +202,17 @@ def test_lih_mpi_gpu_eigenvalue(tmp_path):
         pytest.skip("mpirun not on PATH and not next to sys.executable")
     driver = tmp_path / "mpi_driver.py"
     driver.write_text(_MPI_DRIVER.replace("__DATA_PATH__", str(_DATA)))
+    inherited = ("OMPI_", "PMIX_", "PMI_", "MPI_", "HYDRA_", "I_MPI_")
+    kept = ("OMPI_ALLOW_RUN_AS_ROOT", "OMPI_ALLOW_RUN_AS_ROOT_CONFIRM")
+    env = {
+        k: v for k, v in os.environ.items() if k in kept or not k.startswith(inherited)
+    }
     result = subprocess.run(
         [mpirun, "-n", "2", "--oversubscribe", sys.executable, str(driver)],
         capture_output=True,
         text=True,
         timeout=120,
+        env=env,
     )
     if result.returncode != 0:
         pytest.fail(
