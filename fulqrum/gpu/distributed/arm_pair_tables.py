@@ -150,9 +150,15 @@ def occupation_bits(strings, n_orb):
 
     import numpy as np
 
+    from ..common.wide import WORD_BITS
+
     s = np.asarray(strings, dtype=np.uint64)
-    shifts = np.arange(n_orb, dtype=np.uint64)
-    return ((s[:, None] >> shifts[None, :]) & np.uint64(1)).astype(np.float64)
+    orbitals = np.arange(n_orb, dtype=np.int64)
+    shifts = (orbitals % WORD_BITS).astype(np.uint64)
+    if s.ndim == 1:
+        return ((s[:, None] >> shifts[None, :]) & np.uint64(1)).astype(np.float64)
+    words = s[:, orbitals // WORD_BITS]
+    return ((words >> shifts[None, :]) & np.uint64(1)).astype(np.float64)
 
 
 def aa_table(d, bra_beta, n_beta):

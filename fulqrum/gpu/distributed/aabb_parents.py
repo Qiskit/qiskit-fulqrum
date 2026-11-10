@@ -17,6 +17,7 @@ CLIQUE_BUCKET_MAX_MEMBERS = (8, 12, 16, 20, 24, 28, 32)
 
 
 CLIQUE_MAX_SHARED_BYTES = 227 * 1024
+CLIQUE_MAX_ORBITALS = 128
 
 
 def clique_shared_bytes(nmax, eb, tile_rows):
@@ -46,8 +47,8 @@ def validate_clique_plan(
         errors.append(f"no parents ({nparents})")
     if residual_edges < 0:
         errors.append(f"negative residual edge count {residual_edges}")
-    if not 2 <= orbitals <= 64:
-        errors.append(f"{orbitals} orbitals, outside 2..64")
+    if not 2 <= orbitals <= CLIQUE_MAX_ORBITALS:
+        errors.append(f"{orbitals} orbitals, outside 2..{CLIQUE_MAX_ORBITALS}")
     if transposed and residual_edges != n_beta_edges:
         errors.append(
             f"residual edges {residual_edges} differ from the beta edges {n_beta_edges}"
@@ -572,7 +573,7 @@ def orbital_g(g, num_alpha):
 
     g = np.asarray(g)
     if (
-        not 2 <= num_alpha <= 64
+        not 2 <= num_alpha <= CLIQUE_MAX_ORBITALS
         or g.dtype != np.dtype(np.float64)
         or g.ndim != 2
         or g.shape[1] != num_alpha * (num_alpha - 1) // 2

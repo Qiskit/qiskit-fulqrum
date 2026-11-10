@@ -28,7 +28,14 @@ from scipy.sparse.linalg import LinearOperator
 from fulqrum.core.spmv import FulqrumSpMV
 
 from .. import autotune
-from ..common.wide import check_width, key_words, max_electrons, sort_strings
+from ..common.wide import (
+    WORD_BITS,
+    check_width,
+    key_words,
+    max_electrons,
+    popcount_w,
+    sort_strings,
+)
 from ..config import GpuConfig, warn_unknown_names
 from ..logging import format_memory
 from . import _collective
@@ -60,6 +67,7 @@ from .exchange_plan import (
 
 from .aabb_direct import full_source_plan, sorted_beta_graph
 from .aabb_parents import (
+    CLIQUE_MAX_ORBITALS,
     CLIQUE_MAX_SHARED_BYTES,
     alpha_task_words,
     clique_edge_group_plan,
@@ -86,6 +94,7 @@ from .launch import (
     cross_ready,
     launch_cross,
     launch_steady_arms,
+    single_word_strings,
 )
 from .arm_plan import (
     CLIQUE as ARM_CLIQUE,
@@ -110,10 +119,12 @@ from .tables import (
     aabb_coefficients,
     arm_cache_sizes,
     build_tile_tables,
+    chunked_pair_table,
     hbm_fit_error,
-    pair_table,
+    pair_table_rows,
     values_on_edges,
 )
+from .wide_sign_check import beta_word_sign_error, check_enabled, double_sign_error
 from .tile_tables import cross_sector_table, cross_table, sector_tiles, tile_input_error
 from .term_tables import (
     _assert_aa_bb_factor_cache_invariance,
@@ -140,6 +151,7 @@ from .tile_discovery import (
 
 logger = logging.getLogger(__name__)
 
+TILE_MAX_KEY_WORDS = 1
 ARM_CACHES = ("aaaa", "bbbb", "aa_c0", "aa_cpb", "bb_c0", "bb_cpb")
 _HBM_FITS_SKIP_LOGGED = False
 
@@ -627,6 +639,9 @@ class TileGPUResidentHamiltonian(LinearOperator):
         tuned = self._autotune
         self._HBM_FREE_FRACTION = float(tuned.value("hbm_free_fraction"))
         self._diag_recompute_enabled = bool(tuned.value("diag_recompute"))
+        self._wide_sign_check = check_enabled(
+            self._config.value("FQ_WIDE_SIGN_CHECK"), self._key_words
+        )
         self._diag_recompute_explicit = (
             tuned.choices["diag_recompute"].source == "explicit"
         )
@@ -902,11 +917,12 @@ class TileGPUResidentHamiltonian(LinearOperator):
         )
         if not (
             self._aabb_factored
-            and 2 <= self._num_alpha <= 64
-            and 2 <= self._num_beta <= 64
+            and 2 <= self._num_alpha <= CLIQUE_MAX_ORBITALS
+            and 2 <= self._num_beta <= CLIQUE_MAX_ORBITALS
         ):
             self._turn_off_factored_aabb_arms(
-                "an eligible factored aabb operator with 2 to 64 orbitals in each half"
+                "an eligible factored aabb operator with 2 to "
+                f"{CLIQUE_MAX_ORBITALS} orbitals in each half"
             )
         self._construction_timing["gpu_upload"] = time.perf_counter() - _t
         self._arm_plans = run_on_every_rank(self._comm, "arm plan", self._plan_arms)
@@ -1576,15 +1592,14 @@ class TileGPUResidentHamiltonian(LinearOperator):
             return
         num_alpha = int(spmv.subspace.num_alpha_qubits)
         widths = {"alpha": num_alpha, "beta": int(spmv.width) - num_alpha}
+        limit = WORD_BITS * TILE_MAX_KEY_WORDS
         for name, width in widths.items():
-            if not 0 < width <= 64:
+            if not 0 < width <= limit:
                 raise ValueError(
-                    f"the GPU operator supports 1 to 64 {name} qubits; got {width}"
+                    f"the GPU operator supports 1 to {limit} {name} qubits; got {width}"
                 )
         for name, strings in (("alpha", self._alpha_uniq), ("beta", self._beta_uniq)):
-            counts = sorted(
-                {int(x).bit_count() for x in np.asarray(strings, dtype=np.uint64)}
-            )
+            counts = sorted(set(popcount_w(strings).tolist()))
             if len(counts) > 1:
                 raise ValueError(
                     f"the GPU operator needs one electron count in the {name} strings; "
@@ -2005,6 +2020,16 @@ class TileGPUResidentHamiltonian(LinearOperator):
         self._d_diag_alpha = None
         self._d_diag_beta = None
         self._d_diag_Mb = None
+        if self._diag_recompute_enabled and self._key_words != (1, 1):
+            if self._diag_recompute_explicit:
+                raise ValueError(
+                    "FQ_DIAG_RECOMPUTE: the recomputed diagonal reads single-word "
+                    "strings; unset it for sectors wider than 64 orbitals"
+                )
+            self._diag_recompute_enabled = False
+            self._autotune.choices["diag_recompute"] = autotune.Choice(
+                False, "rule", "strings wider than one word; stored"
+            )
         recompute = (
             self._diag_recompute_enabled
             and self._has_diag
@@ -2373,20 +2398,27 @@ class TileGPUResidentHamiltonian(LinearOperator):
         beta_tiles = sector_tiles(spmv, 1, self._b0, self._b1, beta_bounds, threads)
         step("beta_sector_tiles")
         aa_t = cupy.asarray(
-            pair_table(
-                cross_table(spmv, 0, self._b0, self._b1, threads),
+            chunked_pair_table(
+                lambda start, stop: cross_table(
+                    spmv, 0, self._b0 + start, self._b0 + stop, threads
+                ),
+                self._b1 - self._b0,
                 self._num_alpha,
                 DIRECTION_TOLERANCE,
+                pair_table_rows(self._num_alpha * (self._num_alpha - 1) // 2),
             )
         )
         step("aa_pair_table")
         bb_t = cupy.asarray(
-            np.ascontiguousarray(
-                pair_table(
-                    cross_table(spmv, 1, self._a0, self._a1, threads),
-                    self._num_beta,
-                    DIRECTION_TOLERANCE,
-                ).T
+            chunked_pair_table(
+                lambda start, stop: cross_table(
+                    spmv, 1, self._a0 + start, self._a0 + stop, threads
+                ),
+                self._a1 - self._a0,
+                self._num_beta,
+                DIRECTION_TOLERANCE,
+                pair_table_rows(self._num_beta * (self._num_beta - 1) // 2),
+                transpose=True,
             )
         )
         step("bb_pair_table")
@@ -2493,6 +2525,23 @@ class TileGPUResidentHamiltonian(LinearOperator):
                 cupy.asnumpy(view["d_alpha4_sell_off"]),
                 cupy.asnumpy(view["d_alpha4_sell_len"]),
             )
+        if self._wide_sign_check:
+            self._raise_on_sign_error(
+                double_sign_error(
+                    ptr4,
+                    [cupy.asnumpy(view[f"d_alpha4_p{k}"]) for k in range(4)],
+                    values_on_edges(
+                        ptr4,
+                        columns4,
+                        tile["double_offsets"],
+                        tile["double_columns"],
+                        tile["double_values"],
+                    ),
+                    self._alpha_bra,
+                    f"source {src_rank} alpha doubles",
+                    seed=src_rank,
+                )
+            )
         if values.size:
             self._arm_caches[("aaaa", src_rank)] = cupy.asarray(values)
 
@@ -2514,6 +2563,24 @@ class TileGPUResidentHamiltonian(LinearOperator):
                 self._num_beta,
             )
             self._check_host_signs(src_rank, ptr, columns, tile, signs)
+            if self._wide_sign_check:
+                self._raise_on_sign_error(
+                    beta_word_sign_error(
+                        sorted_beta_graph(
+                            ptr,
+                            columns,
+                            cupy.asnumpy(view["d_beta2_p0"]),
+                            cupy.asnumpy(view["d_beta2_p1"]),
+                            self._beta_bra,
+                            self._num_beta,
+                            int(columns.max()) + 1,
+                        ),
+                        self._beta_bra,
+                        self._num_beta,
+                        f"source {src_rank} mixed-spin beta edges",
+                        seed=src_rank,
+                    )
+                )
             c0 = values_on_edges(
                 ptr,
                 columns,
@@ -2542,8 +2609,25 @@ class TileGPUResidentHamiltonian(LinearOperator):
             tile["double_columns"],
             tile["double_values"],
         )
+        if self._wide_sign_check:
+            self._raise_on_sign_error(
+                double_sign_error(
+                    ptr4,
+                    [cupy.asnumpy(view[f"d_beta4_p{k}"]) for k in range(4)],
+                    values,
+                    self._beta_bra,
+                    f"source {src_rank} beta doubles",
+                    seed=src_rank,
+                )
+            )
         if values.size:
             self._arm_caches[("bbbb", src_rank)] = cupy.asarray(values)
+
+    @staticmethod
+    def _raise_on_sign_error(error) -> None:
+
+        if error is not None:
+            raise ValueError(error)
 
     @staticmethod
     def _check_host_signs(src_rank, ptr, columns, tile, gpu_signs) -> None:
@@ -2583,9 +2667,10 @@ class TileGPUResidentHamiltonian(LinearOperator):
         import cupy
 
         started = time.perf_counter()
-        if not 2 <= self._num_alpha <= 64:
+        if not 2 <= self._num_alpha <= CLIQUE_MAX_ORBITALS:
             raise ValueError(
-                "the clique aabb arm supports alpha orbital counts in [2,64]"
+                "the clique aabb arm supports alpha orbital counts in "
+                f"[2,{CLIQUE_MAX_ORBITALS}]"
             )
         graph = sorted_beta_graph(
             bptr, bj, bp0, bp1, self._beta_bra, self._num_beta, self._n_b_local
@@ -2628,7 +2713,7 @@ class TileGPUResidentHamiltonian(LinearOperator):
             )
             stats = plan["stats"]
             if stats["parents"]:
-                masks, ids = parent_masks(plan)
+                masks, ids = parent_masks(plan, words=self._key_words[0])
                 host = dict(
                     parent_ptr=plan["parent_ptr"],
                     members=plan["members"],
@@ -2932,9 +3017,10 @@ class TileGPUResidentHamiltonian(LinearOperator):
         import cupy
 
         started = time.perf_counter()
-        if not 2 <= self._num_beta <= 64:
+        if not 2 <= self._num_beta <= CLIQUE_MAX_ORBITALS:
             raise ValueError(
-                "transposed_clique supports runtime beta orbital counts in [2,64]"
+                "transposed_clique supports runtime beta orbital counts in "
+                f"[2,{CLIQUE_MAX_ORBITALS}]"
             )
         sources = [
             s
@@ -2960,7 +3046,8 @@ class TileGPUResidentHamiltonian(LinearOperator):
             n_cliques = int(len(bplan["vptr"]) - 1)
             if n_cliques > 0:
                 masks, ids = parent_masks(
-                    dict(parent_ptr=bplan["vptr"], members=bplan["vmembers"])
+                    dict(parent_ptr=bplan["vptr"], members=bplan["vmembers"]),
+                    words=self._key_words[1],
                 )
                 compact_g = cupy.asnumpy(self._d_aabb_g).reshape(
                     self._num_beta * (self._num_beta - 1) // 2,
@@ -3316,7 +3403,9 @@ class TileGPUResidentHamiltonian(LinearOperator):
                     for a in (d_src_in, d_out, d_alpha_slot, d_beta_slot)
                 ),
                 *(_device_address(a) for a in tables),
-                _device_address(self._d_alpha_uniq),
+                single_word_strings(self._d_alpha_uniq, "diagonal")
+                if self._d_diag_Mb is not None
+                else _device_address(self._d_alpha_uniq),
                 int(self._num_alpha),
                 int(stream_handle),
             )
@@ -4064,11 +4153,11 @@ class TileGPUResidentHamiltonian(LinearOperator):
             self._d_grp4_ht_keys,
             self._d_grp4_ht_vals,
             self._d_grp4_ht_bitset,
-            self._d_alpha_uniq,
-            self._d_beta_uniq,
         )
         return (
             *(_device_address(a) for a in addresses),
+            single_word_strings(self._d_alpha_uniq, "cache build"),
+            single_word_strings(self._d_beta_uniq, "cache build"),
             int(self._grp4_ht_mask),
             int(self._grp2_ht_mask),
             int(self._ladder_offset),

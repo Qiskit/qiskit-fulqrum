@@ -56,7 +56,7 @@ def test_a_fitting_plan_passes(transposed):
 BROKEN = [
     ("no parents", False, dict(nparents=0)),
     ("negative residual", False, dict(residual_edges=-1)),
-    ("orbitals", False, dict(orbitals=65)),
+    ("orbitals", False, dict(orbitals=129)),
     ("orbitals", True, dict(orbitals=1)),
     ("residual edges", True, dict(residual_edges=6)),
     ("source beta count", True, dict(n_b_src=39)),

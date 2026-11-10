@@ -675,6 +675,16 @@ FLAGS = (
         "Log rank-0 RDM stage timings at DEBUG level. Use Detailed or Trace logging to display them. Stage measurements synchronize the GPU.",
     ),
     _flag(
+        "FQ_WIDE_SIGN_CHECK",
+        7,
+        TEST,
+        "bool",
+        "auto",
+        "Test-only. Check a random sample of the host same-sector double and mixed-spin connection signs against the occupation strings during construction; raises on every rank on a mismatch.",
+        auto=True,
+        auto_text="on when a sector uses two words per string, otherwise off",
+    ),
+    _flag(
         "FQ_FORCE_KEY_WORDS",
         7,
         TEST,

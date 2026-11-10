@@ -375,6 +375,49 @@ def pair_table(factors: np.ndarray, orbitals: int, tolerance: float) -> np.ndarr
     return table
 
 
+PAIR_TABLE_CHUNK_BYTES = 1 << 30
+
+
+def pair_table_rows(num_pairs: int, chunk_bytes: int = PAIR_TABLE_CHUNK_BYTES) -> int:
+
+    return max(1, int(chunk_bytes) // max(1, 8 * 2 * int(num_pairs) * 8))
+
+
+def chunked_pair_table(
+    factors_of, rows: int, orbitals: int, tolerance: float, chunk_rows: int,
+    transpose: bool = False,
+) -> np.ndarray:
+
+
+    num_pairs = orbitals * (orbitals - 1) // 2
+    shape = (num_pairs, rows) if transpose else (rows, num_pairs)
+    table = np.zeros(shape)
+    if num_pairs == 0 or rows == 0:
+        return table
+    gpu, core = _pair_ids(orbitals)
+    largest = asymmetry = None
+    for start in range(0, rows, max(1, int(chunk_rows))):
+        stop = min(rows, start + max(1, int(chunk_rows)))
+        factors = factors_of(start, stop)
+        forward, backward = factors[:, 0::2], factors[:, 1::2]
+        if factors.size and largest is None:
+            largest = np.abs(factors).max()
+            asymmetry = np.abs(forward - backward).max()
+        elif factors.size:
+            largest = np.maximum(largest, np.abs(factors).max())
+            asymmetry = np.maximum(asymmetry, np.abs(forward - backward).max())
+        if transpose:
+            table[gpu, start:stop] = forward[:, core].T
+        else:
+            table[start:stop, gpu] = forward[:, core]
+        del factors, forward, backward
+    if largest is not None and asymmetry > tolerance * max(largest, 1.0):
+        raise ValueError(
+            "a same-sector cross factor depends on the excitation direction"
+        )
+    return table
+
+
 def aabb_coefficients(
     cross_sector: np.ndarray, num_alpha: int, num_beta: int
 ) -> np.ndarray:

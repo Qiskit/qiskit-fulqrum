@@ -91,6 +91,7 @@ CROSS_SIGN_SHIFT = kCrossSignShift
 CROSS_MAX_PAIR = kCrossMaxPair
 SIGNED_PAIR_NEGATIVE = kSignedPairNegative
 MAX_DIRECTED_PAIRS = 0xFFFF
+MAX_TILE_WORDS = 2
 
 
 def cross_words(columns, pairs, signs):
@@ -135,6 +136,10 @@ def tile_input_error(FulqrumSpMV spmv, int num_alpha_qubits, alpha_strings, beta
     cdef vector[uint8_t] sector_of
     cdef int sector
     cdef size_t index
+    cdef size_t word
+    cdef size_t words
+    cdef size_t count
+    cdef const size_t* key
     if spmv.is_real != 1:
         return "the operator has complex values"
     if tables.num_groups() == 0:
@@ -153,15 +158,23 @@ def tile_input_error(FulqrumSpMV spmv, int num_alpha_qubits, alpha_strings, beta
     for sector in range(2):
         if 2 * pairs[sector] > MAX_DIRECTED_PAIRS:
             return f"sector {sector} has more than {MAX_DIRECTED_PAIRS // 2} orbital pairs"
-        if store.half_words(sector) != 1:
-            return f"sector {sector} is wider than 64 qubits"
+        if not 1 <= store.half_words(sector) <= MAX_TILE_WORDS:
+            return f"sector {sector} is wider than {64 * MAX_TILE_WORDS} qubits"
     for sector, strings in enumerate((alpha_strings, beta_strings)):
         strings = np.asarray(strings, dtype=np.uint64)
-        if store.num_half_keys(sector) != strings.size:
-            return f"sector {sector} has {store.num_half_keys(sector)} strings in the subspace, not {strings.size}"
-        keys = np.empty(strings.size, dtype=np.uint64)
-        for index in range(strings.size):
-            keys[index] = store.half_key(sector, index)[0]
+        words = store.half_words(sector)
+        count = strings.size // words
+        if store.num_half_keys(sector) != count or (
+            words > 1 and strings.shape != (count, words)
+        ):
+            return f"sector {sector} has {store.num_half_keys(sector)} strings in the subspace, not {count}"
+        keys = np.empty(count * words, dtype=np.uint64)
+        for index in range(count):
+            key = store.half_key(sector, index)
+            for word in range(words):
+                keys[index * words + word] = key[word]
+        if words > 1:
+            keys = keys.reshape(count, words)
         if not np.array_equal(keys, strings):
             return f"the sector {sector} strings of the subspace differ from the GPU strings"
     return None
@@ -169,6 +182,7 @@ def tile_input_error(FulqrumSpMV spmv, int num_alpha_qubits, alpha_strings, beta
 
 cdef void validate_tile(FulqrumSpMV spmv, HalfKeyView* store, int sector) except *:
     cdef PairCounts pairs
+    cdef size_t words
     if sector not in (0, 1):
         raise ValueError("sector must be 0 or 1")
     if not store.is_tensor_product() or spmv.is_real != 1:
@@ -177,7 +191,8 @@ cdef void validate_tile(FulqrumSpMV spmv, HalfKeyView* store, int sector) except
         raise ValueError("GPU tile tables require supported groups and a valid block layout")
     pairs = pairs_of(spmv)
     for half in range(2):
-        if store.half_words(half) != 1 or 2 * pairs[half] > MAX_DIRECTED_PAIRS:
+        words = store.half_words(half)
+        if not 1 <= words <= MAX_TILE_WORDS or 2 * pairs[half] > MAX_DIRECTED_PAIRS:
             raise ValueError("GPU tile sector exceeds the packed format limits")
         if store.num_half_keys(half) >= 0x100000000:
             raise ValueError("GPU tile columns must fit in uint32")

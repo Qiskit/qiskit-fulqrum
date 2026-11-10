@@ -19,6 +19,13 @@ def address(array) -> int:
     return 0 if array is None else int(array.data.ptr)
 
 
+def single_word_strings(array, kernel: str) -> int:
+
+    if array is not None and array.ndim != 1:
+        raise ValueError(f"the {kernel} kernel reads single-word strings only")
+    return address(array)
+
+
 def offsets(array) -> int:
 
     if array is None:
@@ -288,7 +295,7 @@ def _alpha_singles(k, launch: SourceLaunch) -> None:
             address(view["d_alpha2_j"]),
             address(caches["aa_c0"]),
             address(caches["aa_cpb"]),
-            address(launch.beta_strings),
+            single_word_strings(launch.beta_strings, "alpha singles delta"),
             launch.num_beta,
             launch.rows["aa"],
             launch.stream,
@@ -416,7 +423,7 @@ def _beta_singles(k, launch: SourceLaunch) -> None:
             address(view["d_beta2_j"]),
             address(caches["bb_c0"]),
             address(caches["bb_cpb"]),
-            address(launch.alpha_strings),
+            single_word_strings(launch.alpha_strings, "beta singles delta"),
             launch.num_alpha,
             launch.rows["bb"],
             launch.stream,
@@ -703,7 +710,7 @@ def _cross(k, launch: SourceLaunch) -> None:
                 address(view["d_beta2_j"]),
                 address(view["d_beta2_p0"]),
                 address(view["d_beta2_p1"]),
-                address(launch.beta_strings),
+                single_word_strings(launch.beta_strings, "cross SELL"),
                 address(launch.coefficients),
                 offsets(view["d_alpha2_sell_off"]),
                 address(view["d_alpha2_sell_len"]),
