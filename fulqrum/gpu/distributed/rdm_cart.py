@@ -361,6 +361,49 @@ def _check_fits(comm, need, share, what):
     raise_on_every_rank(comm, error, MemoryError, what)
 
 
+def _spin_sum(blocks):
+
+    summed = blocks.pop(0)
+    g_ab = blocks.pop(0)
+    summed += blocks.pop(0)
+    summed += g_ab
+    summed += g_ab.transpose(2, 3, 0, 1)
+    return summed
+
+
+def _host_available():
+
+    try:
+        with open("/proc/meminfo") as meminfo:
+            fields = dict(line.split(":", 1) for line in meminfo)
+        return int(fields["MemAvailable"].split()[0]) * 1024
+    except (OSError, KeyError, ValueError):
+        return None
+
+
+def _host_share(comm):
+
+    available = _host_available()
+    host = socket.gethostname()
+    hosts = comm.allgather(host)
+    shares = comm.allgather(
+        None if available is None else available // max(1, hosts.count(host))
+    )
+    known = [share for share in shares if share is not None]
+    return min(known) if known else None
+
+
+def _check_host_fits(comm, need, share, what):
+
+    error = None
+    if share is not None and need > share:
+        error = (
+            f"needs {need / 2**30:.2f} GiB of host memory for the RDM tensors, "
+            f"{share / 2**30:.2f} GiB is available; use fewer ranks per node"
+        )
+    raise_on_every_rank(comm, error, MemoryError, what)
+
+
 def _local(cp, comm, what, function):
 
 
@@ -1029,6 +1072,7 @@ class _Accumulator:
             out.data.ptr,
             m,
             stream,
+            _words(lists["keys"]),
         )
 
     def _alpha_beta(self, alpha_block, beta_block, source, source_width, s0, t0):
@@ -1185,8 +1229,7 @@ def compute_rdms_cart(ham, evec_local, *, rank=1, spin_summed=False):
     communication complete.
 
     The subspace must have equal alpha and beta orbital counts, at most 128 per
-    sector for ``rank=1`` and at most 64 for ``rank=2``, and a fixed electron
-    count within each sector. Local amplitudes use the Hamiltonian's sorted
+    sector, and a fixed electron count within each sector. Local amplitudes use the Hamiltonian's sorted
     half-string order, flattened with beta outermost and alpha innermost: local
     index ``b * ham.n_a_local + a``.
 
@@ -1214,12 +1257,12 @@ def compute_rdms_cart(ham, evec_local, *, rank=1, spin_summed=False):
 
     Raises:
         ImportError: CuPy is unavailable.
-        FulqrumError: A sector has more than 128 orbitals, or more than 64 with
-            ``rank=2``.
+        FulqrumError: A sector has more than 128 orbitals.
         ValueError: The RDM order, local input shape, orbital counts or sector
             electron counts are invalid.
-        MemoryError: RDM storage cannot fit within the available device memory
-            or the RDM memory budget.
+        MemoryError: The RDM working memory and tensors do not fit in the free
+            device memory, or the ``rank=2`` tensors do not fit in the
+            available host memory.
         RuntimeError: GPU execution or collective communication fails.
     """
     import cupy as cp
@@ -1238,10 +1281,6 @@ def compute_rdms_cart(ham, evec_local, *, rank=1, spin_summed=False):
     if m > MAX_ORBITALS:
         raise FulqrumError(
             f"the RDM supports at most {MAX_ORBITALS} orbitals per sector, got {m}"
-        )
-    if rank == 2 and (m > WORD_BITS or getattr(ham, "_wide_strings", False)):
-        raise FulqrumError(
-            f"rank=2 RDMs support at most {WORD_BITS} orbitals per sector, got {m}"
         )
     a_uniq = np.asarray(ham._alpha_uniq, dtype=np.uint64)
     b_uniq = np.asarray(ham._beta_uniq, dtype=np.uint64)
@@ -1353,15 +1392,13 @@ def compute_rdms_cart(ham, evec_local, *, rank=1, spin_summed=False):
             f"exchange={plan}, required_working_memory={need / 2**30:.2f} GiB "
             f"lists={lists_bytes / 2**30:.2f} GiB connections={connect_bytes / 2**30:.2f} GiB "
             f"budget={max(BUDGET_VECTORS * 8 * tile, BUDGET_FLOOR) / 2**30:.2f} GiB "
-            f"over_eigsolve_peak={max(0, over) / 2**30:.2f} GiB share={share / 2**30:.2f} GiB"
+            f"over_planning_target={max(0, over) / 2**30:.2f} GiB share={share / 2**30:.2f} GiB"
         )
-    error = None
-    if over > 0:
-        error = (
-            f"the RDM needs {over / 2**30:.2f} GiB of GPU memory more than the eigensolver's peak "
-            f"(its two {8 * tile / 2**30:.2f} GiB vectors); use more GPUs"
+    if over > 0 and log.on:
+        log.logger.debug(
+            "RDM working memory exceeds the 2-vector planning target by %.2f GiB",
+            over / 2**30,
         )
-    raise_on_every_rank(comm, error, MemoryError, "RDM memory budget")
     _check_fits(comm, need + 8 * tensors, share, "RDM memory check")
 
     acc = _local(
@@ -1406,6 +1443,9 @@ def compute_rdms_cart(ham, evec_local, *, rank=1, spin_summed=False):
             )
     log("tiles")
 
+    if two:
+        host_need = (3 + (2 if spin_summed else 0)) * 8 * m**4
+        _check_host_fits(comm, host_need, _host_share(comm), "RDM host memory check")
     gamma, blocks = _local(cp, comm, "RDM host copy", acc.host)
     acc = alpha = beta = None
     cp.get_default_memory_pool().free_all_blocks()
@@ -1419,8 +1459,8 @@ def compute_rdms_cart(ham, evec_local, *, rank=1, spin_summed=False):
                 time.perf_counter() - started,
             )
         return (gamma_a + gamma_b) if spin_summed else (gamma_a, gamma_b)
-    g_aa, g_ab, g_bb = blocks
-    for block in (g_aa, g_ab, g_bb):
+    blocks = list(blocks)
+    for block in blocks:
         comm.Allreduce(mpi.IN_PLACE, [block, mpi.DOUBLE])
     if me == 0:
         log.logger.info(
@@ -1428,5 +1468,5 @@ def compute_rdms_cart(ham, evec_local, *, rank=1, spin_summed=False):
             time.perf_counter() - started,
         )
     if spin_summed:
-        return gamma_a + gamma_b, g_aa + g_bb + g_ab + g_ab.transpose(2, 3, 0, 1)
-    return (gamma_a, gamma_b), (g_aa, g_ab, g_bb)
+        return gamma_a + gamma_b, _spin_sum(blocks)
+    return (gamma_a, gamma_b), tuple(blocks)

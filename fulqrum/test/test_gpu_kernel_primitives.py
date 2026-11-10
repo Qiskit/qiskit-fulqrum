@@ -53,6 +53,16 @@ def library():
     lib.fq_test_row_accumulator.argtypes = [pointer, pointer, i32, i32, pointer]
     lib.fq_test_warp.argtypes = [pointer, i32, pointer, pointer]
     lib.fq_test_tile_geometry_size.restype = ctypes.c_size_t
+    lib.fq_test_key_bits.argtypes = [
+        pointer,
+        i32,
+        pointer,
+        i64,
+        pointer,
+        pointer,
+        pointer,
+        pointer,
+    ]
     lib.fq_test_key_words.argtypes = [
         pointer,
         i32,
@@ -229,3 +239,52 @@ def test_device_key_words_match_the_host_primitives(library, n):
     assert np.array_equal(got & 1, wide.bit_w(flat, low))
     empty = wide.eq_w(flat, np.broadcast_to(wide.empty_w(words), (count, words)))
     assert np.array_equal((got & 2) != 0, empty)
+
+
+@pytest.mark.parametrize("n", [63, 64, 65, 100, 128])
+def test_device_bit_walks_match_python_integers(library, n):
+    from fulqrum.gpu.common import wide  # noqa: PLC0415
+
+    rng = np.random.default_rng(1000 + n)
+    count = 20000
+    words = wide.key_words(n)
+    host = rng.integers(0, 2**63, size=(count, words), dtype=np.uint64) << np.uint64(1)
+    host |= rng.integers(0, 2, size=(count, words), dtype=np.uint64)
+    if n % 64:
+        host[:, -1] &= np.uint64((1 << (n % 64)) - 1)
+    host[1] = 0
+    host[2, :] = 0
+    host[2, -1] = np.uint64(1) << np.uint64((n - 1) % 64)
+    orbital = rng.integers(0, n, size=count).astype(np.int32)
+    orbital[:64] = np.arange(64) % n
+    d_words = cupy.asarray(np.ascontiguousarray(host))
+    d_orbital = cupy.asarray(orbital)
+    below = cupy.zeros(count, dtype=cupy.int32)
+    lowest = cupy.zeros(4 * count, dtype=cupy.int32)
+    counts = cupy.zeros(count, dtype=cupy.int32)
+    sums = cupy.zeros(count, dtype=cupy.int32)
+    run(
+        library.fq_test_key_bits(
+            address(d_words),
+            words,
+            address(d_orbital),
+            count,
+            address(below),
+            address(lowest),
+            address(counts),
+            address(sums),
+        )
+    )
+    values = wide.unpack_ints(host)
+    got_below = cupy.asnumpy(below).tolist()
+    got_lowest = cupy.asnumpy(lowest).reshape(count, 4).tolist()
+    got_counts = cupy.asnumpy(counts).tolist()
+    got_sums = cupy.asnumpy(sums).tolist()
+    for value, o, b, low, c, total in zip(
+        values, orbital.tolist(), got_below, got_lowest, got_counts, got_sums
+    ):
+        bits = [i for i in range(n) if (value >> i) & 1]
+        assert b == (-1 if (value & ((1 << o) - 1)).bit_count() & 1 else 1)
+        assert c == min(4, len(bits))
+        assert low == bits[:4] + [-1] * (4 - min(4, len(bits)))
+        assert total == sum(bit + 1 for bit in bits)

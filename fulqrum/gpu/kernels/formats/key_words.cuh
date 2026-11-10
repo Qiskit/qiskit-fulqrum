@@ -46,6 +46,15 @@ FQ_KEY_WORDS_HD int popcount64(const std::uint64_t x)
 #endif
 }
 
+FQ_KEY_WORDS_HD int lowest_bit64(const std::uint64_t x)
+{
+#if defined(__CUDA_ARCH__)
+    return __ffsll(static_cast<long long>(x)) - 1;
+#else
+    return __builtin_ctzll(x);
+#endif
+}
+
 FQ_KEY_WORDS_HD std::uint64_t splitmix64(std::uint64_t k)
 {
     k = (k ^ (k >> 30)) * 0xBF58476D1CE4E5B9ULL;
@@ -166,6 +175,55 @@ FQ_KEY_WORDS_HD std::uint64_t hash_w(const Key<W>& key)
         h = key.word[w] ^ splitmix64(h + kHashWordOffset);
     }
     return splitmix64(h);
+}
+
+template <int W>
+FQ_KEY_WORDS_HD int below_parity_w(const Key<W>& key, const int orbital)
+{
+    return between_parity_w<W>(key, -1, orbital);
+}
+
+template <int W>
+FQ_KEY_WORDS_HD int lowest_bits_w(const Key<W>& key, int* positions, const int max_count)
+{
+    int count = 0;
+    for(int w = 0; w < W && count < max_count; ++w)
+    {
+        for(std::uint64_t x = key.word[w]; x && count < max_count; x &= x - 1)
+        {
+            positions[count++] = w * kWordBits + lowest_bit64(x);
+        }
+    }
+    return count;
+}
+
+template <int W, typename F>
+FQ_KEY_WORDS_HD void for_each_bit_w(const Key<W>& key, F&& visit)
+{
+    for(int w = 0; w < W; ++w)
+    {
+        for(std::uint64_t x = key.word[w]; x; x &= x - 1)
+        {
+            visit(w * kWordBits + lowest_bit64(x));
+        }
+    }
+}
+
+template <int W>
+FQ_KEY_WORDS_HD Key<W> and_w(const Key<W>& a, const Key<W>& b)
+{
+    Key<W> out;
+    for(int w = 0; w < W; ++w)
+    {
+        out.word[w] = a.word[w] & b.word[w];
+    }
+    return out;
+}
+
+template <int W>
+FQ_KEY_WORDS_HD void flip_bit_w(Key<W>& key, const int orbital)
+{
+    key.word[orbital / kWordBits] ^= std::uint64_t(1) << (orbital % kWordBits);
 }
 
 template <int W>

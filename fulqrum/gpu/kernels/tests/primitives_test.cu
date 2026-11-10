@@ -239,3 +239,64 @@ extern "C"
         return sizeof(FqTileGeometry);
     }
 }
+
+
+namespace
+{
+
+template <int W>
+__global__ void __launch_bounds__(kThreads) key_bits_kernel(const std::uint64_t* words,
+                                                            const int* orbital,
+                                                            const std::int64_t n,
+                                                            int* below,
+                                                            int* lowest,
+                                                            int* counts,
+                                                            int* sums)
+{
+    const std::int64_t i = fq::device::thread_column();
+    if(i >= n)
+    {
+        return;
+    }
+    const fq::key_words::Key<W> key = fq::key_words::load_w<W>(words, i);
+    below[i] = fq::key_words::below_parity_w<W>(key, orbital[i]);
+    int positions[4] = {-1, -1, -1, -1};
+    counts[i] = fq::key_words::lowest_bits_w<W>(key, positions, 4);
+    for(int k = 0; k < 4; k++)
+    {
+        lowest[4 * i + k] = positions[k];
+    }
+    int sum = 0;
+    fq::key_words::for_each_bit_w<W>(key, [&](const int bit) { sum += bit + 1; });
+    sums[i] = sum;
+}
+
+}
+
+extern "C"
+{
+
+    int fq_test_key_bits(const std::uint64_t* words,
+                         int num_words,
+                         const int* orbital,
+                         std::int64_t n,
+                         int* below,
+                         int* lowest,
+                         int* counts,
+                         int* sums)
+    {
+        if(num_words == 1)
+        {
+            key_bits_kernel<1><<<blocks_for(n), kThreads>>>(words, orbital, n, below, lowest, counts, sums);
+        }
+        else if(num_words == 2)
+        {
+            key_bits_kernel<2><<<blocks_for(n), kThreads>>>(words, orbital, n, below, lowest, counts, sums);
+        }
+        else
+        {
+            return int(cudaErrorInvalidValue);
+        }
+        return int(cudaGetLastError());
+    }
+}

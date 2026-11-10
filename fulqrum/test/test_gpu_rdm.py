@@ -335,6 +335,25 @@ def test_a_memory_refusal_on_one_rank_raises_on_every_rank(monkeypatch):
         text,
     )
 
+    def patch_both(mp, module):
+        mp.setattr(module, "FIT_SHARE", 0.0)
+        mp.setattr(module, "BUDGET_FLOOR", 0)
+        mp.setattr(module, "BUDGET_VECTORS", 0)
+
+    text = raised_on_every_rank(monkeypatch, patch_both, MemoryError)
+    agreed("RDM memory check failed" in text, text)
+
+
+def test_a_host_memory_refusal_raises_on_every_rank(monkeypatch):
+
+    def patch(mp, module):
+        mp.setattr(module, "_host_available", lambda: 1)
+
+    text = raised_on_every_rank(monkeypatch, patch, MemoryError)
+    agreed(
+        "RDM host memory check failed" in text and "GiB of host memory" in text, text
+    )
+
 
 IN_PROCESS_GRIDS = [(2, 2), (1, 4), (4, 1), (3, 2)]
 
@@ -637,7 +656,6 @@ def test_relay_route_model_and_lent_buffers():
     from fulqrum.gpu.distributed import rdm_cart  # noqa: PLC0415
 
     class One:
-
         def Get_rank(self):
             return 5
 
@@ -656,15 +674,22 @@ def test_relay_route_model_and_lent_buffers():
     assert rdm_cart._lent_elems([10], []) == 0
 
 
-def test_an_rdm_over_the_eigensolver_peak_raises_on_every_rank(monkeypatch):
+def test_an_rdm_over_the_planning_target_still_runs(monkeypatch):
     from fulqrum.gpu.distributed import rdm_cart  # noqa: PLC0415
 
-    monkeypatch.setattr(rdm_cart, "BUDGET_FLOOR", 0)
-    monkeypatch.setattr(rdm_cart, "BUDGET_VECTORS", 0)  # no plan fits a zero budget
     hsub, alpha, beta, *_ = chain_hamiltonian(5, 1)
     grid = grids_for(COMM.Get_size())[0]
-    with pytest.raises(MemoryError, match="RDM memory budget"):
-        distributed_rdms(hsub, alpha, beta, grid, rank=2)
+    expected, *_ = distributed_rdms(hsub, alpha, beta, grid, rank=2)
+    monkeypatch.setattr(rdm_cart, "BUDGET_FLOOR", 0)
+    monkeypatch.setattr(rdm_cart, "BUDGET_VECTORS", 0)  # no plan fits a zero target
+    got, *_ = distributed_rdms(hsub, alpha, beta, grid, rank=2)
+    # The zero target makes the planner pick the smallest relay plan, so the two
+    # runs use different exchange plans and atomic sums in a different order.
+    scale = max(
+        float(np.abs(np.asarray(b)).max()) for b in (*expected[0], *expected[1])
+    )
+    error = largest_error(got, expected)
+    agreed(error <= 1e-12 * scale, f"relaxed-target RDMs differ by {error}")
 
 
 def clustered_keys_with_an_isolated_block(size, seed):

@@ -212,21 +212,18 @@ def test_same_diagonal_gemm_matches_the_kernel_loop(m):
     assert np.abs(out.reshape(m, m, m, m) - want).max() <= 1e-14 * np.abs(want).max()
 
 
-def test_rank_two_with_two_words_is_refused():
-    ham = SimpleNamespace(
-        _num_alpha=70,
-        _num_beta=70,
-        _wide_strings=True,
-        _alpha_uniq=np.zeros((1, 2), np.uint64),
-        _beta_uniq=np.zeros((1, 2), np.uint64),
-    )
-    pytest.importorskip("cupy")
-    with pytest.raises(FulqrumError, match="rank=2 RDMs support at most 64"):
-        rdm_cart.compute_rdms_cart(ham, np.zeros(1), rank=2)
-
-
 def test_more_than_128_orbitals_are_refused():
     ham = SimpleNamespace(_num_alpha=129, _num_beta=129)
     pytest.importorskip("cupy")
     with pytest.raises(FulqrumError, match="at most 128 orbitals"):
         rdm_cart.compute_rdms_cart(ham, np.zeros(1), rank=1)
+
+
+def test_the_spin_sum_adds_the_blocks_in_the_reference_order():
+    rng = np.random.default_rng(6)
+    aa, ab, bb = (rng.standard_normal((7, 7, 7, 7)) for _ in range(3))
+    reference = aa + bb + ab + ab.transpose(2, 3, 0, 1)
+    blocks = [aa.copy(), ab.copy(), bb.copy()]
+    summed = rdm_cart._spin_sum(blocks)
+    assert summed.tobytes() == reference.tobytes()
+    assert blocks == []

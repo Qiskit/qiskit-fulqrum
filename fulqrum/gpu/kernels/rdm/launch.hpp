@@ -34,6 +34,9 @@ extern "C"
     int rdm_launch_same_scatter(const RdmPairs* pairs, const RdmTensor* out, void* stream);
 
 
+    int rdm_launch_same_scatter_words(const RdmPairs* pairs, const RdmTensor* out, void* stream);
+
+
     std::size_t rdm_same_diagonal_shared_bytes(std::int32_t num_orbitals);
 
 

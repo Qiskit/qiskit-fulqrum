@@ -231,3 +231,141 @@ extern "C"
         return static_cast<int>(cudaGetLastError());
     }
 }
+
+
+#include "../formats/key_words.cuh"
+
+namespace rdm_words
+{
+
+using fq::key_words::Key;
+
+
+template <int W>
+__device__ __forceinline__ void add_single_move(const RdmTensor& out, const Key<W>& bra, const Key<W>& ket,
+                                                const int low, const int high, const double overlap)
+{
+    const bool low_in_bra = fq::key_words::bit_w<W>(bra, low);
+    if(low_in_bra == static_cast<bool>(fq::key_words::bit_w<W>(bra, high)))
+    {
+        return;
+    }
+    const int a = low_in_bra ? low : high;
+    const int b = low_in_bra ? high : low;
+    const int m = out.num_orbitals;
+    const double v = fq::key_words::between_parity_w<W>(bra, low, high) < 0 ? -overlap : overlap;
+    fq::key_words::for_each_bit_w<W>(fq::key_words::and_w<W>(bra, ket), [&](const int k) {
+        atomicAdd(out.values + four_index(m, a, b, k, k), v);
+        atomicAdd(out.values + four_index(m, a, k, k, b), -v);
+        atomicAdd(out.values + four_index(m, k, b, a, k), -v);
+        atomicAdd(out.values + four_index(m, k, k, a, b), v);
+    });
+}
+
+
+template <int W>
+__device__ __forceinline__ double double_move_sign(Key<W> key, const int q, const int s, const int r, const int p)
+{
+    const int orbital[4] = {q, s, r, p};
+    double sign = 1.0;
+#pragma unroll
+    for(int k = 0; k < 4; k++)
+    {
+        const bool full = fq::key_words::bit_w<W>(key, orbital[k]);
+        if(full == (k >= 2))
+        {
+            return 0.0;
+        }
+        if(fq::key_words::below_parity_w<W>(key, orbital[k]) < 0)
+        {
+            sign = -sign;
+        }
+        fq::key_words::flip_bit_w<W>(key, orbital[k]);
+    }
+    return sign;
+}
+
+
+template <int W>
+__device__ __forceinline__ void add_double_move(const RdmTensor& out, const Key<W>& bra, const Key<W>& ket,
+                                                const int* position, const double overlap)
+{
+    int high[2];
+    int low[2];
+    int num_high = 0;
+    int num_low = 0;
+    for(int k = 0; k < 4; k++)
+    {
+        if(fq::key_words::bit_w<W>(bra, position[k]))
+        {
+            if(num_high < 2)
+            {
+                high[num_high++] = position[k];
+            }
+        }
+        else if(num_low < 2)
+        {
+            low[num_low++] = position[k];
+        }
+    }
+    if(num_high != 2 || num_low != 2)
+    {
+        return;
+    }
+    const double sign = double_move_sign<W>(ket, low[0], low[1], high[1], high[0]);
+    if(sign == 0.0)
+    {
+        return;
+    }
+    const int m = out.num_orbitals;
+    const double v = sign * overlap;
+    atomicAdd(out.values + four_index(m, high[0], low[0], high[1], low[1]), v);
+    atomicAdd(out.values + four_index(m, high[0], low[1], high[1], low[0]), -v);
+    atomicAdd(out.values + four_index(m, high[1], low[0], high[0], low[1]), -v);
+    atomicAdd(out.values + four_index(m, high[1], low[1], high[0], low[0]), v);
+}
+
+}
+
+
+template <int W>
+__global__ void __launch_bounds__(kRdmThreads) same_scatter_words_kernel(const __grid_constant__ RdmPairs pairs,
+                                                                          const __grid_constant__ RdmTensor out)
+{
+    for(std::int64_t i = blockIdx.x; i < pairs.num_bra; i += gridDim.x)
+    {
+        const fq::key_words::Key<W> bra = fq::key_words::load_w<W>(pairs.keys, pairs.bra_offset + i);
+        for(std::int64_t e = pairs.row_ptr[i] + threadIdx.x; e < pairs.row_ptr[i + 1]; e += blockDim.x)
+        {
+            const double overlap = pairs.overlap[e];
+            if(overlap == 0.0)
+            {
+                continue;
+            }
+            const fq::key_words::Key<W> ket = fq::key_words::load_w<W>(pairs.keys, pairs.cols[e]);
+            const fq::key_words::Key<W> flips = fq::key_words::xor_w<W>(bra, ket);
+            int position[4] = {0, 0, 0, 0};
+            fq::key_words::lowest_bits_w<W>(flips, position, 4);
+            const int distance = fq::key_words::popcount_w<W>(flips);
+            if(distance == 2)
+            {
+                rdm_words::add_single_move<W>(out, bra, ket, position[0], position[1], overlap);
+            }
+            else if(distance == 4)
+            {
+                rdm_words::add_double_move<W>(out, bra, ket, position, overlap);
+            }
+        }
+    }
+}
+
+extern "C"
+{
+
+    int rdm_launch_same_scatter_words(const RdmPairs* pairs, const RdmTensor* out, void* stream)
+    {
+        const int grid = static_cast<int>(std::min<std::int64_t>(kRdmMaxGrid, std::max<std::int64_t>(1, pairs->num_bra)));
+        same_scatter_words_kernel<2><<<grid, kRdmThreads, 0, static_cast<cudaStream_t>(stream)>>>(*pairs, *out);
+        return static_cast<int>(cudaGetLastError());
+    }
+}

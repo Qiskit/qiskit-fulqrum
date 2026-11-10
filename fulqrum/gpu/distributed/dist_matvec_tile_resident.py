@@ -1128,8 +1128,7 @@ class TileGPUResidentHamiltonian(LinearOperator):
             is the common number of orbitals per sector.
 
         Raises:
-            FulqrumError: A sector has more than 128 orbitals, or more than 64
-                with ``rank=2``.
+            FulqrumError: A sector has more than 128 orbitals.
             ValueError: The RDM order, local vector size or sector counts are
                 invalid, or alpha and beta have different orbital counts.
         """

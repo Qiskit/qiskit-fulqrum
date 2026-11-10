@@ -16,7 +16,6 @@ import random
 import numpy as np
 import pytest
 
-from fulqrum.exceptions import FulqrumError
 from fulqrum.test.test_cartesian_two_words import padded_hamiltonians
 
 from .conftest import gpu_available
@@ -70,23 +69,47 @@ def test_two_word_one_body_rdms_equal_the_one_word_rdms(pair, gpu_ids):
     assert abs(np.trace(wide_gamma[1]) - 3) < 1e-12
 
 
-def test_two_word_rank_two_rdms_raise(pair):
+def check_padded_two(narrow, wide):
+    rest = np.setdiff1d(np.arange(WIDTH), ACTIVE)
+    scale = max(np.abs(narrow).max(), 1.0)
+    block = wide[np.ix_(ACTIVE, ACTIVE, ACTIVE, ACTIVE)]
+    assert np.abs(block - narrow).max() <= 1e-12 * scale
+    for axis in range(4):
+        assert not np.take(wide, rest, axis=axis).any()
+
+
+@pytest.mark.parametrize("gpu_ids", [(0,), (0, 0, 0, 0)], ids=["1", "4"])
+def test_two_word_two_body_rdms_equal_the_one_word_rdms(pair, gpu_ids):
     from fulqrum.gpu import GPUHamiltonian
 
-    _, wide = pair
-    op = GPUHamiltonian(wide, gpu_ids=(0, 0))
-    with pytest.raises(FulqrumError, match="rank=2 RDMs support at most 64"):
-        op.compute_rdms(state(op), rank=2)
+    narrow, wide = pair
+    small = GPUHamiltonian(narrow, gpu_ids=gpu_ids)
+    large = GPUHamiltonian(wide, gpu_ids=gpu_ids)
+    vector = state(small, 2)
+    gamma, blocks = small.compute_rdms(vector, rank=2)
+    wide_gamma, wide_blocks = large.compute_rdms(vector, rank=2)
+    for a, b in zip(gamma, wide_gamma):
+        check_padded(a, b)
+    for a, b in zip(blocks, wide_blocks):
+        check_padded_two(a, b)
+    summed_gamma, summed = large.compute_rdms(vector, rank=2, spin_summed=True)
+    check_padded(gamma[0] + gamma[1], summed_gamma)
+    g_aa, g_ab, g_bb = wide_blocks
+    reference = g_aa + g_bb + g_ab + g_ab.transpose(2, 3, 0, 1)
+    assert np.abs(summed - reference).max() <= 1e-12 * np.abs(reference).max()
 
 
-def test_forced_two_word_rank_two_rdms_raise(pair, monkeypatch):
+def test_forced_two_word_two_body_rdms_equal_one_word(pair, monkeypatch):
     from fulqrum.gpu import GPUHamiltonian
 
     narrow, _ = pair
+    small = GPUHamiltonian(narrow, gpu_ids=(0, 0))
+    vector = state(small, 3)
+    expected = small.compute_rdms(vector, rank=2)
     monkeypatch.setenv("FQ_FORCE_KEY_WORDS", "2")
-    op = GPUHamiltonian(narrow, gpu_ids=(0,))
-    with pytest.raises(FulqrumError, match="rank=2"):
-        op.compute_rdms(state(op), rank=2)
+    forced = GPUHamiltonian(narrow, gpu_ids=(0, 0)).compute_rdms(vector, rank=2)
+    for a, b in zip((*expected[0], *expected[1]), (*forced[0], *forced[1])):
+        assert np.abs(a - b).max() <= 1e-12 * max(np.abs(a).max(), 1.0)
 
 
 def test_forced_two_word_one_body_rdms_equal_one_word(pair, monkeypatch):

@@ -105,6 +105,7 @@ cdef extern from "../kernels/rdm/params.hpp":
 cdef extern from "../kernels/rdm/launch.hpp":
     int rdm_launch_pair_overlap(const RdmSlabPair* slabs, const RdmPairs* pairs, void* stream) nogil
     int rdm_launch_same_scatter(const RdmPairs* pairs, const RdmTensor* out, void* stream) nogil
+    int rdm_launch_same_scatter_words(const RdmPairs* pairs, const RdmTensor* out, void* stream) nogil
     size_t rdm_same_diagonal_shared_bytes(int32_t num_orbitals)
     int rdm_launch_same_diagonal(const RdmDiagonal* diagonal, const RdmTensor* out, void* stream) nogil
     int rdm_launch_alpha_one_body(const RdmSlabPair* slabs, const RdmSingles* singles, const RdmWeighted* out,
@@ -203,7 +204,7 @@ def launch_pair_overlap(tuple slabs, uintptr_t row_ptr, uintptr_t cols, uintptr_
 
 
 def launch_same_scatter(uintptr_t row_ptr, uintptr_t cols, uintptr_t overlap, uintptr_t keys, int64_t bra_offset,
-                        int64_t num_bra, uintptr_t out, int num_orbitals, uintptr_t stream=0):
+                        int64_t num_bra, uintptr_t out, int num_orbitals, uintptr_t stream=0, int words=1):
 
 
     cdef RdmPairs p
@@ -215,8 +216,12 @@ def launch_same_scatter(uintptr_t row_ptr, uintptr_t cols, uintptr_t overlap, ui
     p.num_bra = num_bra
     cdef RdmTensor t = _tensor(out, num_orbitals)
     cdef int status
+    _check_words(words)
     with nogil:
-        status = rdm_launch_same_scatter(&p, &t, <void*>stream)
+        if words == 2:
+            status = rdm_launch_same_scatter_words(&p, &t, <void*>stream)
+        else:
+            status = rdm_launch_same_scatter(&p, &t, <void*>stream)
     _check("same_scatter", status)
 
 
