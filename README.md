@@ -176,11 +176,11 @@ Dual-socket Intel Xeon Platinum 8474C (48-core, 96 threads), 2 TB memory
 | Solver | Subspace dimension | Runtime (s) | Memory (Gb) | Speedup |
 | --- | --- | --- | --- | --- |
 | Dice | 1.6E7 | 589 | 436 | |
-| Fulqrum - primme | 1.6E7 | 53 | 7 | 11x |
+| Fulqrum - primme | 1.6E7 | 45 | 5 | 13x |
 | SBD | 1.6E7 | 754 | 3 | |
 | --- | --- | --- | --- | --- |
 | Dice | 1E8 | - | OOM | |
-| Fulqrum - primme | 1E8 | 187 | 22 | 30x |
+| Fulqrum - primme | 1E8 | 149 | 12 | 38x |
 | SBD | 1E8 | 5705 | 20 | |
 
 
