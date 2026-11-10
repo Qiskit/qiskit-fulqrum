@@ -117,6 +117,9 @@ class FullStrsHamiltonian:
             it cannot run; ``"general"`` always uses the general engine. The
             chosen engine is available as the ``engine`` attribute; keys, local
             vectors, the diagonal and RDMs keep the same order and conventions.
+            The tile engine's matvecs are much faster, but its construction can
+            take longer at high orbital counts; use ``"general"`` for workloads
+            with few matvecs.
 
     Raises:
         ValueError: Keys, operator terms, storage options or layout combinations

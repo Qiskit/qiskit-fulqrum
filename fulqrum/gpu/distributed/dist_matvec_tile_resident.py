@@ -227,23 +227,41 @@ def _direct_integrals(gpu_data, num_alpha):
     return grp4_direct
 
 
-def tile_operator_error(spmv, gpu_data, num_alpha, key_words) -> str | None:
+def host_arm_reason(
+    spmv, num_alpha, alpha, beta, aabb_factored, aa_pair, bb_pair
+) -> str | None:
+
+
+    needed = {
+        "a factored aabb table": aabb_factored,
+        "FQ_AA_PAIR_TABLE": aa_pair,
+        "FQ_BB_PAIR_TABLE": bb_pair,
+    }
+    off = [name for name, on in needed.items() if not on]
+    if off:
+        return "needs " + ", ".join(off)
+    return tile_input_error(spmv, num_alpha, alpha, beta)
+
+
+def tile_operator_error(spmv, gpu_data, num_alpha, key_words):
 
 
     num_groups = int(gpu_data["num_groups"])
     if num_groups == 0:
-        return None if tuple(key_words) == (1, 1) else "the operator has no groups"
+        reason = None if tuple(key_words) == (1, 1) else "the operator has no groups"
+        return reason, None
     grp_oi = np.ascontiguousarray(gpu_data["grp_offdiag_inds"])
     grp_os = np.ascontiguousarray(gpu_data["grp_offdiag_sizes"])
-    found = unsupported_groups(spmv, num_alpha, _direct_integrals(gpu_data, num_alpha))
+    grp4_direct = _direct_integrals(gpu_data, num_alpha)
+    found = unsupported_groups(spmv, num_alpha, grp4_direct)
     if found:
-        return f"{len(found)} operator group(s) are not supported ({found[0][2]})"
+        return f"{len(found)} operator group(s) are not supported ({found[0][2]})", None
     for check in (_assert_aaaa_bbbb_proj_invariance, _assert_aa_bb_factor_cache_invariance):
         try:
             check(gpu_data, grp_oi, grp_os, num_groups, num_alpha)
         except AssertionError as error:
-            return str(error).split(".")[0]
-    return None
+            return str(error).split(".")[0], None
+    return None, grp4_direct
 
 
 _HBM_PENDING = frozenset({"v_local", "out_local", "scratch", "arm_caches"})
@@ -1987,6 +2005,7 @@ class TileGPUResidentHamiltonian(LinearOperator):
             )
         step("host_arm_values")
         self._build_aabb_plans(self_tables)
+        self._self_beta_graph_cache = None
         step("aabb_plans")
         self._operator_bytes = self._operator_table_bytes()
         for name, seconds in steps.items():
@@ -2041,7 +2060,14 @@ class TileGPUResidentHamiltonian(LinearOperator):
         check_masks_fit(self._flip_masks, self._key_words)
         step("flip_masks")
         grp4_direct = None
-        if num_groups > 0:
+        checked = getattr(self._hsub, "_tile_operator_checks", None)
+        if num_groups > 0 and checked is not None:
+            grp4_direct = checked
+            self._hsub._tile_operator_checks = None
+            self._construction_timing["operator_groups_checked"] = len(grp4_direct)
+            step("checked_groups")
+            self._aabb_factored = True
+        elif num_groups > 0:
             grp4_direct = _direct_integrals(gpu_data, num_alpha)
             step("direct_integrals")
             self._validate_operator_groups(spmv, num_alpha, grp4_direct)
@@ -2401,6 +2427,17 @@ class TileGPUResidentHamiltonian(LinearOperator):
                 ) from error
         return plans
 
+    def _self_beta_graph(self, bptr, bj, bp0, bp1):
+
+        key = (id(bptr), id(bj), id(bp0), id(bp1))
+        cached = getattr(self, "_self_beta_graph_cache", None)
+        if cached is None or cached[0] != key:
+            graph = sorted_beta_graph(
+                bptr, bj, bp0, bp1, self._beta_bra, self._num_beta, self._n_b_local
+            )
+            self._self_beta_graph_cache = (key, (bptr, bj, bp0, bp1), graph)
+        return self._self_beta_graph_cache[2]
+
     def _build_direct_cross(self, src_rank, view) -> None:
 
         import cupy
@@ -2509,14 +2546,9 @@ class TileGPUResidentHamiltonian(LinearOperator):
     def _host_arm_values_reason(self, spmv) -> Optional[str]:
 
 
-        needed = {
-            "a factored aabb table": self._aabb_factored,
-            "FQ_AA_PAIR_TABLE": self._aa_pair_enabled,
-            "FQ_BB_PAIR_TABLE": self._bb_pair_enabled,
-        }
-        off = [name for name, on in needed.items() if not on]
-        if off:
-            return "needs " + ", ".join(off)
+        flags = (self._aabb_factored, self._aa_pair_enabled, self._bb_pair_enabled)
+        if not all(flags):
+            return host_arm_reason(spmv, self._num_alpha, None, None, *flags)
         try:
             strings = tuple(
                 self._core_strings(words)
@@ -2524,7 +2556,7 @@ class TileGPUResidentHamiltonian(LinearOperator):
             )
         except ValueError as error:
             return str(error)
-        return tile_input_error(spmv, self._num_alpha, *strings)
+        return host_arm_reason(spmv, self._num_alpha, *strings, *flags)
 
     def _core_strings(self, words):
 
@@ -2683,29 +2715,23 @@ class TileGPUResidentHamiltonian(LinearOperator):
             tile["double_columns"],
             tile["double_values"],
         )
+        if self._wide_sign_check:
+            self._raise_on_sign_error(
+                double_sign_error(
+                    ptr4,
+                    [cupy.asnumpy(view[f"d_alpha4_p{k}"]) for k in range(4)],
+                    values,
+                    self._alpha_bra,
+                    f"source {src_rank} alpha doubles",
+                    seed=src_rank,
+                )
+            )
         if view["d_alpha4_sell_j"] is not None:
             values = csr_to_sell_values(
                 values,
                 ptr4,
                 cupy.asnumpy(view["d_alpha4_sell_off"]),
                 cupy.asnumpy(view["d_alpha4_sell_len"]),
-            )
-        if self._wide_sign_check:
-            self._raise_on_sign_error(
-                double_sign_error(
-                    ptr4,
-                    [cupy.asnumpy(view[f"d_alpha4_p{k}"]) for k in range(4)],
-                    values_on_edges(
-                        ptr4,
-                        columns4,
-                        tile["double_offsets"],
-                        tile["double_columns"],
-                        tile["double_values"],
-                    ),
-                    self._alpha_bra,
-                    f"source {src_rank} alpha doubles",
-                    seed=src_rank,
-                )
             )
         if values.size:
             self._arm_caches[("aaaa", src_rank)] = cupy.asarray(values)
@@ -2837,9 +2863,7 @@ class TileGPUResidentHamiltonian(LinearOperator):
                 "the clique aabb arm supports alpha orbital counts in "
                 f"[2,{CLIQUE_MAX_ORBITALS}]"
             )
-        graph = sorted_beta_graph(
-            bptr, bj, bp0, bp1, self._beta_bra, self._num_beta, self._n_b_local
-        )
+        graph = self._self_beta_graph(bptr, bj, bp0, bp1)
         stats = dict(parents=0, selected_edges=0, original_edges=0, residual_edges=0)
         g_bytes = 0
         if self._n_a_local and (
@@ -3194,9 +3218,7 @@ class TileGPUResidentHamiltonian(LinearOperator):
             and self._rank_tiles[s][5] == self._coord_beta
             and self._rank_tiles[s][4] != self._coord_alpha
         ]
-        graph = sorted_beta_graph(
-            bptr, bj, bp0, bp1, self._beta_bra, self._num_beta, self._n_b_local
-        )
+        graph = self._self_beta_graph(bptr, bj, bp0, bp1)
         stats = dict(kind="-", selected_edges=0, original_edges=len(graph["words"]))
         n_cliques = 0
         if sources and len(graph["words"]) and self._n_a_local:

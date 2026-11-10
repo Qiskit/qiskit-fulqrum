@@ -27,8 +27,10 @@ class Ranks:
 
     def __init__(self, shared):
         self.shared = shared
+        self.gathers = 0
 
     def allgather(self, _value):
+        self.gathers += 1
         return self.shared.pop(0)
 
     def Get_size(self):
@@ -58,8 +60,20 @@ def detect(pairs, words, parts=3):
     halves = [tile_dispatch.halves(b.keys, words) for b in blocks]
     alpha_sets = [wide.unique_w(a)[0] for a, _ in halves]
     beta_sets = [wide.unique_w(b)[0] for _, b in halves]
-    comm = Ranks([alpha_sets, beta_sets])
+    counts = [(len(a), len(b)) for a, b in zip(alpha_sets, beta_sets)]
+    comm = Ranks([counts, alpha_sets, beta_sets])
     return tile_dispatch.product_halves(comm, blocks[0], words)
+
+
+def test_impossible_products_skip_the_string_gather():
+    block = SimpleNamespace(keys=key_rows([(1, 2), (3, 4)], 1), num_rows=2)
+    comm = Ranks([[(2, 2), (1, 1), (1, 1)]])
+    assert tile_dispatch.product_halves(comm, block, 1) is None
+    assert comm.gathers == 1
+    comm = Ranks([[(1, 1), (1, 1)]])
+    big = SimpleNamespace(keys=key_rows([(1, 2)], 1), num_rows=9)
+    assert tile_dispatch.product_halves(comm, big, 1) is None
+    assert comm.gathers == 1
 
 
 @pytest.mark.parametrize("words,n", [(1, 20), (2, 100)])
@@ -120,3 +134,63 @@ def test_halves_and_bit_strings_round_trip():
     assert all(len(s) == 100 for s in strings)
     narrow = tile_dispatch.halves(key_rows([(5, 9)], 1), 1)
     assert narrow[0].shape == (1,) and narrow[1].tolist() == [9]
+
+
+class Config(dict):
+    def value(self, name):
+        defaults = {"FQ_ARM_TABLE_SOURCE": "auto", "FQ_DIAG_RECOMPUTE": False}
+        if name == "FQ_DIAG_RECOMPUTE" and name in self:
+            return self[name] == "1"
+        return self.get(name, defaults[name])
+
+
+@pytest.mark.parametrize(
+    "settings,wide,refused",
+    [
+        ({}, True, False),
+        ({"FQ_BB_PAIR_TABLE": "0"}, True, True),
+        ({"FQ_AA_PAIR_TABLE": "0"}, True, True),
+        ({"FQ_ARM_TABLE_SOURCE": "kernel"}, True, True),
+        ({"FQ_DIAG_RECOMPUTE": "1"}, True, True),
+        ({"FQ_BB_PAIR_TABLE": "0"}, False, False),
+        ({"FQ_ARM_TABLE_SOURCE": "kernel"}, False, False),
+        ({"FQ_DIAG_RECOMPUTE": "1"}, False, False),
+    ],
+)
+def test_settings_the_tile_engine_refuses_for_two_words(settings, wide, refused):
+    reason = tile_dispatch._setting_error(Config(settings), wide)
+    assert (reason is not None) == refused
+
+
+@pytest.mark.parametrize(
+    "source,wide,reason,refused",
+    [
+        ("auto", True, "needs X", True),
+        ("auto", False, "needs X", False),
+        ("host", False, "needs X", True),
+        ("kernel", False, "needs X", False),
+        ("auto", True, None, False),
+    ],
+)
+def test_host_arm_reasons_refuse_where_the_tile_engine_raises(
+    monkeypatch, source, wide, reason, refused
+):
+    import sys
+    import types
+
+    seen = []
+
+    def fake(spmv, num_alpha, alpha, beta, *flags):
+        seen.append((alpha.ndim, flags))
+        return reason
+
+    stand_in = types.ModuleType("fulqrum.gpu.distributed.dist_matvec_tile_resident")
+    stand_in.host_arm_reason = fake
+    monkeypatch.setitem(sys.modules, stand_in.__name__, stand_in)
+    strings = np.zeros((3, 2), np.uint64)
+    got = tile_dispatch._arm_error(
+        Config({"FQ_ARM_TABLE_SOURCE": source}), None, 60, strings, strings, wide, True
+    )
+    assert (got is not None) == refused
+    if source != "kernel":
+        assert seen and seen[0][0] == 1

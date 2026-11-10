@@ -170,3 +170,19 @@ def test_an_unknown_engine_is_refused():
     op, keys = product_case(20, 10)
     with pytest.raises(ValueError, match="engine must be one of"):
         run(op, keys, 1, "fast")
+
+
+@requires_gpu
+@pytest.mark.parametrize(
+    "name,value",
+    [("FQ_BB_PAIR_TABLE", "0"), ("FQ_AA_PAIR_TABLE", "0"), ("FQ_DIAG_RECOMPUTE", "1")],
+)
+def test_two_word_settings_the_tile_engine_refuses_use_the_general_engine(
+    monkeypatch, name, value
+):
+    op, keys = product_case(70, 12)
+    monkeypatch.setenv(name, value)
+    results = run(op, keys, 1, "auto")
+    assert all(r["engine"] == "general" for r in results)
+    with pytest.raises(ValueError, match=name):
+        run(op, keys, 1, "tile")
