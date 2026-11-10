@@ -25,7 +25,6 @@ NUM_BUCKETS = 7
 
 def kernel_coefficients(operator, keys, num_slices=1, repeats=3):
 
-
     keys = np.ascontiguousarray(keys, dtype=np.uint64)
     host = host_module(keys.shape[1] // 2).HostOperator(
         operator, keys, num_slices=int(num_slices)
@@ -187,7 +186,6 @@ def _time_launch(layout, view, cls, bucket, first, count, x, stream, pointers, r
 
 
 def machine(comm):
-
 
     free, _ = cupy.cuda.runtime.memGetInfo()
     data = np.ones(8 << 20)

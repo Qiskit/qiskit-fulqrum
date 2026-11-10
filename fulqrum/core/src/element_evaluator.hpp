@@ -20,8 +20,8 @@
 #include <type_traits>
 #include <vector>
 
-#include "key_words.hpp"
 #include "checked_size.hpp"
+#include "key_words.hpp"
 #include "qubit_term.hpp"
 
 /**
@@ -101,17 +101,22 @@ inline unsigned int count_bits(std::uint64_t word)
  *     words_for_width(operator_width). Zero is valid for factor-free constants.
  * @return Owning cache in the same order as terms. No references to terms remain.
  */
-inline TermMasks build_term_masks(const std::vector<OperatorTerm_t>& terms, const std::size_t num_words)
+inline TermMasks build_term_masks(const std::vector<OperatorTerm_t>& terms,
+                                  const std::size_t num_words)
 {
     TermMasks masks;
     masks.num_words = num_words;
     const std::size_t mask_words = checked_multiply(checked_multiply(3, num_words), terms.size());
-    checked_add(checked_add(checked_multiply(mask_words, sizeof(KeyWord)), checked_multiply(terms.size(), sizeof(double))), checked_multiply(terms.size(), sizeof(std::complex<double>)));
+    checked_add(checked_add(checked_multiply(mask_words, sizeof(KeyWord)),
+                            checked_multiply(terms.size(), sizeof(double))),
+                checked_multiply(terms.size(), sizeof(std::complex<double>)));
     masks.words.assign(mask_words, 0);
     masks.real_values.assign(terms.size(), 0.0);
     masks.complex_values.assign(terms.size(), 0.0);
-    const std::array<std::complex<double>, 4> minus_i_powers = {
-        std::complex<double>(1, 0), std::complex<double>(0, -1), std::complex<double>(-1, 0), std::complex<double>(0, 1)};
+    const std::array<std::complex<double>, 4> minus_i_powers = {std::complex<double>(1, 0),
+                                                                std::complex<double>(0, -1),
+                                                                std::complex<double>(-1, 0),
+                                                                std::complex<double>(0, 1)};
 #pragma omp parallel for schedule(static) if(terms.size() > 4096)
     for(std::size_t index = 0; index < terms.size(); index++)
     {
@@ -145,7 +150,8 @@ inline TermMasks build_term_masks(const std::vector<OperatorTerm_t>& terms, cons
                 expect[word] |= bit;
             }
         }
-        masks.real_values[index] = term.real_phase * term.coeff.real() * ((num_y & 1u) ? -1.0 : 1.0);
+        masks.real_values[index] =
+            term.real_phase * term.coeff.real() * ((num_y & 1u) ? -1.0 : 1.0);
         masks.complex_values[index] = term.coeff * minus_i_powers[num_y % 4];
     }
     return masks;
@@ -175,7 +181,8 @@ inline TermMasks build_term_masks(const std::vector<OperatorTerm_t>& terms, cons
  *     all row constraints fail. Bounds and pointer validity are caller obligations.
  */
 template <typename T, typename Word = KeyWord>
-inline T term_sum(const TermMasks& masks, const std::size_t begin, const std::size_t end, const Word* row)
+inline T
+term_sum(const TermMasks& masks, const std::size_t begin, const std::size_t end, const Word* row)
 {
     if(begin == end)
     {
@@ -218,11 +225,11 @@ inline T term_sum(const TermMasks& masks, const std::size_t begin, const std::si
  * preconditions apply: a nonempty range requires masks.num_words == 0.
  */
 template <typename T>
-inline T term_sum(const TermMasks& masks, const std::size_t begin, const std::size_t end, std::nullptr_t)
+inline T
+term_sum(const TermMasks& masks, const std::size_t begin, const std::size_t end, std::nullptr_t)
 {
     return term_sum<T>(masks, begin, end, static_cast<const KeyWord*>(nullptr));
 }
-
 
 /**
  * A lookup-table representation of a group with at most four flipped positions.
@@ -296,7 +303,8 @@ bool build_compact_group(const TermMasks& terms,
     {
         for(KeyWord bits = flips[word]; bits != 0; bits &= bits - 1)
         {
-            built.positions[found++] = static_cast<width_t>(word * KEY_WORD_BITS + __builtin_ctzll(bits));
+            built.positions[found++] =
+                static_cast<width_t>(word * KEY_WORD_BITS + __builtin_ctzll(bits));
         }
     }
     auto pattern_bits = [&](const KeyWord* words) {
@@ -304,7 +312,9 @@ bool build_compact_group(const TermMasks& terms,
         for(std::uint32_t index = 0; index < built.num_flips; index++)
         {
             const width_t qubit = built.positions[index];
-            bits |= static_cast<unsigned int>((words[qubit / KEY_WORD_BITS] >> (qubit % KEY_WORD_BITS)) & 1u) << index;
+            bits |= static_cast<unsigned int>(
+                        (words[qubit / KEY_WORD_BITS] >> (qubit % KEY_WORD_BITS)) & 1u)
+                    << index;
         }
         return bits;
     };
@@ -316,7 +326,8 @@ bool build_compact_group(const TermMasks& terms,
         for(std::size_t word = 0; word < num_words; word++)
         {
             const bool mask_outside = (words[word] & ~flips[word]) != 0;
-            const bool parity_differs = ((words[2 * num_words + word] ^ shared[word]) & ~flips[word]) != 0;
+            const bool parity_differs =
+                ((words[2 * num_words + word] ^ shared[word]) & ~flips[word]) != 0;
             if(mask_outside || parity_differs)
             {
                 return false;
@@ -379,7 +390,9 @@ inline T compact_element(const CompactGroup<T>& record,
     for(std::uint32_t index = 0; index < record.num_flips; index++)
     {
         const width_t qubit = record.positions[index];
-        pattern |= static_cast<unsigned int>((row[qubit / KEY_WORD_BITS] >> (qubit % KEY_WORD_BITS)) & 1u) << index;
+        pattern |=
+            static_cast<unsigned int>((row[qubit / KEY_WORD_BITS] >> (qubit % KEY_WORD_BITS)) & 1u)
+            << index;
     }
     const KeyWord* parity = parity_words.data() + record.parity_offset;
     KeyWord bits = 0;

@@ -128,7 +128,6 @@ def _json_value(value):
     if value is None or isinstance(value, (str, int, bool)):
         return value
 
-
     if type(value).__module__.split(".")[0] == "numpy":
         return _json_value(value.tolist())
     raise TypeError(

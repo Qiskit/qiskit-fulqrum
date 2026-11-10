@@ -169,9 +169,10 @@ def test_source_needed_with_two_words(build):
     def reference(a_bra, b_bra, a_src, b_src):
         a0 = bool(set(a_bra) & set(a_src))
         b0 = bool(set(b_bra) & set(b_src))
-        has = lambda left, right, pc: any(
-            (x ^ y).bit_count() == pc for x in left for y in right
-        )
+
+        def has(left, right, pc):
+            return any((x ^ y).bit_count() == pc for x in left for y in right)
+
         a2, a4 = has(a_bra, a_src, 2), has(a_bra, a_src, 4)
         b2, b4 = has(b_bra, b_src, 2), has(b_bra, b_src, 4)
         return (a0 and b0) or (b0 and (a2 or a4)) or (a0 and (b2 or b4)) or (a2 and b2)

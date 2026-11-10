@@ -18,7 +18,6 @@
 namespace fq::device
 {
 
-
 template <int K>
 struct AlphaColumns
 {
@@ -26,12 +25,10 @@ struct AlphaColumns
     int alpha[K];
     bool active[K];
 
-
     __device__ static AlphaColumns of_thread(const FqTileGeometry& geometry)
     {
         return of_block(geometry, int(blockIdx.x));
     }
-
 
     __device__ static AlphaColumns of_block(const FqTileGeometry& geometry, const int block_x)
     {
@@ -47,7 +44,6 @@ struct AlphaColumns
         return columns;
     }
 
-
     __device__ bool any() const
     {
         bool found = false;
@@ -60,4 +56,4 @@ struct AlphaColumns
     }
 };
 
-}
+} // namespace fq::device

@@ -48,7 +48,6 @@ MASK_KEYS = {"alpha2": 0, "alpha4": 0, "beta2": 1, "beta4": 1}
 
 def masks_for_words(masks, key_words):
 
-
     return {
         key: ([] if key_words[sector] > 1 else list(masks.get(key, [])))
         for key, sector in MASK_KEYS.items()
@@ -81,7 +80,6 @@ def _as_strings(values):
 
 def _contains_rows(left, right):
 
-
     if np.ndim(left) == 1:
         return np.intersect1d(left, right, assume_unique=True).size > 0
     left = _as_strings(left)
@@ -95,7 +93,6 @@ def _contains_rows(left, right):
 def _tile_has_popcount(
     alpha_left, alpha_right, wanted: tuple[int, ...], threads: int = 1
 ) -> bool:
-
 
     if len(alpha_left) == 0 or len(alpha_right) == 0:
         return False
@@ -150,7 +147,6 @@ def _tile_source_needed(
     threads: int = 1,
 ) -> bool:
 
-
     a0 = _contains_rows(alpha_bra, alpha_src)
     b0 = _contains_rows(beta_bra, beta_src)
     if a0 and b0:
@@ -178,7 +174,6 @@ def _tile_source_needed(
 
 
 def _group_flip_masks(grp_offdiag_inds, grp_offdiag_sizes, num_alpha: int):
-
 
     sizes = np.asarray(grp_offdiag_sizes, dtype=np.int32)
     inds_all = np.asarray(grp_offdiag_inds, dtype=np.int64)
@@ -286,7 +281,6 @@ def _tile_has_mask_connection(
     masks: list[tuple[np.uint64, tuple[np.uint8, ...]]],
 ) -> bool:
 
-
     if len(bra_vals) == 0 or not masks:
         return False
     _refuse_wide_masks(bra_vals)
@@ -307,7 +301,6 @@ def _tile_has_connection_hybrid(
     threads: int = 1,
 ) -> bool:
 
-
     dense_work = int(len(bra_vals)) * int(len(src_vals))
     mask_work = int(len(bra_vals)) * int(len(masks))
     if masks and mask_work * 8 < dense_work:
@@ -317,7 +310,6 @@ def _tile_has_connection_hybrid(
 
 
 def _bits_from_xor_values(xors: np.ndarray, nbits: int) -> tuple[np.ndarray, ...]:
-
 
     bits = []
     vals_i = xors.astype(np.uint64).view(np.int64).copy()
@@ -363,7 +355,6 @@ def _build_tile_flip_csr_dense(
     batch = 256
 
     def _scan_block(row_range):
-
 
         r0, r1 = row_range
         r_ch: list = []
@@ -435,7 +426,6 @@ def _build_tile_flip_csr_dense(
 
 def _word_bits(xors, nbits):
 
-
     positions = [[] for _ in range(xors.shape[0])]
     for word in range(xors.shape[1]):
         column = xors[:, word].copy()
@@ -455,7 +445,6 @@ def _word_bits(xors, nbits):
 
 
 def _build_tile_flip_csr_dense_words(bra_vals, src_vals, popcount, threads=1):
-
 
     bra = _as_strings(bra_vals)
     src = _as_strings(src_vals)
@@ -494,7 +483,6 @@ def _build_tile_flip_csr_from_masks(
     threads: int = 1,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
 
-
     _refuse_wide_masks(bra_vals, src_vals)
     if _native_tile_build_enabled():
         n_m = len(masks)
@@ -526,7 +514,6 @@ def _build_tile_flip_csr_from_masks(
     bra = bra_vals.astype(np.uint64)
 
     def _scan_masks(mask_group):
-
 
         r_ch: list = []
         j_ch: list = []
@@ -601,7 +588,6 @@ def _build_tile_flip_csr_hybrid(
     threads: int = 1,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
 
-
     dense_work = int(len(bra_vals)) * int(len(src_vals))
     mask_work = int(len(bra_vals)) * int(len(masks))
     if masks and mask_work * 8 < dense_work:
@@ -659,7 +645,6 @@ def _csr_referenced_columns(
     ptr: np.ndarray, cols: np.ndarray, row0: int, row1: int
 ) -> np.ndarray:
 
-
     start = int(ptr[int(row0)])
     stop = int(ptr[int(row1)])
     if start >= stop:
@@ -679,7 +664,6 @@ def _build_compact_source_descriptor(
     same_beta: bool,
     add_diag: bool,
 ) -> dict:
-
 
     a_rels = []
     b_rels = []

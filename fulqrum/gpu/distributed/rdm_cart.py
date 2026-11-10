@@ -44,9 +44,7 @@ MIN_PIECE = 1 << 20
 BUDGET_VECTORS = 2
 BUDGET_FLOOR = 64 << 20
 _ROUTE_FOR_TESTING = None
-_PIECE_FOR_TESTING = (
-    None
-)
+_PIECE_FOR_TESTING = None
 
 
 def _fixed_ne(keys):
@@ -95,8 +93,6 @@ def _lookup(cp, sorted_keys, order, keys, n):
 
 
 class _WordIndex:
-
-
     def __init__(self, xp, keys):
 
         self.xp = xp
@@ -168,7 +164,6 @@ def _excite_sign(cp, source, created, removed):
 
 def _singles_range(cp, keys, sorted_keys, order, lo, hi, m, ne, lanes):
 
-
     n = int(keys.shape[0])
     nv = m - ne
     one = cp.uint64(1)
@@ -220,7 +215,6 @@ def _singles_range(cp, keys, sorted_keys, order, lo, hi, m, ne, lanes):
 
 def _pair_graph(cp, keys, sorted_keys, order, lo, hi, m, ne, lanes):
 
-
     n = int(keys.shape[0])
     nv = m - ne
     one = cp.uint64(1)
@@ -241,7 +235,9 @@ def _pair_graph(cp, keys, sorted_keys, order, lo, hi, m, ne, lanes):
         block = keys[cp.arange(c0, c1, dtype=cp.int64)]
         occ, vir = _occ_vir(cp, block, m, ne)
         if block.ndim == 2:
-            candidates = _pair_candidates(cp, block, occ, vir, nv, ne, oa_d, ob_d, va_d, vb_d)
+            candidates = _pair_candidates(
+                cp, block, occ, vir, nv, ne, oa_d, ob_d, va_d, vb_d
+            )
         else:
             column = block[:, None]
             removed = cp.repeat(occ, nv, axis=1)
@@ -253,7 +249,9 @@ def _pair_graph(cp, keys, sorted_keys, order, lo, hi, m, ne, lanes):
             q2 = cp.repeat(occ[:, ob_d], pairs_v, axis=1).astype(cp.uint64)
             p1 = cp.tile(vir[:, va_d], (1, pairs_o)).astype(cp.uint64)
             p2 = cp.tile(vir[:, vb_d], (1, pairs_o)).astype(cp.uint64)
-            doubles = (((column & ~(one << q1)) & ~(one << q2)) | (one << p1)) | (one << p2)
+            doubles = (((column & ~(one << q1)) & ~(one << q2)) | (one << p1)) | (
+                one << p2
+            )
             candidates = cp.concatenate([singles, doubles], axis=1).reshape(-1)
         found, ket = _lookup(cp, sorted_keys, order, candidates, n)
         counts[c0 - lo : c1 - lo] = found.reshape(c1 - c0, per).sum(axis=1)
@@ -313,7 +311,6 @@ def _flip_words(cp, strings, orbitals):
 
 def _col_sqnorm(cp, slab, lo, hi, width, budget=1 << 24):
 
-
     rows = hi - lo
     w = cp.empty(rows, cp.float64)
     step = max(1, budget // max(1, width))
@@ -325,7 +322,6 @@ def _col_sqnorm(cp, slab, lo, hi, width, budget=1 << 24):
 
 
 def _device_share(cp, comm):
-
 
     free = int(cp.cuda.runtime.memGetInfo()[0]) + int(
         cp.get_default_memory_pool().free_bytes()
@@ -406,7 +402,6 @@ def _check_host_fits(comm, need, share, what):
 
 def _local(cp, comm, what, function):
 
-
     def body():
 
         result = function()
@@ -417,8 +412,6 @@ def _local(cp, comm, what, function):
 
 
 class _Log:
-
-
     def __init__(self, cp, comm):
 
         self.cp = cp
@@ -449,7 +442,6 @@ def _block_of(cp, starts, index):
 
 
 def _sector_lists(cp, keys, bra, m, ne, two, lanes, starts):
-
 
     lo, hi = bra
     n_bra = hi - lo
@@ -504,7 +496,6 @@ def _sector_lists(cp, keys, bra, m, ne, two, lanes, starts):
 
 def _beta_order(cp, lists, m, starts):
 
-
     block = _block_of(cp, starts, lists["target"])
     key = block * 2 + (lists["source"] == lists["target"]).astype(cp.int64)
     perm = cp.lexsort(cp.stack([lists["source"].astype(cp.int64), key]))
@@ -532,7 +523,6 @@ def _build_lists(cp, a_uniq, b_uniq, bra, m, ne, two, lanes, starts):
 
 
 def _needed_tiles(ham, me, threads):
-
 
     from .tile_discovery import _tile_source_needed  # noqa: PLC0415
 
@@ -571,7 +561,6 @@ def _check_symmetric(comm, needed):
 
 
 def _hops(ham, me, needed):
-
 
     tiles = ham._rank_tiles
     p_alpha, p_beta = ham.process_grid
@@ -641,7 +630,6 @@ def _upload_into(cp, target, state):
 
 def _upload_transposed(cp, target, state, rows, cols):
 
-
     if isinstance(state, cp.ndarray):
         target[...] = state.reshape(rows, cols).T
     else:
@@ -672,9 +660,7 @@ def _lent_elems(wants, sizes):
 
 def _relay_tiles(cp, comm, backend, acc, tiles, needed, moves, hops, peer):
 
-
     from ._collective import BACKEND_NCCL  # noqa: PLC0415
-
 
     overlap = acc.moving is not None and getattr(backend, "name", None) == BACKEND_NCCL
     copy_stream = cp.cuda.Stream(non_blocking=True, priority=-1000) if overlap else None
@@ -729,7 +715,6 @@ def _relay_tiles(cp, comm, backend, acc, tiles, needed, moves, hops, peer):
 
 def _connect_neighbours(cp, comm, backend, tiles, grid):
 
-
     p_alpha, p_beta = grid
     me = comm.Get_rank()
     at = {(int(t[4]), int(t[5])): r for r, t in enumerate(tiles)}
@@ -760,7 +745,6 @@ def _connect_neighbours(cp, comm, backend, tiles, grid):
 
 def _relay_start(cp, comm, acc, own_tile, cur):
 
-
     nal, nbl = acc.a1 - acc.a0, acc.b1 - acc.b0
 
     def start():
@@ -772,7 +756,6 @@ def _relay_start(cp, comm, acc, own_tile, cur):
 
 
 def _relay_in_pieces(cp, comm, backend, acc, tiles, needed, moves, hops, peer, sizes):
-
 
     me = comm.Get_rank()
     cur, piece = acc.slot, acc.piece
@@ -810,7 +793,6 @@ def _relay_in_pieces(cp, comm, backend, acc, tiles, needed, moves, hops, peer, s
 
 def _plan(comm, prefer_relay, tile, max_tile, lent_sizes, lists_bytes, edges, strings):
 
-
     allowance = max(8 * BUDGET_VECTORS * tile, BUDGET_FLOOR)
     small = edges + strings
 
@@ -841,16 +823,13 @@ def _plan(comm, prefer_relay, tile, max_tile, lent_sizes, lists_bytes, edges, st
     if _PIECE_FOR_TESTING is not None and relay:
         piece = int(_PIECE_FOR_TESTING)
     if relay and piece:
-        piece = min(
-            comm.allgather(piece)
-        )
+        piece = min(comm.allgather(piece))
     need = fresh(relay, piece)
     over = max(comm.allgather(lists_bytes + need - allowance))
     return relay, piece, need, over
 
 
 def _relay_moves(p_alpha, p_beta):
-
 
     moves, d_alpha, d_beta, sign = [], 0, 0, 1
     for row in range(p_alpha):
@@ -865,7 +844,6 @@ def _relay_moves(p_alpha, p_beta):
 
 
 def _use_relay(comm, tiles, needed, p_alpha, p_beta):
-
 
     me = comm.Get_rank()
     sizes = (
@@ -894,8 +872,6 @@ def _use_relay(comm, tiles, needed, p_alpha, p_beta):
 
 
 class _Accumulator:
-
-
     def __init__(
         self,
         cp,
@@ -911,14 +887,12 @@ class _Accumulator:
         piece=0,
     ):
 
-
         self.cp, self.alpha, self.beta, self.m, self.two = cp, alpha, beta, m, two
         self.a0, self.a1, self.b0, self.b1, self.ca, self.cb = ham._rank_tiles[
             ham._comm.Get_rank()
         ]
         nal, nbl = self.a1 - self.a0, self.b1 - self.b0
         scratch = _apart_from(cp, scratch, evec_local)
-
 
         self.one_own = bool(relay)
         names = ["slot", "slot_alpha"] + (["moving"] if relay and not piece else [])
@@ -969,7 +943,6 @@ class _Accumulator:
 
     def tile(self, tile, values, own_beta=None):
 
-
         s0, s1, t0, t1, sa, sb = tile
         rows, cols = t1 - t0, s1 - s0
         if values is None:
@@ -1005,7 +978,6 @@ class _Accumulator:
             self._diagonal()
 
     def _beta_bra(self, ket, ket_offset):
-
 
         nal, nbl = self.a1 - self.a0, self.b1 - self.b0
         if not self.one_own:
@@ -1123,7 +1095,6 @@ class _Accumulator:
         )
 
     def _diagonal(self):
-
 
         from ..rdm import kernel_launch  # noqa: PLC0415
 
@@ -1300,7 +1271,6 @@ def compute_rdms_cart(ham, evec_local, *, rank=1, spin_summed=False):
     two = rank == 2
     log = _Log(cp, comm)
 
-
     base = _device_used(cp, comm)
     lanes = _lanes(_device_share(cp, comm))
     alpha, beta = _local(
@@ -1322,14 +1292,12 @@ def compute_rdms_cart(ham, evec_local, *, rank=1, spin_summed=False):
 
     cp.get_default_memory_pool().free_all_blocks()
 
-
     lists_bytes = max(0, _device_used(cp, comm) - base)
     _connect_neighbours(cp, comm, backend, tiles, ham.process_grid)
     connect_bytes = max(0, _device_used(cp, comm) - base - lists_bytes)
     log(
         f"lists lanes={lanes:,} lists={lists_bytes / 2**30:.2f} GiB connections={connect_bytes / 2**30:.2f} GiB"
     )
-
 
     threads = max(1, int(getattr(ham, "_build_threads", 1) or 1))
     needed = _local(
@@ -1341,7 +1309,6 @@ def compute_rdms_cart(ham, evec_local, *, rank=1, spin_summed=False):
     tile = (a1 - a0) * (b1 - b0)
     edges = (int(alpha["cols"].size) + int(beta["cols"].size)) if two else 0
     tensors = 3 * m**4 + 2 * m * m if two else 2 * m * m
-
 
     scratch = _apart_from(
         cp, ham.rdm_scratch() if hasattr(ham, "rdm_scratch") else [], evec_local

@@ -16,7 +16,6 @@ import threading
 from types import SimpleNamespace
 
 import numpy as np
-import pytest
 
 from fulqrum.gpu.distributed.backends import _ipc
 from fulqrum.gpu.distributed.backends import host_mpi

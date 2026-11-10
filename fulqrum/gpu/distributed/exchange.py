@@ -24,8 +24,6 @@ from .exchange_plan import FORWARD
 
 @dataclass
 class ExchangeExecutor:
-
-
     backend: object
     comm: object
     copy_stream: object
@@ -56,7 +54,6 @@ class ExchangeExecutor:
         receive_pinned=None,
         after_receive: Optional[Callable] = None,
     ) -> None:
-
 
         for index, step in enumerate(steps, start=1):
             self.wait_slot(step.slot)
@@ -109,7 +106,6 @@ class ExchangeExecutor:
         send_pinned=None,
         receive_pinned=None,
     ) -> tuple:
-
 
         empty64 = np.zeros(0, dtype=np.int64)
         empty32 = np.zeros(0, dtype=np.int32)
@@ -165,7 +161,6 @@ class ExchangeExecutor:
         fetch_pairs: list,
         gather_pairs: list,
     ) -> int:
-
 
         events = [None, None]
 

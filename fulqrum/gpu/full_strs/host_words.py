@@ -20,7 +20,6 @@ MODULES = {1: ".host", 2: ".host_w2"}
 
 def host_module(key_words):
 
-
     words = int(key_words)
     if words not in MODULES:
         raise ValueError(

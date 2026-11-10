@@ -11,7 +11,6 @@
 # that they have been altered from the originals.
 
 
-
 from __future__ import annotations
 
 import numpy as np
@@ -29,12 +28,10 @@ HASH_WORD_OFFSET = np.uint64(0x9E3779B97F4A7C15)
 
 def key_words(num_orbitals):
 
-
     return (int(num_orbitals) + 63) // 64
 
 
 def width_error(widths, electrons=None, max_words=MAX_KEY_WORDS):
-
 
     limit = WORD_BITS * int(max_words)
     for i, width in enumerate(widths):
@@ -56,14 +53,12 @@ def width_error(widths, electrons=None, max_words=MAX_KEY_WORDS):
 
 def check_width(comm, widths, where, electrons=None, max_words=MAX_KEY_WORDS):
 
-
     raise_on_every_rank(
         comm, width_error(widths, electrons, max_words), FulqrumError, where
     )
 
 
 def max_electrons(strings):
-
 
     if isinstance(strings, np.ndarray) and strings.dtype.kind in "iu":
         words = np.ascontiguousarray(strings, dtype=np.uint64)
@@ -80,7 +75,6 @@ def max_electrons(strings):
 
 
 def empty_w(words):
-
 
     return np.full(int(words), EMPTY_WORD, dtype=np.uint64)
 
@@ -109,7 +103,6 @@ def _as_words(strings):
 
 def pack_values(values, n):
 
-
     n = int(n)
     if n <= 0:
         raise ValueError(f"the orbital count must be positive, got {n}")
@@ -129,18 +122,14 @@ def pack_values(values, n):
 
 def pack_strings(strs, n):
 
-
     n = int(n)
     for row, text in enumerate(strs):
         if len(text) != n:
-            raise ValueError(
-                f"string {row} has {len(text)} characters, expected {n}"
-            )
+            raise ValueError(f"string {row} has {len(text)} characters, expected {n}")
     return pack_values([int(text, 2) for text in strs], n)
 
 
 def sort_strings(strings):
-
 
     words = np.asarray(strings, dtype=np.uint64)
     if words.ndim == 1:
@@ -152,7 +141,6 @@ def sort_strings(strings):
 
 
 def with_words(strings, words):
-
 
     strings = np.asarray(strings, dtype=np.uint64)
     if words == 1 or (strings.ndim == 2 and strings.shape[1] == words):
@@ -167,7 +155,6 @@ def with_words(strings, words):
 
 
 def unpack_ints(strings):
-
 
     words = _as_words(strings)
     out = []
@@ -195,12 +182,10 @@ def _popcount_words(x):
 
 def popcount_w(strings):
 
-
     return _popcount_words(_as_words(strings)).sum(axis=1).astype(np.int64)
 
 
 def bit_w(strings, orbital):
-
 
     words = _as_words(strings)
     xp = _xp(words)
@@ -236,12 +221,10 @@ def _between_masks(lo, hi, words, xp=np):
 
 def between_mask_w(lo, hi, words):
 
-
     return _between_masks(int(lo), int(hi), int(words)).reshape(int(words))
 
 
 def between_parity_w(strings, lo, hi):
-
 
     words = _as_words(strings)
     xp = _xp(words)
@@ -252,12 +235,10 @@ def between_parity_w(strings, lo, hi):
 
 def below_parity_w(strings, orbital):
 
-
     return between_parity_w(strings, -1, orbital)
 
 
 def single_bit_index_w(strings):
-
 
     words = _as_words(strings)
     rows = np.arange(words.shape[0])
@@ -269,7 +250,6 @@ def single_bit_index_w(strings):
 
 def orbital_bits_w(orbitals, words):
 
-
     orbitals = np.asarray(orbitals, dtype=np.int64).reshape(-1)
     out = np.zeros((orbitals.size, int(words)), dtype=np.uint64)
     out[np.arange(orbitals.size), orbitals // WORD_BITS] = np.uint64(1) << (
@@ -279,7 +259,6 @@ def orbital_bits_w(orbitals, words):
 
 
 def unique_w(strings, xp=np, return_counts=False):
-
 
     if strings.ndim == 1:
         return xp.unique(strings, return_inverse=True, return_counts=return_counts)
@@ -304,13 +283,11 @@ def unique_w(strings, xp=np, return_counts=False):
 
 def xor_w(a, b):
 
-
     a = np.asarray(a, dtype=np.uint64)
     return np.bitwise_xor(a, np.asarray(b, dtype=np.uint64))
 
 
 def eq_w(a, b):
-
 
     a = _as_words(a)
     b = _as_words(b)
@@ -318,7 +295,6 @@ def eq_w(a, b):
 
 
 def hash_w(strings):
-
 
     words = _as_words(strings)
     h = words[:, words.shape[1] - 1]

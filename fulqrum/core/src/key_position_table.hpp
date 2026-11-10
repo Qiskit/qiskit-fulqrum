@@ -18,8 +18,8 @@
 #include <stdexcept>
 #include <vector>
 
-#include "key_words.hpp"
 #include "checked_size.hpp"
+#include "key_words.hpp"
 
 inline constexpr unsigned int POSITION_BITS = 40;
 inline constexpr std::uint64_t POSITION_MASK = (std::uint64_t(1) << POSITION_BITS) - 1;
@@ -52,8 +52,10 @@ public:
         }
         const std::size_t capacity = power_of_two_at_least(checked_add(num_keys, num_keys / 2));
         checked_multiply(num_keys, num_words);
-        const std::size_t presence_bits = power_of_two_at_least(checked_multiply(PRESENCE_BITS_PER_KEY, num_keys));
-        checked_add(checked_multiply(capacity, sizeof(std::uint64_t)), checked_multiply(words_for_width(presence_bits), sizeof(KeyWord)));
+        const std::size_t presence_bits =
+            power_of_two_at_least(checked_multiply(PRESENCE_BITS_PER_KEY, num_keys));
+        checked_add(checked_multiply(capacity, sizeof(std::uint64_t)),
+                    checked_multiply(words_for_width(presence_bits), sizeof(KeyWord)));
         slots_.assign(capacity, 0);
         mask_ = capacity - 1;
         presence_.assign(words_for_width(presence_bits), 0);

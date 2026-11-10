@@ -44,7 +44,6 @@ def double_sign_error(
     ptr, positions, values, bra, label, size=SAMPLE_EDGES, seed=0
 ) -> str | None:
 
-
     ptr = np.asarray(ptr, dtype=np.int64)
     nnz = int(ptr[-1])
     if nnz == 0:
@@ -79,7 +78,6 @@ def double_sign_error(
 def beta_word_sign_error(
     graph, bra, orbitals, label, size=SAMPLE_EDGES, seed=0
 ) -> str | None:
-
 
     words = np.asarray(graph["words"], dtype=np.uint64)
     if not len(words):

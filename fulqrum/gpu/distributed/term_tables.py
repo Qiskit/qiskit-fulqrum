@@ -21,7 +21,6 @@ _EMPTY_KEY_U32 = np.uint32(0xFFFFFFFF)
 
 def _splitmix32_host(key):
 
-
     k = int(key) & 0xFFFFFFFF
     k = ((k >> 16) ^ k) * 0x45D9F3B & 0xFFFFFFFF
     k = ((k >> 16) ^ k) * 0x45D9F3B & 0xFFFFFFFF
@@ -29,7 +28,6 @@ def _splitmix32_host(key):
 
 
 def _build_ht_u32_kv(keys_int, vals_int):
-
 
     n = len(keys_int)
     cap = 1
@@ -52,7 +50,6 @@ def _build_ht_u32_kv(keys_int, vals_int):
 
 
 def _build_ht_u64_kv(keys_int, vals_int):
-
 
     n = len(keys_int)
     cap = 1
@@ -77,7 +74,6 @@ def _build_ht_u64_kv(keys_int, vals_int):
 
 def _group_terms(gpu_data, grp_offdiag_sizes, num_groups, size):
 
-
     ladder_ptrs = np.asarray(gpu_data["grp_ladder_ptrs"]).flatten().astype(np.int64)
     lo = int(gpu_data["ladder_offset"])
     groups = np.flatnonzero(np.asarray(grp_offdiag_sizes)[:num_groups] == size)
@@ -99,7 +95,6 @@ def _group_terms(gpu_data, grp_offdiag_sizes, num_groups, size):
 def _assert_aaaa_bbbb_proj_invariance(
     gpu_data, grp_offdiag_inds, grp_offdiag_sizes, num_groups, num_alpha
 ):
-
 
     term_num_proj = np.asarray(gpu_data["term_num_proj"]).astype(np.int32)
     term_proj_inds = np.asarray(gpu_data["term_proj_inds"]).astype(np.int32)
@@ -143,7 +138,6 @@ def _assert_aaaa_bbbb_proj_invariance(
 def _assert_aaaa_bbbb_proj_invariance_reference(
     gpu_data, grp_offdiag_inds, grp_offdiag_sizes, num_groups, num_alpha
 ):
-
 
     ladder_ptrs = np.asarray(gpu_data["grp_ladder_ptrs"]).flatten().astype(np.int64)
     lo = int(gpu_data["ladder_offset"])
@@ -195,7 +189,6 @@ def _assert_aa_bb_factor_cache_invariance(
     gpu_data, grp_offdiag_inds, grp_offdiag_sizes, num_groups, num_alpha
 ):
 
-
     term_num_proj = np.asarray(gpu_data["term_num_proj"]).astype(np.int32)
     term_proj_inds = np.asarray(gpu_data["term_proj_inds"]).astype(np.int32)
     term_num_ops = np.asarray(gpu_data["term_num_ops"]).astype(np.int32)
@@ -238,7 +231,6 @@ def _assert_aa_bb_factor_cache_invariance(
         return
     seen = np.sort(np.concatenate(parts, axis=1), axis=1)
 
-
     nonneg = seen >= 0
     first = nonneg.any(axis=1).astype(int)
     distinct = first + ((seen[:, 1:] != seen[:, :-1]) & nonneg[:, :-1]).sum(axis=1)
@@ -257,7 +249,6 @@ def _assert_aa_bb_factor_cache_invariance(
 def _assert_aa_bb_factor_cache_invariance_reference(
     gpu_data, grp_offdiag_inds, grp_offdiag_sizes, num_groups, num_alpha
 ):
-
 
     ladder_ptrs = np.asarray(gpu_data["grp_ladder_ptrs"]).flatten().astype(np.int64)
     lo = int(gpu_data["ladder_offset"])
@@ -316,7 +307,6 @@ def _build_direct_integral_tables(
     gpu_data, grp_offdiag_inds, grp_offdiag_sizes, num_groups, num_alpha
 ):
 
-
     ladder_ptrs = np.asarray(gpu_data["grp_ladder_ptrs"]).flatten().astype(np.int64)
     lo = int(gpu_data["ladder_offset"])
     coeffs_re = np.asarray(gpu_data["term_coeffs_re"], dtype=np.float64)
@@ -349,7 +339,6 @@ def _build_direct_integral_tables(
 def _build_grp_pos_tables(
     grp_offdiag_inds, grp_offdiag_sizes, num_alpha=None, grp_rowint_length=None
 ):
-
 
     keys2, vals2, keys4, vals4 = [], [], [], []
     pack_meta = grp_rowint_length is not None
@@ -395,7 +384,6 @@ def _build_grp_pos_tables(
 def _build_aabb_g_dense(
     grp_offdiag_inds, grp_offdiag_sizes, grp4_direct, num_alpha, num_beta
 ):
-
 
     oi = np.asarray(grp_offdiag_inds)
     os_ = np.asarray(grp_offdiag_sizes)

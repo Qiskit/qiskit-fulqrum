@@ -25,7 +25,6 @@ from fulqrum.gpu.eigensolver import primme_distributed as pd
 
 
 class _Duplicate:
-
     def __init__(self):
         self.freed = 0
 
@@ -34,7 +33,6 @@ class _Duplicate:
 
 
 class _Comm:
-
     def __init__(self):
         self.duplicates = []
 
@@ -89,9 +87,7 @@ def test_the_overlap_communicator_is_freed_once(monkeypatch, fails):
 
 
 @pytest.mark.parametrize("setting, expected", [("on", True), ("0", False)])
-def test_host_gpu_preconditioner_follows_the_config(
-    monkeypatch, setting, expected
-):
+def test_host_gpu_preconditioner_follows_the_config(monkeypatch, setting, expected):
     seen = {}
 
     def precond(diagonal, n_local, tile):
@@ -147,7 +143,6 @@ def test_gpu_preconditioner_reports_that_it_disables_spec(monkeypatch):
 
 
 class _SlowMatvec:
-
     def __init__(self, seconds):
         self.seconds = seconds
         self.thread = None
@@ -162,7 +157,6 @@ class _SlowMatvec:
 
 
 class _AbortRecorder:
-
     def __init__(self, size):
         self.size = size
         self.aborts = []

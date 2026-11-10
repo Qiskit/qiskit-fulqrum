@@ -20,19 +20,24 @@
 
 constexpr int kOrbitalChunk = 16;
 
-
 template <bool BETA_SIDE>
-__device__ __forceinline__ std::int64_t weighted_index(const int m, const int p, const int q, const int k)
+__device__ __forceinline__ std::int64_t
+weighted_index(const int m, const int p, const int q, const int k)
 {
     return BETA_SIDE ? four_index(m, k, p, k, q) : four_index(m, p, k, q, k);
 }
 
-
 template <bool BETA_SIDE>
-__device__ __forceinline__ void add_chunk(const RdmWeighted& out, const double* __restrict__ bra,
-                                          const double* __restrict__ ket, const std::int64_t width,
-                                          const std::int64_t bra_stride, const int lane, const int first,
-                                          const int p, const int q, const double sign)
+__device__ __forceinline__ void add_chunk(const RdmWeighted& out,
+                                          const double* __restrict__ bra,
+                                          const double* __restrict__ ket,
+                                          const std::int64_t width,
+                                          const std::int64_t bra_stride,
+                                          const int lane,
+                                          const int first,
+                                          const int p,
+                                          const int q,
+                                          const double sign)
 {
     double acc[kOrbitalChunk];
 #pragma unroll
@@ -62,20 +67,23 @@ __device__ __forceinline__ void add_chunk(const RdmWeighted& out, const double* 
     }
 }
 
-
 template <bool BETA_SIDE>
-__global__ void __launch_bounds__(kRdmThreads) weighted_one_body_kernel(const __grid_constant__ RdmSlabPair slabs,
-                                                                         const __grid_constant__ RdmSingles singles,
-                                                                         const __grid_constant__ RdmWeighted out)
+__global__ void __launch_bounds__(kRdmThreads)
+    weighted_one_body_kernel(const __grid_constant__ RdmSlabPair slabs,
+                             const __grid_constant__ RdmSingles singles,
+                             const __grid_constant__ RdmWeighted out)
 {
     const int lane = static_cast<int>(threadIdx.x & 31u);
     const std::int64_t warps = std::int64_t(gridDim.x) * (blockDim.x >> 5);
     const int m = out.num_orbitals;
-    for(std::int64_t k = std::int64_t(blockIdx.x) * (blockDim.x >> 5) + (threadIdx.x >> 5); k < singles.count;
+    for(std::int64_t k = std::int64_t(blockIdx.x) * (blockDim.x >> 5) + (threadIdx.x >> 5);
+        k < singles.count;
         k += warps)
     {
-        const double* bra = slabs.bra + (std::int64_t(singles.source[k]) - slabs.bra_offset) * slabs.bra_row_stride;
-        const double* ket = slabs.ket + (std::int64_t(singles.target[k]) - slabs.ket_offset) * slabs.width;
+        const double* bra =
+            slabs.bra + (std::int64_t(singles.source[k]) - slabs.bra_offset) * slabs.bra_row_stride;
+        const double* ket =
+            slabs.ket + (std::int64_t(singles.target[k]) - slabs.ket_offset) * slabs.width;
         const int label = singles.label[k];
         const int p = label / m;
         const int q = label % m;
@@ -96,13 +104,14 @@ __global__ void __launch_bounds__(kRdmThreads) weighted_one_body_kernel(const __
         }
         for(int first = 0; first < m; first += kOrbitalChunk)
         {
-            add_chunk<BETA_SIDE>(out, bra, ket, slabs.width, slabs.bra_elem_stride, lane, first, p, q, sign);
+            add_chunk<BETA_SIDE>(
+                out, bra, ket, slabs.width, slabs.bra_elem_stride, lane, first, p, q, sign);
         }
     }
 }
 
-
-__device__ __forceinline__ void add_to_occupied(double* gamma, const std::uint64_t key, const int m, const double value)
+__device__ __forceinline__ void
+add_to_occupied(double* gamma, const std::uint64_t key, const int m, const double value)
 {
     for(std::uint64_t x = key; x; x &= x - 1)
     {
@@ -111,15 +120,16 @@ __device__ __forceinline__ void add_to_occupied(double* gamma, const std::uint64
     }
 }
 
-
-__global__ void __launch_bounds__(kRdmThreads) diagonal_kernel(const __grid_constant__ RdmSlabPair slabs,
-                                                                const __grid_constant__ RdmRows rows,
-                                                                const __grid_constant__ RdmWeighted out)
+__global__ void __launch_bounds__(kRdmThreads)
+    diagonal_kernel(const __grid_constant__ RdmSlabPair slabs,
+                    const __grid_constant__ RdmRows rows,
+                    const __grid_constant__ RdmWeighted out)
 {
     const int lane = static_cast<int>(threadIdx.x & 31u);
     const std::int64_t warps = std::int64_t(gridDim.x) * (blockDim.x >> 5);
     const int m = out.num_orbitals;
-    for(std::int64_t i = std::int64_t(blockIdx.x) * (blockDim.x >> 5) + (threadIdx.x >> 5); i < rows.num_rows;
+    for(std::int64_t i = std::int64_t(blockIdx.x) * (blockDim.x >> 5) + (threadIdx.x >> 5);
+        i < rows.num_rows;
         i += warps)
     {
         const double* row = slabs.bra + i * slabs.bra_row_stride;
@@ -175,22 +185,26 @@ __global__ void __launch_bounds__(kRdmThreads) diagonal_kernel(const __grid_cons
     }
 }
 
-
 static_assert(64 % kOrbitalChunk == 0, "an orbital chunk must stay inside one key word");
 
-
 template <int W>
-__device__ __forceinline__ std::uint64_t chunk_bits(const std::uint64_t* keys, const std::int64_t row, const int first)
+__device__ __forceinline__ std::uint64_t
+chunk_bits(const std::uint64_t* keys, const std::int64_t row, const int first)
 {
     return keys[row * W + first / 64] >> (first % 64);
 }
 
-
 template <int W, bool BETA_SIDE>
-__device__ __forceinline__ void add_chunk_words(const RdmWeighted& out, const double* __restrict__ bra,
-                                                const double* __restrict__ ket, const std::int64_t width,
-                                                const std::int64_t bra_stride, const int lane, const int first,
-                                                const int p, const int q, const double sign)
+__device__ __forceinline__ void add_chunk_words(const RdmWeighted& out,
+                                                const double* __restrict__ bra,
+                                                const double* __restrict__ ket,
+                                                const std::int64_t width,
+                                                const std::int64_t bra_stride,
+                                                const int lane,
+                                                const int first,
+                                                const int p,
+                                                const int q,
+                                                const double sign)
 {
     double acc[kOrbitalChunk];
 #pragma unroll
@@ -220,20 +234,23 @@ __device__ __forceinline__ void add_chunk_words(const RdmWeighted& out, const do
     }
 }
 
-
 template <int W, bool BETA_SIDE>
 __global__ void __launch_bounds__(kRdmThreads)
-    weighted_one_body_words_kernel(const __grid_constant__ RdmSlabPair slabs, const __grid_constant__ RdmSingles singles,
+    weighted_one_body_words_kernel(const __grid_constant__ RdmSlabPair slabs,
+                                   const __grid_constant__ RdmSingles singles,
                                    const __grid_constant__ RdmWeighted out)
 {
     const int lane = static_cast<int>(threadIdx.x & 31u);
     const std::int64_t warps = std::int64_t(gridDim.x) * (blockDim.x >> 5);
     const int m = out.num_orbitals;
-    for(std::int64_t k = std::int64_t(blockIdx.x) * (blockDim.x >> 5) + (threadIdx.x >> 5); k < singles.count;
+    for(std::int64_t k = std::int64_t(blockIdx.x) * (blockDim.x >> 5) + (threadIdx.x >> 5);
+        k < singles.count;
         k += warps)
     {
-        const double* bra = slabs.bra + (std::int64_t(singles.source[k]) - slabs.bra_offset) * slabs.bra_row_stride;
-        const double* ket = slabs.ket + (std::int64_t(singles.target[k]) - slabs.ket_offset) * slabs.width;
+        const double* bra =
+            slabs.bra + (std::int64_t(singles.source[k]) - slabs.bra_offset) * slabs.bra_row_stride;
+        const double* ket =
+            slabs.ket + (std::int64_t(singles.target[k]) - slabs.ket_offset) * slabs.width;
         const int label = singles.label[k];
         const int p = label / m;
         const int q = label % m;
@@ -254,15 +271,18 @@ __global__ void __launch_bounds__(kRdmThreads)
         }
         for(int first = 0; first < m; first += kOrbitalChunk)
         {
-            add_chunk_words<W, BETA_SIDE>(out, bra, ket, slabs.width, slabs.bra_elem_stride, lane, first, p, q, sign);
+            add_chunk_words<W, BETA_SIDE>(
+                out, bra, ket, slabs.width, slabs.bra_elem_stride, lane, first, p, q, sign);
         }
     }
 }
 
-
 template <int W>
-__device__ __forceinline__ void add_to_occupied_words(double* gamma, const std::uint64_t* keys, const std::int64_t row,
-                                                      const int m, const double value)
+__device__ __forceinline__ void add_to_occupied_words(double* gamma,
+                                                      const std::uint64_t* keys,
+                                                      const std::int64_t row,
+                                                      const int m,
+                                                      const double value)
 {
 #pragma unroll
     for(int word = 0; word < W; word++)
@@ -275,16 +295,17 @@ __device__ __forceinline__ void add_to_occupied_words(double* gamma, const std::
     }
 }
 
-
 template <int W>
-__global__ void __launch_bounds__(kRdmThreads) diagonal_words_kernel(const __grid_constant__ RdmSlabPair slabs,
-                                                                      const __grid_constant__ RdmRows rows,
-                                                                      const __grid_constant__ RdmWeighted out)
+__global__ void __launch_bounds__(kRdmThreads)
+    diagonal_words_kernel(const __grid_constant__ RdmSlabPair slabs,
+                          const __grid_constant__ RdmRows rows,
+                          const __grid_constant__ RdmWeighted out)
 {
     const int lane = static_cast<int>(threadIdx.x & 31u);
     const std::int64_t warps = std::int64_t(gridDim.x) * (blockDim.x >> 5);
     const int m = out.num_orbitals;
-    for(std::int64_t i = std::int64_t(blockIdx.x) * (blockDim.x >> 5) + (threadIdx.x >> 5); i < rows.num_rows;
+    for(std::int64_t i = std::int64_t(blockIdx.x) * (blockDim.x >> 5) + (threadIdx.x >> 5);
+        i < rows.num_rows;
         i += warps)
     {
         const double* row = slabs.bra + i * slabs.bra_row_stride;
@@ -315,7 +336,8 @@ __global__ void __launch_bounds__(kRdmThreads) diagonal_words_kernel(const __gri
             for(std::int64_t t = lane; t < slabs.width; t += 32)
             {
                 const double v = row[t * stride] * row[t * stride];
-                const std::uint64_t column = chunk_bits<W>(out.column_keys, out.column_offset + t, first);
+                const std::uint64_t column =
+                    chunk_bits<W>(out.column_keys, out.column_offset + t, first);
 #pragma unroll
                 for(int j = 0; j < kOrbitalChunk; j++)
                 {
@@ -344,9 +366,11 @@ __global__ void __launch_bounds__(kRdmThreads) diagonal_words_kernel(const __gri
     }
 }
 
-
 template <bool BETA_SIDE>
-int launch_weighted(const RdmSlabPair* slabs, const RdmSingles* singles, const RdmWeighted* out, void* stream)
+int launch_weighted(const RdmSlabPair* slabs,
+                    const RdmSingles* singles,
+                    const RdmWeighted* out,
+                    void* stream)
 {
     if(singles->count == 0)
     {
@@ -363,20 +387,27 @@ int launch_weighted(const RdmSlabPair* slabs, const RdmSingles* singles, const R
 extern "C"
 {
 
-    int rdm_launch_alpha_one_body(const RdmSlabPair* slabs, const RdmSingles* singles, const RdmWeighted* out,
+    int rdm_launch_alpha_one_body(const RdmSlabPair* slabs,
+                                  const RdmSingles* singles,
+                                  const RdmWeighted* out,
                                   void* stream)
     {
         return launch_weighted<false>(slabs, singles, out, stream);
     }
 
-    int rdm_launch_beta_one_body(const RdmSlabPair* slabs, const RdmSingles* singles, const RdmWeighted* out,
+    int rdm_launch_beta_one_body(const RdmSlabPair* slabs,
+                                 const RdmSingles* singles,
+                                 const RdmWeighted* out,
                                  void* stream)
     {
         return launch_weighted<true>(slabs, singles, out, stream);
     }
 
-    int rdm_launch_diagonal(const RdmSlabPair* slabs, const RdmRows* rows, const RdmWeighted* out,
-                            const int beta_side, void* stream)
+    int rdm_launch_diagonal(const RdmSlabPair* slabs,
+                            const RdmRows* rows,
+                            const RdmWeighted* out,
+                            const int beta_side,
+                            void* stream)
     {
         if(rows->num_rows == 0)
         {
@@ -390,14 +421,17 @@ extern "C"
         const std::int64_t warps_per_block = kRdmThreads / 32;
         const std::int64_t blocks = (rows->num_rows + warps_per_block - 1) / warps_per_block;
         const int grid = static_cast<int>(std::min<std::int64_t>(kRdmMaxGrid, blocks));
-        diagonal_kernel<<<grid, kRdmThreads, 0, static_cast<cudaStream_t>(stream)>>>(*slabs, *rows, target);
+        diagonal_kernel<<<grid, kRdmThreads, 0, static_cast<cudaStream_t>(stream)>>>(
+            *slabs, *rows, target);
         return static_cast<int>(cudaGetLastError());
     }
 }
 
-
 template <int W, bool BETA_SIDE>
-int launch_weighted_words(const RdmSlabPair* slabs, const RdmSingles* singles, const RdmWeighted* out, void* stream)
+int launch_weighted_words(const RdmSlabPair* slabs,
+                          const RdmSingles* singles,
+                          const RdmWeighted* out,
+                          void* stream)
 {
     if(singles->count == 0)
     {
@@ -414,20 +448,27 @@ int launch_weighted_words(const RdmSlabPair* slabs, const RdmSingles* singles, c
 extern "C"
 {
 
-    int rdm_launch_alpha_one_body_words(const RdmSlabPair* slabs, const RdmSingles* singles, const RdmWeighted* out,
+    int rdm_launch_alpha_one_body_words(const RdmSlabPair* slabs,
+                                        const RdmSingles* singles,
+                                        const RdmWeighted* out,
                                         void* stream)
     {
         return launch_weighted_words<2, false>(slabs, singles, out, stream);
     }
 
-    int rdm_launch_beta_one_body_words(const RdmSlabPair* slabs, const RdmSingles* singles, const RdmWeighted* out,
+    int rdm_launch_beta_one_body_words(const RdmSlabPair* slabs,
+                                       const RdmSingles* singles,
+                                       const RdmWeighted* out,
                                        void* stream)
     {
         return launch_weighted_words<2, true>(slabs, singles, out, stream);
     }
 
-    int rdm_launch_diagonal_words(const RdmSlabPair* slabs, const RdmRows* rows, const RdmWeighted* out,
-                                  const int beta_side, void* stream)
+    int rdm_launch_diagonal_words(const RdmSlabPair* slabs,
+                                  const RdmRows* rows,
+                                  const RdmWeighted* out,
+                                  const int beta_side,
+                                  void* stream)
     {
         if(rows->num_rows == 0)
         {
@@ -441,7 +482,8 @@ extern "C"
         const std::int64_t warps_per_block = kRdmThreads / 32;
         const std::int64_t blocks = (rows->num_rows + warps_per_block - 1) / warps_per_block;
         const int grid = static_cast<int>(std::min<std::int64_t>(kRdmMaxGrid, blocks));
-        diagonal_words_kernel<2><<<grid, kRdmThreads, 0, static_cast<cudaStream_t>(stream)>>>(*slabs, *rows, target);
+        diagonal_words_kernel<2>
+            <<<grid, kRdmThreads, 0, static_cast<cudaStream_t>(stream)>>>(*slabs, *rows, target);
         return static_cast<int>(cudaGetLastError());
     }
 }

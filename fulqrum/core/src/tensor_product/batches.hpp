@@ -47,8 +47,8 @@ struct CrossSlotBatches
 
 template <typename T>
 CrossSlotBatches build_cross_slot_batches(const SectorConnections<T>& alpha,
-                                        const SectorConnections<T>& beta,
-                                        const std::size_t row_blocks)
+                                          const SectorConnections<T>& beta,
+                                          const std::size_t row_blocks)
 {
     struct Member
     {
@@ -62,7 +62,8 @@ CrossSlotBatches build_cross_slot_batches(const SectorConnections<T>& alpha,
     const std::size_t num_beta = beta.single_offsets.size() - 1;
     const std::size_t num_members = beta.single_packed_entries.size();
     const std::size_t block_rows = std::max<std::size_t>(1, ceiling_divide(num_beta, row_blocks));
-    checked_multiply(num_members, 3 * sizeof(std::uint32_t) + sizeof(std::uint64_t) + sizeof(double));
+    checked_multiply(num_members,
+                     3 * sizeof(std::uint32_t) + sizeof(std::uint64_t) + sizeof(double));
     CrossSlotBatches batches;
     batches.member_row.reserve(num_members);
     batches.member_source.reserve(num_members);
@@ -116,7 +117,9 @@ CrossSlotBatches build_cross_slot_batches(const SectorConnections<T>& alpha,
 
     for(std::size_t range = 1; range < CROSS_ALPHA_RANGES; range++)
     {
-        const std::uint64_t target = offsets.back() / CROSS_ALPHA_RANGES * range + (offsets.back() % CROSS_ALPHA_RANGES) * range / CROSS_ALPHA_RANGES;
+        const std::uint64_t target =
+            offsets.back() / CROSS_ALPHA_RANGES * range +
+            (offsets.back() % CROSS_ALPHA_RANGES) * range / CROSS_ALPHA_RANGES;
         cuts.push_back(std::lower_bound(offsets.begin(), offsets.end(), target) - offsets.begin());
     }
 
@@ -130,7 +133,8 @@ CrossSlotBatches build_cross_slot_batches(const SectorConnections<T>& alpha,
             if(cuts[range] < cuts[range + 1])
             {
                 const double singles = double(offsets[cuts[range + 1]] - offsets[cuts[range]]);
-                work.push_back({double(block_members[block]) * singles, checked_add(checked_multiply(block, CROSS_ALPHA_RANGES), range)});
+                work.push_back({double(block_members[block]) * singles,
+                                checked_add(checked_multiply(block, CROSS_ALPHA_RANGES), range)});
             }
         }
     }

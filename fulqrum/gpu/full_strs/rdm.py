@@ -78,7 +78,6 @@ def _check_memory(cupy, comm, need):
 
 def _half_visits(ham):
 
-
     layout = ham._layout
     if not all(kind[0] == kind[2] and kind[1] == kind[3] for kind in layout.kinds):
         return 0
@@ -129,7 +128,6 @@ def _launch_pairs(ham, x_ext, arrays, stream, half=0):
 
 def _launch_diagonal(ham, x, arrays, stream):
 
-
     from . import kernel_launch  # noqa: PLC0415
 
     keys = ham._rdm_own_keys()
@@ -149,7 +147,6 @@ def _launch_diagonal(ham, x, arrays, stream):
 
 def _add_mirror(raw, m):
 
-
     for name in ("gamma_alpha", "gamma_beta"):
         g = raw[name].reshape(m, m)
         raw[name] = (g + g.T).reshape(-1)
@@ -162,7 +159,6 @@ def _add_mirror(raw, m):
 
 
 def _expand(raw, m):
-
 
     eye = np.arange(m)
     a, b, k = np.meshgrid(eye, eye, eye, indexing="ij")

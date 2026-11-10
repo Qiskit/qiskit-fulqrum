@@ -22,17 +22,18 @@ namespace
 constexpr int kDiagonalThreads = 256;
 constexpr std::int64_t kMaxDiagonalBlocks = 65535;
 
-
 __global__ void __launch_bounds__(kDiagonalThreads) diagonal_kernel(const FsVectors vectors)
 {
     const std::int64_t stride = std::int64_t(gridDim.x) * blockDim.x;
-    for(std::int64_t row = std::int64_t(blockIdx.x) * blockDim.x + threadIdx.x; row < vectors.num_rows; row += stride)
+    for(std::int64_t row = std::int64_t(blockIdx.x) * blockDim.x + threadIdx.x;
+        row < vectors.num_rows;
+        row += stride)
     {
         vectors.y[row] = vectors.diagonal[row] * vectors.x[row];
     }
 }
 
-}
+} // namespace
 
 extern "C"
 {
@@ -44,7 +45,8 @@ extern "C"
             return int(cudaSuccess);
         }
         const std::int64_t blocks = (vectors->num_rows + kDiagonalThreads - 1) / kDiagonalThreads;
-        const unsigned int grid = static_cast<unsigned int>(blocks < kMaxDiagonalBlocks ? blocks : kMaxDiagonalBlocks);
+        const unsigned int grid =
+            static_cast<unsigned int>(blocks < kMaxDiagonalBlocks ? blocks : kMaxDiagonalBlocks);
         diagonal_kernel<<<grid, kDiagonalThreads, 0, static_cast<cudaStream_t>(stream)>>>(*vectors);
         return int(cudaGetLastError());
     }

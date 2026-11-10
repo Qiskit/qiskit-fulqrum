@@ -72,9 +72,7 @@ def pick_strings(strings, rule, count):
         prefix_a, prefix_b = FE4S4_CLUSTER_PREFIXES
         group_a = [x for x in strings if x.startswith(prefix_a)]
         rest_a = {x[8:] for x in group_a}
-        group_b = [
-            x for x in strings if x.startswith(prefix_b) and x[8:] not in rest_a
-        ]
+        group_b = [x for x in strings if x.startswith(prefix_b) and x[8:] not in rest_a]
         return sorted(group_a[: count // 2] + group_b[: count - count // 2])
     return sorted(strings[:count])
 

@@ -12,7 +12,6 @@
  * that they have been altered from the originals.
  */
 
-
 #include <omp.h>
 
 #include <climits>
@@ -36,7 +35,6 @@ inline int imax(int a, int b)
 {
     return a > b ? a : b;
 }
-
 
 void tile_times_h(const double* A,
                   long long ldA,
@@ -77,8 +75,7 @@ double dot(const double* x, const double* y, long long m)
     return s;
 }
 
-}
-
+} // namespace
 
 extern "C" int fq_primme_host_dense_update_f64(const double* V,
                                                const double* W,
@@ -128,7 +125,6 @@ extern "C" int fq_primme_host_dense_update_f64(const double* V,
     {
         return 1;
     }
-
 
     const bool gG = (G0 != nullptr && nG > 0);
     const bool gH = (H0 != nullptr && nH > 0);
@@ -257,7 +253,9 @@ extern "C" int fq_primme_host_dense_update_f64(const double* V,
                     for(int a = 0; a <= b; a++)
                     {
                         aG[a + static_cast<long long>(b) * nG] +=
-                            dot(x + static_cast<long long>(a) * m, x + static_cast<long long>(b) * m, m);
+                            dot(x + static_cast<long long>(a) * m,
+                                x + static_cast<long long>(b) * m,
+                                m);
                     }
                 }
             }
@@ -268,7 +266,9 @@ extern "C" int fq_primme_host_dense_update_f64(const double* V,
                     for(int a = 0; a < nH; a++)
                     {
                         aH[a + static_cast<long long>(b) * nH] +=
-                            dot(x + static_cast<long long>(a) * m, y + static_cast<long long>(b) * m, m);
+                            dot(x + static_cast<long long>(a) * m,
+                                y + static_cast<long long>(b) * m,
+                                m);
                     }
                 }
             }
@@ -312,7 +312,6 @@ extern "C" int fq_primme_host_dense_update_f64(const double* V,
         }
     }
 
-
     auto total = [&](long long off) {
         double s = 0.0;
         for(int t = 0; t < nt; t++)
@@ -341,7 +340,8 @@ extern "C" int fq_primme_host_dense_update_f64(const double* V,
         {
             for(int a = 0; a < nH; a++)
             {
-                H0[a + static_cast<long long>(b) * ldH0] = total(off + a + static_cast<long long>(b) * nH);
+                H0[a + static_cast<long long>(b) * ldH0] =
+                    total(off + a + static_cast<long long>(b) * nH);
             }
         }
         off += static_cast<long long>(nH) * nH;
@@ -365,7 +365,6 @@ extern "C" int fq_primme_host_dense_update_f64(const double* V,
     }
     return 0;
 }
-
 
 extern "C" void fq_primme_host_clamped_jacobi(
     const double* d, double shift, const double* x, double* y, long long n)

@@ -12,17 +12,16 @@
  * that they have been altered from the originals.
  */
 
-
 #include <cuda_runtime.h>
 #include <omp.h>
 
 #include <chrono>
-#include <condition_variable>
-#include <mutex>
 #include <cmath>
+#include <condition_variable>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <mutex>
 #include <vector>
 
 struct primme_params;
@@ -55,7 +54,6 @@ constexpr int kChunks = 8;
 int g_enabled = 0;
 const double* g_diag = nullptr;
 
-
 std::mutex g_mutex;
 std::condition_variable g_cv;
 long long g_rows_ready = 0;
@@ -81,7 +79,6 @@ double seconds_since(std::chrono::steady_clock::time_point t0)
 {
     return std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
 }
-
 
 void first_touch(char* p, size_t bytes)
 {
@@ -112,7 +109,6 @@ void release(Buffer& b)
     }
     b = Buffer{};
 }
-
 
 int ensure(Buffer& b, size_t bytes)
 {
@@ -148,7 +144,6 @@ int ensure(Buffer& b, size_t bytes)
     return 0;
 }
 
-
 inline double clamp_denominator(double d, double shift)
 {
     const double t = d - shift;
@@ -156,7 +151,6 @@ inline double clamp_denominator(double d, double shift)
     a = (a != a || a > 1e-10) ? a : 1e-10;
     return std::copysign(a, t);
 }
-
 
 void reduce_parts(const std::vector<double>& part, int nt, int n, double* out)
 {
@@ -171,7 +165,6 @@ void reduce_parts(const std::vector<double>& part, int nt, int n, double* out)
     }
 }
 
-
 void publish_rows(long long rows, bool abort)
 {
     {
@@ -182,7 +175,6 @@ void publish_rows(long long rows, bool abort)
     g_cv.notify_all();
 }
 
-
 void release_output()
 {
     {
@@ -192,8 +184,7 @@ void release_output()
     g_cv.notify_all();
 }
 
-}
-
+} // namespace
 
 extern "C" void fq_primme_spec_set_enabled(int enabled, const double* diag)
 {
@@ -211,18 +202,15 @@ extern "C" void fq_primme_spec_set_enabled(int enabled, const double* diag)
     g_pass_seconds = g_window_seconds = g_alloc_seconds = 0.0;
 }
 
-
 extern "C" int fq_primme_spec_enabled(void)
 {
     return g_enabled;
 }
 
-
 extern "C" const double* fq_primme_spec_diag(void)
 {
     return g_diag;
 }
-
 
 extern "C" void fq_primme_spec_release(void)
 {
@@ -235,7 +223,6 @@ extern "C" void fq_primme_spec_release(void)
     g_diag = nullptr;
 }
 
-
 extern "C" void fq_primme_spec_stats(long long* counts, double* seconds)
 {
     counts[0] = g_started;
@@ -247,7 +234,6 @@ extern "C" void fq_primme_spec_stats(long long* counts, double* seconds)
     seconds[1] = g_window_seconds;
     seconds[2] = g_alloc_seconds;
 }
-
 
 extern "C" int fq_primme_spec_buffers(long long n, double** t, double** y)
 {
@@ -268,12 +254,10 @@ extern "C" int fq_primme_spec_buffers(long long n, double** t, double** y)
     return 0;
 }
 
-
 extern "C" int fq_primme_spec_pending(void)
 {
     return g_pending.valid ? 1 : 0;
 }
-
 
 extern "C" int fq_primme_spec_set_pending(int col, const double* c, double rho)
 {
@@ -290,7 +274,6 @@ extern "C" int fq_primme_spec_set_pending(int col, const double* c, double rho)
     g_pending.rho = rho;
     return 0;
 }
-
 
 extern "C" int fq_primme_spec_flush(double* W, long long ldW, long long m)
 {
@@ -337,8 +320,8 @@ extern "C" int fq_primme_spec_flush(double* W, long long ldW, long long m)
     return 0;
 }
 
-
-extern "C" int fq_primme_spec_begin(long long m, int nV, long long ldV, long long ldW, double theta, double eps)
+extern "C" int
+fq_primme_spec_begin(long long m, int nV, long long ldV, long long ldW, double theta, double eps)
 {
     if(m < 0 || nV < 1 || nV > kMaxCols || ldV < m || ldW < m || (m > 0 && !g_t.ptr) ||
        g_t.bytes < static_cast<size_t>(m) * sizeof(double) || g_state != 0)
@@ -365,7 +348,6 @@ extern "C" int fq_primme_spec_begin(long long m, int nV, long long ldV, long lon
     return 0;
 }
 
-
 extern "C" void fq_primme_spec_cancel(void)
 {
     if(g_state == 1)
@@ -377,13 +359,11 @@ extern "C" void fq_primme_spec_cancel(void)
     release_output();
 }
 
-
 extern "C" long long fq_primme_spec_chunk_rows(void)
 {
     std::lock_guard<std::mutex> lock(g_mutex);
     return g_chunk_rows;
 }
-
 
 extern "C" int fq_primme_spec_wait_rows(long long rows)
 {
@@ -392,13 +372,11 @@ extern "C" int fq_primme_spec_wait_rows(long long rows)
     return g_rows_ready >= rows ? 0 : 1;
 }
 
-
 extern "C" void fq_primme_spec_wait_output_free(void)
 {
     std::unique_lock<std::mutex> lock(g_mutex);
     g_cv.wait(lock, [] { return !g_hold_output || g_abort; });
 }
-
 
 extern "C" int fq_primme_spec_pass(long long m,
                                    int nV,
@@ -528,7 +506,6 @@ extern "C" int fq_primme_spec_pass(long long m,
     return 0;
 }
 
-
 extern "C" int fq_primme_spec_state(double** t, double** y)
 {
     if(t)
@@ -542,7 +519,6 @@ extern "C" int fq_primme_spec_state(double** t, double** y)
     return g_state;
 }
 
-
 extern "C" int fq_primme_spec_take(double shift, double eps, int precond)
 {
     if(g_state != 1 || shift != g_theta || eps != g_eps || (precond != 0) != (g_diag != nullptr))
@@ -553,7 +529,6 @@ extern "C" int fq_primme_spec_take(double shift, double eps, int precond)
     g_taken++;
     return 0;
 }
-
 
 extern "C" int fq_primme_spec_restore(double* x, long long m)
 {
@@ -572,7 +547,6 @@ extern "C" int fq_primme_spec_restore(double* x, long long m)
     g_window_seconds += seconds_since(started);
     return 0;
 }
-
 
 extern "C" void fq_primme_spec_finished(int kept, int fast)
 {
@@ -595,13 +569,11 @@ extern "C" void fq_primme_spec_finished(int kept, int fast)
     g_state = 0;
 }
 
-
 extern "C" void fq_primme_spec_unblock(void)
 {
     publish_rows(0, true);
     release_output();
 }
-
 
 extern "C" int fq_primme_spec_drain(primme_params* primme)
 {
@@ -609,7 +581,6 @@ extern "C" int fq_primme_spec_drain(primme_params* primme)
     {
         return 0;
     }
-
 
     {
         std::lock_guard<std::mutex> lock(g_mutex);
@@ -621,7 +592,6 @@ extern "C" int fq_primme_spec_drain(primme_params* primme)
     fq_primme_spec_finished(0, 0);
     return err;
 }
-
 
 extern "C" int fq_primme_spec_cu(long long m,
                                  int n,
@@ -687,7 +657,6 @@ extern "C" int fq_primme_spec_cu(long long m,
     return 0;
 }
 
-
 extern "C" int fq_primme_spec_ortho(long long m,
                                     int n,
                                     const double* V,
@@ -738,7 +707,6 @@ extern "C" int fq_primme_spec_ortho(long long m,
     g_window_seconds += seconds_since(started);
     return 0;
 }
-
 
 extern "C" int fq_primme_spec_update(long long m,
                                      int n,

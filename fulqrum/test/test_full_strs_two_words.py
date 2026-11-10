@@ -232,9 +232,7 @@ def test_two_word_operator_equals_the_core_subspace_hamiltonian():
     norb = 70
     active = list(range(56, 72))[:14]
     op = random_operator(norb, 21, active=active)
-    alpha = [
-        sum(1 << o for o in rng.sample(active, 4)) | (1 << 3) for _ in range(500)
-    ]
+    alpha = [sum(1 << o for o in rng.sample(active, 4)) | (1 << 3) for _ in range(500)]
     beta = [sum(1 << o for o in rng.sample(active, 3)) for _ in range(500)]
     host = host_w2.HostOperator(op, wide_keys(alpha, beta, 2))
     keys = host.sorted_keys()

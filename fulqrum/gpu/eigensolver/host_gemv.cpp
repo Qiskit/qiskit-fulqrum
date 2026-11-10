@@ -12,7 +12,6 @@
  * that they have been altered from the originals.
  */
 
-
 #include <omp.h>
 
 #include <cstdlib>
@@ -26,9 +25,7 @@ constexpr long long kRowBlock = 2048;
 constexpr long long kMaxCols = 64;
 constexpr long long kMinRows = 1LL << 20;
 
-
-void gemv_t(long long m, long long n, const double* a, long long lda, const double* x,
-            double* out)
+void gemv_t(long long m, long long n, const double* a, long long lda, const double* x, double* out)
 {
     const int nt = omp_get_max_threads();
     std::vector<double> part(static_cast<size_t>(nt) * n, 0.0);
@@ -63,8 +60,7 @@ void gemv_t(long long m, long long n, const double* a, long long lda, const doub
     }
 }
 
-}
-
+} // namespace
 
 extern "C" int fq_primme_host_gemv_f64(int trans,
                                        long long m,

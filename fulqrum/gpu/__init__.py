@@ -22,7 +22,6 @@ _logging.getLogger(__name__).addHandler(_logging.NullHandler())
 
 def __getattr__(name):
 
-
     if name == "GPUHamiltonian":
         from .gpu_hamiltonian import GPUHamiltonian  # noqa: PLC0415
 

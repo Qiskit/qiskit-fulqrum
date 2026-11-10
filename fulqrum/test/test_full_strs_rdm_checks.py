@@ -34,9 +34,10 @@ def test_a_bad_input_on_one_rank_raises_on_every_rank(monkeypatch):
         return None
 
     messages = run_ranks(LocalComm.create(2, timeout=10.0), body)
-    assert messages == [
-        "full-string RDM failed: rank 1: x must have shape (3,); got (2,)"
-    ] * 2
+    assert (
+        messages
+        == ["full-string RDM failed: rank 1: x must have shape (3,); got (2,)"] * 2
+    )
 
 
 @pytest.mark.parametrize(

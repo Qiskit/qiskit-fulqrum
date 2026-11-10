@@ -68,9 +68,7 @@ def test_comms_are_usable_after_a_failed_run():
 
 def test_held_sub_communicators_recover_too():
     comms = LocalComm.create(2, timeout=10.0)
-    children = run_ranks(
-        comms, lambda comm: comm.Split(color=0, key=comm.Get_rank())
-    )
+    children = run_ranks(comms, lambda comm: comm.Split(color=0, key=comm.Get_rank()))
 
     def failing(index):
         def body(comm):

@@ -22,7 +22,6 @@ class _OutOfMemoryError(MemoryError):
 
 
 class _FakeComm:
-
     def __init__(self, peer_reports):
         self.peer_reports = peer_reports
 
@@ -79,9 +78,7 @@ def test_peer_report_raises_on_clean_rank():
 
 
 def test_first_reporting_rank_sets_type():
-    comm = _FakeComm(
-        [("RuntimeError", "x (OverflowError)"), ("ValueError", "y")]
-    )
+    comm = _FakeComm([("RuntimeError", "x (OverflowError)"), ("ValueError", "y")])
     with pytest.raises(RuntimeError) as info:
         run_on_every_rank(comm, "step", lambda: 1)
     assert "rank 1: x (OverflowError); rank 2: y" in str(info.value)

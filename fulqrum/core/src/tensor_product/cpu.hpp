@@ -19,9 +19,9 @@
 #include <stdexcept>
 #include <vector>
 
+#include "../checked_size.hpp"
 #include "../diag.hpp"
 #include "../element_evaluator.hpp"
-#include "../checked_size.hpp"
 #include "../operator_tables.hpp"
 #include "../row_outputs.hpp"
 #include "../subspace.hpp"
@@ -34,25 +34,28 @@ struct TensorProductResidualGroup
     std::size_t word_offset;
 };
 
-inline OperatorTables tensor_product_cpu_operator_tables(const QubitOperator_t& oper,
-                                              const QubitOperator_t& diagonal,
-                                              const std::size_t* group_ptrs,
-                                              const std::vector<std::vector<width_t>>& flips,
-                                              const Subspace_t& space,
-                                              bool residual_only,
-                                              bool force_tp)
+inline OperatorTables
+tensor_product_cpu_operator_tables(const QubitOperator_t& oper,
+                                   const QubitOperator_t& diagonal,
+                                   const std::size_t* group_ptrs,
+                                   const std::vector<std::vector<width_t>>& flips,
+                                   const Subspace_t& space,
+                                   bool residual_only,
+                                   bool force_tp)
 {
-    const std::size_t bytes =
-        checked_add(checked_multiply(flips.size(), sizeof(GroupData)),
-                       checked_multiply(oper.terms.size(),
-                                        checked_add(checked_multiply(checked_multiply(3, words_for_width(oper.width)), sizeof(KeyWord)),
-                                            sizeof(std::complex<double>))));
+    const std::size_t bytes = checked_add(
+        checked_multiply(flips.size(), sizeof(GroupData)),
+        checked_multiply(
+            oper.terms.size(),
+            checked_add(
+                checked_multiply(checked_multiply(3, words_for_width(oper.width)), sizeof(KeyWord)),
+                sizeof(std::complex<double>))));
     (void)bytes;
     const HalfKeyView view(space);
     const SectorLayout layout =
         choose_sector_layout(SpinLayout::automatic, view, flips, oper.width);
     const bool table_packing = checked_add(checked_multiply(oper.terms.size(), 6),
-                                              checked_multiply(flips.size(), 2)) <= UINT32_MAX;
+                                           checked_multiply(flips.size(), 2)) <= UINT32_MAX;
     bool hermitian =
         flips.empty() || first_non_hermitian_group(oper, group_ptrs, flips.size()) == flips.size();
     if(!diagonal.terms.empty())
@@ -80,13 +83,13 @@ struct TensorProductCPU
 
 template <typename T>
 TensorProductCPU<T>* build_tensor_product_cpu(const OperatorTables& tables,
-                                 const std::size_t* group_ptrs,
-                                 const std::vector<std::vector<width_t>>& flips,
-                                 const TermMasks& masks,
-                                 const Subspace_t& space,
-                                 CrossMode cross_mode,
-                                 bool residual_only,
-                                 bool force_tp)
+                                              const std::size_t* group_ptrs,
+                                              const std::vector<std::vector<width_t>>& flips,
+                                              const TermMasks& masks,
+                                              const Subspace_t& space,
+                                              CrossMode cross_mode,
+                                              bool residual_only,
+                                              bool force_tp)
 {
     auto state = std::make_unique<TensorProductCPU<T>>();
     state->masks = &masks;
@@ -129,7 +132,7 @@ TensorProductCPU<T>* build_tensor_product_cpu(const OperatorTables& tables,
     state->bytes = checked_add(
         tensor_product_engine_bytes(state->tier),
         checked_add(checked_multiply(state->group_words.size(), sizeof(KeyWord)),
-                       checked_multiply(state->residual.size(), sizeof(TensorProductResidualGroup))));
+                    checked_multiply(state->residual.size(), sizeof(TensorProductResidualGroup))));
     return state.release();
 }
 
@@ -198,11 +201,11 @@ struct TensorProductCPURowWalk
 
 template <typename T>
 void tensor_product_cpu_apply(const TensorProductCPU<T>& state,
-                   const Subspace_t& space,
-                   const T* diag,
-                   int has_diag,
-                   const T* x,
-                   T* y)
+                              const Subspace_t& space,
+                              const T* diag,
+                              int has_diag,
+                              const T* x,
+                              T* y)
 {
     if(state.tier.ready)
         tensor_product_apply(state.tier, has_diag ? diag : nullptr, x, y);
@@ -230,13 +233,13 @@ void tensor_product_cpu_apply(const TensorProductCPU<T>& state,
 
 template <typename I, typename T>
 void tensor_product_cpu_csr(const TensorProductCPU<T>& state,
-                 const Subspace_t& space,
-                 const T* diag,
-                 int has_diag,
-                 I* indptr,
-                 I* indices,
-                 T* data,
-                 int compute_values)
+                            const Subspace_t& space,
+                            const T* diag,
+                            int has_diag,
+                            I* indptr,
+                            I* indices,
+                            T* data,
+                            int compute_values)
 {
     auto make_walk = [&]() { return TensorProductCPURowWalk<T>(state, space); };
     csr_from_rows(
@@ -245,11 +248,11 @@ void tensor_product_cpu_csr(const TensorProductCPU<T>& state,
 
 template <typename T, typename I>
 void tensor_product_cpu_csrlike(const TensorProductCPU<T>& state,
-                     const Subspace_t& space,
-                     const T* diag,
-                     int has_diag,
-                     std::vector<std::vector<I>>& cols,
-                     std::vector<std::vector<T>>& data)
+                                const Subspace_t& space,
+                                const T* diag,
+                                int has_diag,
+                                std::vector<std::vector<I>>& cols,
+                                std::vector<std::vector<T>>& data)
 {
     auto make_walk = [&]() { return TensorProductCPURowWalk<T>(state, space); };
     csrlike_from_rows(space.size, has_diag ? diag : nullptr, make_walk, cols, data);

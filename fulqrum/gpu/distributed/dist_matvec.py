@@ -16,8 +16,6 @@ import numpy as np
 
 
 class TileClass(IntEnum):
-
-
     DIAGONAL = 0
     ALPHA_ONLY = 1
     BETA_ONLY = 2

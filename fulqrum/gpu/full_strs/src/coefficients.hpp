@@ -33,7 +33,6 @@
 namespace fq::full_strs
 {
 
-
 enum MoveClass : int
 {
     kAlphaSingle = 0,
@@ -44,20 +43,15 @@ enum MoveClass : int
     kNumClasses = 5
 };
 
+inline constexpr std::array<std::int8_t, 16> kDoubleSlot = {
+    -1, -1, -1, 0, -1, 1, 2, -1, -1, 2, 1, -1, 0, -1, -1, -1};
 
-inline constexpr std::array<std::int8_t, 16> kDoubleSlot = {-1, -1, -1, 0, -1, 1, 2, -1,
-                                                            -1, 2, 1, -1, 0, -1, -1, -1};
-
-
-inline constexpr std::array<std::int8_t, 16> kMixedSlot = {-1, -1, -1, -1, -1, 0, 1, -1,
-                                                           -1, 1, 0, -1, -1, -1, -1, -1};
-
+inline constexpr std::array<std::int8_t, 16> kMixedSlot = {
+    -1, -1, -1, -1, -1, 0, 1, -1, -1, 1, 0, -1, -1, -1, -1, -1};
 
 inline constexpr double kTableTolerance = 1e-14;
 
-
 inline constexpr int kVerifySamples = 6;
-
 
 inline std::int64_t binomial(const std::int64_t m, const int k)
 {
@@ -73,18 +67,16 @@ inline std::int64_t binomial(const std::int64_t m, const int k)
     return value;
 }
 
-
 inline std::int64_t pair_rank(const int p, const int q)
 {
     return static_cast<std::int64_t>(q) * (q - 1) / 2 + p;
 }
 
-
 inline std::int64_t quad_rank(const int* positions)
 {
-    return binomial(positions[3], 4) + binomial(positions[2], 3) + binomial(positions[1], 2) + positions[0];
+    return binomial(positions[3], 4) + binomial(positions[2], 3) + binomial(positions[1], 2) +
+           positions[0];
 }
-
 
 inline std::pair<int, int> pair_orbitals(const std::int64_t rank)
 {
@@ -95,7 +87,6 @@ inline std::pair<int, int> pair_orbitals(const std::int64_t rank)
     }
     return {static_cast<int>(rank - static_cast<std::int64_t>(q) * (q - 1) / 2), q};
 }
-
 
 inline void quad_orbitals(std::int64_t rank, int* positions)
 {
@@ -111,20 +102,17 @@ inline void quad_orbitals(std::int64_t rank, int* positions)
     }
 }
 
-
 template <std::size_t W>
 inline bool has_orbital(const Word* words, const int orbital)
 {
     return ((words[orbital / kWordBits] >> (orbital % kWordBits)) & 1u) != 0;
 }
 
-
 template <std::size_t W, typename OutWord>
 inline void set_orbital(OutWord* words, const int orbital)
 {
     words[orbital / kWordBits] |= Word(1) << (orbital % kWordBits);
 }
-
 
 template <std::size_t W>
 inline int list_orbitals(const Word* words, int* out, const int max_count)
@@ -146,7 +134,6 @@ inline int list_orbitals(const Word* words, int* out, const int max_count)
     return count;
 }
 
-
 template <std::size_t W>
 inline bool between_parity(const Word* words, const int lo, const int hi)
 {
@@ -161,12 +148,12 @@ inline bool between_parity(const Word* words, const int lo, const int hi)
             continue;
         }
         const int width = end - begin;
-        const Word mask = (width == kWordBits ? ~Word(0) : (Word(1) << width) - 1) << (begin - first);
+        const Word mask = (width == kWordBits ? ~Word(0) : (Word(1) << width) - 1)
+                          << (begin - first);
         count += static_cast<unsigned int>(__builtin_popcountll(words[word] & mask));
     }
     return (count & 1u) != 0;
 }
-
 
 template <typename T>
 inline T conjugate(const T& value)
@@ -181,14 +168,12 @@ inline T conjugate(const T& value)
     }
 }
 
-
 template <typename T>
 inline bool values_agree(const T& a, const T& b, const double scale)
 {
     const double size = std::max({1.0, std::abs(a), std::abs(b), scale});
     return std::abs(a - b) <= kTableTolerance * size;
 }
-
 
 template <std::size_t W>
 struct OperatorTerms
@@ -200,12 +185,10 @@ struct OperatorTerms
     std::vector<std::int32_t> group_class;
     std::vector<std::int64_t> group_index;
 
-
     std::int64_t num_groups() const
     {
         return static_cast<std::int64_t>(group_class.size());
     }
-
 
     std::int64_t find_group(const int cls, const std::int64_t index) const
     {
@@ -233,7 +216,6 @@ struct OperatorTerms
         return -1;
     }
 
-
     template <typename T>
     T group_value(const std::int64_t g, const Word* ket) const
     {
@@ -243,7 +225,6 @@ struct OperatorTerms
                            ket);
     }
 };
-
 
 template <std::size_t W, typename OutWord>
 inline void qubit_to_sector_key(const KeyWord* qubit_words,
@@ -265,9 +246,10 @@ inline void qubit_to_sector_key(const KeyWord* qubit_words,
     }
 }
 
-
 template <std::size_t W>
-inline TermMasks sector_masks(const TermMasks& source, const std::vector<std::int64_t>& order, const int num_orbitals)
+inline TermMasks sector_masks(const TermMasks& source,
+                              const std::vector<std::int64_t>& order,
+                              const int num_orbitals)
 {
     TermMasks out;
     out.num_words = 2 * W;
@@ -293,7 +275,6 @@ inline TermMasks sector_masks(const TermMasks& source, const std::vector<std::in
     return out;
 }
 
-
 template <std::size_t W>
 inline std::string flips_text(const Word* flips)
 {
@@ -311,7 +292,6 @@ inline std::string flips_text(const Word* flips)
     }
     return text;
 }
-
 
 template <std::size_t W>
 inline std::pair<int, std::int64_t> classify_flips(const Word* flips, const int num_orbitals)
@@ -344,7 +324,6 @@ inline std::pair<int, std::int64_t> classify_flips(const Word* flips, const int 
     return {-1, -1};
 }
 
-
 template <std::size_t W>
 inline OperatorTerms<W> split_operator(const QubitOperator& op, const bool real_only)
 {
@@ -353,8 +332,9 @@ inline OperatorTerms<W> split_operator(const QubitOperator& op, const bool real_
     const int n = out.num_orbitals;
     if(op.type != 2)
     {
-        throw std::invalid_argument("The operator must be type 2 (fermionic ladder terms), got type " +
-                                    std::to_string(op.type));
+        throw std::invalid_argument(
+            "The operator must be type 2 (fermionic ladder terms), got type " +
+            std::to_string(op.type));
     }
     const std::size_t num_terms = op.terms.size();
     struct TermRecord
@@ -364,8 +344,11 @@ inline OperatorTerms<W> split_operator(const QubitOperator& op, const bool real_
     };
     const std::int64_t num_pairs = binomial(n, 2);
     const std::int64_t num_quads = binomial(n, 4);
-    const std::array<std::int64_t, kNumClasses> class_offset = {
-        0, num_pairs, num_pairs + num_quads, 2 * num_pairs + num_quads, 2 * num_pairs + 2 * num_quads};
+    const std::array<std::int64_t, kNumClasses> class_offset = {0,
+                                                                num_pairs,
+                                                                num_pairs + num_quads,
+                                                                2 * num_pairs + num_quads,
+                                                                2 * num_pairs + 2 * num_quads};
     std::vector<TermRecord> records;
     std::vector<std::int64_t> diagonal_terms;
     for(std::size_t term = 0; term < num_terms; term++)
@@ -383,8 +366,9 @@ inline OperatorTerms<W> split_operator(const QubitOperator& op, const bool real_
             const unsigned char value = t.values[factor];
             if(value == OPER_VALUE_X || value == OPER_VALUE_Y)
             {
-                throw std::invalid_argument("Operator term " + std::to_string(term) +
-                                            " has an X or Y factor; only ladder terms are supported");
+                throw std::invalid_argument(
+                    "Operator term " + std::to_string(term) +
+                    " has an X or Y factor; only ladder terms are supported");
             }
             if(value == OPER_VALUE_PLUS || value == OPER_VALUE_MINUS)
             {
@@ -402,11 +386,12 @@ inline OperatorTerms<W> split_operator(const QubitOperator& op, const bool real_
         const auto [cls, index] = classify_flips<W>(flips.data(), n);
         if(cls < 0)
         {
-            throw std::invalid_argument("Operator term " + std::to_string(term) + " flips " +
-                                        flips_text<W>(flips.data()) +
-                                        "; only spin-conserving single and double moves are supported");
+            throw std::invalid_argument(
+                "Operator term " + std::to_string(term) + " flips " + flips_text<W>(flips.data()) +
+                "; only spin-conserving single and double moves are supported");
         }
-        records.push_back({class_offset[static_cast<std::size_t>(cls)] + index, static_cast<std::int64_t>(term)});
+        records.push_back(
+            {class_offset[static_cast<std::size_t>(cls)] + index, static_cast<std::int64_t>(term)});
     }
     parallel_sort(records, [](const TermRecord& a, const TermRecord& b) {
         return a.key != b.key ? a.key < b.key : a.term < b.term;
@@ -441,7 +426,6 @@ inline OperatorTerms<W> split_operator(const QubitOperator& op, const bool real_
     return out;
 }
 
-
 template <std::size_t W, typename T>
 struct CoefficientTables
 {
@@ -455,18 +439,15 @@ struct CoefficientTables
     std::vector<T> double_value;
     std::vector<T> mixed_value;
 
-
     std::int64_t single_index(const int sector, const std::int64_t pair, const int dir) const
     {
         return (sector * num_pairs + pair) * 2 + dir;
     }
 
-
     const T* deltas(const std::int64_t index) const
     {
         return single_delta.data() + index * 2 * num_orbitals;
     }
-
 
     T single_element(const Word* out, const int sector, const int p, const int q) const
     {
@@ -483,7 +464,8 @@ struct CoefficientTables
             Word bits = other[word];
             while(bits != 0)
             {
-                other_sum += other_delta[static_cast<int>(word) * kWordBits + __builtin_ctzll(bits)];
+                other_sum +=
+                    other_delta[static_cast<int>(word) * kWordBits + __builtin_ctzll(bits)];
                 bits &= bits - 1;
             }
         }
@@ -507,7 +489,6 @@ struct CoefficientTables
         return between_parity<W>(own, p, q) ? -value : value;
     }
 
-
     T double_element(const Word* out, const int sector, const int* positions) const
     {
         const Word* own = out + sector * W;
@@ -521,12 +502,12 @@ struct CoefficientTables
         {
             return T(0);
         }
-        const T value = double_value[static_cast<std::size_t>((sector * num_quads + quad_rank(positions)) * 3 + slot)];
+        const T value = double_value[static_cast<std::size_t>(
+            (sector * num_quads + quad_rank(positions)) * 3 + slot)];
         const bool odd = between_parity<W>(own, positions[0], positions[1]) !=
                          between_parity<W>(own, positions[2], positions[3]);
         return odd ? -value : value;
     }
-
 
     T mixed_element(const Word* out, const int* alpha, const int* beta) const
     {
@@ -539,12 +520,13 @@ struct CoefficientTables
         {
             return T(0);
         }
-        const std::int64_t index = pair_rank(alpha[0], alpha[1]) * num_pairs + pair_rank(beta[0], beta[1]);
+        const std::int64_t index =
+            pair_rank(alpha[0], alpha[1]) * num_pairs + pair_rank(beta[0], beta[1]);
         const T value = mixed_value[static_cast<std::size_t>(index * 2 + slot)];
-        const bool odd = between_parity<W>(out, alpha[0], alpha[1]) != between_parity<W>(out + W, beta[0], beta[1]);
+        const bool odd = between_parity<W>(out, alpha[0], alpha[1]) !=
+                         between_parity<W>(out + W, beta[0], beta[1]);
         return odd ? -value : value;
     }
-
 
     T element(const Word* out, const Word* source) const
     {
@@ -581,7 +563,6 @@ struct CoefficientTables
     }
 };
 
-
 template <std::size_t W>
 struct TableSpec
 {
@@ -589,7 +570,6 @@ struct TableSpec
     int num_beta = 0;
     std::array<Word, 2 * W> reference{};
 };
-
 
 template <std::size_t W>
 inline TableSpec<W> store_spec(const KeyStore<W>& store)
@@ -602,7 +582,8 @@ inline TableSpec<W> store_spec(const KeyStore<W>& store)
     {
         const std::size_t c = static_cast<std::size_t>(column);
         const std::size_t b = static_cast<std::size_t>(best_column);
-        if(store.column_start[c + 1] - store.column_start[c] > store.column_start[b + 1] - store.column_start[b])
+        if(store.column_start[c + 1] - store.column_start[c] >
+           store.column_start[b + 1] - store.column_start[b])
         {
             best_column = column;
         }
@@ -612,7 +593,8 @@ inline TableSpec<W> store_spec(const KeyStore<W>& store)
     {
         const std::size_t l = static_cast<std::size_t>(line);
         const std::size_t b = static_cast<std::size_t>(best_line);
-        if(store.line_start[l + 1] - store.line_start[l] > store.line_start[b + 1] - store.line_start[b])
+        if(store.line_start[l + 1] - store.line_start[l] >
+           store.line_start[b + 1] - store.line_start[b])
         {
             best_line = line;
         }
@@ -622,12 +604,10 @@ inline TableSpec<W> store_spec(const KeyStore<W>& store)
     return spec;
 }
 
-
 struct TableFailure
 {
     std::int64_t group = -1;
     std::string reason;
-
 
     void record(const std::int64_t g, const std::string& text)
     {
@@ -642,7 +622,6 @@ struct TableFailure
     }
 };
 
-
 inline std::uint64_t mix64(std::uint64_t x)
 {
     x += 0x9E3779B97F4A7C15ULL;
@@ -650,7 +629,6 @@ inline std::uint64_t mix64(std::uint64_t x)
     x = (x ^ (x >> 27)) * 0x94D049BB133111EBULL;
     return x ^ (x >> 31);
 }
-
 
 template <std::size_t W>
 inline void fill_random(Word* words,
@@ -682,25 +660,25 @@ inline void fill_random(Word* words,
     }
 }
 
-
 template <std::size_t W>
-inline void minimal_state(const std::array<std::pair<int, int>, 4>& orbitals, const int count, const int pattern, Word* out)
+inline void minimal_state(const std::array<std::pair<int, int>, 4>& orbitals,
+                          const int count,
+                          const int pattern,
+                          Word* out)
 {
     std::fill(out, out + 2 * W, Word(0));
     for(int k = 0; k < count; k++)
     {
         if((pattern >> k) & 1)
         {
-            set_orbital<W>(out + orbitals[static_cast<std::size_t>(k)].first * W, orbitals[static_cast<std::size_t>(k)].second);
+            set_orbital<W>(out + orbitals[static_cast<std::size_t>(k)].first * W,
+                           orbitals[static_cast<std::size_t>(k)].second);
         }
     }
 }
 
-
-inline std::array<std::pair<int, int>, 4> group_orbitals(const int cls,
-                                                         const std::int64_t index,
-                                                         const std::int64_t num_pairs,
-                                                         int& count)
+inline std::array<std::pair<int, int>, 4>
+group_orbitals(const int cls, const std::int64_t index, const std::int64_t num_pairs, int& count)
 {
     std::array<std::pair<int, int>, 4> out{};
     if(cls == kAlphaSingle || cls == kBetaSingle)
@@ -732,9 +710,10 @@ inline std::array<std::pair<int, int>, 4> group_orbitals(const int cls,
     return out;
 }
 
-
 template <std::size_t W, typename T>
-inline std::string build_single_group(CoefficientTables<W, T>& tables, const OperatorTerms<W>& terms, const std::int64_t g)
+inline std::string build_single_group(CoefficientTables<W, T>& tables,
+                                      const OperatorTerms<W>& terms,
+                                      const std::int64_t g)
 {
     const int n = tables.num_orbitals;
     const int cls = terms.group_class[static_cast<std::size_t>(g)];
@@ -773,13 +752,15 @@ inline std::string build_single_group(CoefficientTables<W, T>& tables, const Ope
                      conjugate(tables.single_value[static_cast<std::size_t>(first) + 1]),
                      0.0))
     {
-        return "the two directions of the single move have different values (operator is not Hermitian)";
+        return "the two directions of the single move have different values (operator is not "
+               "Hermitian)";
     }
     for(int k = 0; k < 2 * n; k++)
     {
         if(!values_agree(d0[k], conjugate(d1[k]), 0.0))
         {
-            return "the two directions of the single move have different spectator terms for spin-orbital " +
+            return "the two directions of the single move have different spectator terms for "
+                   "spin-orbital " +
                    std::to_string(k) + " (operator is not Hermitian)";
         }
     }
@@ -801,14 +782,16 @@ inline std::string build_single_group(CoefficientTables<W, T>& tables, const Ope
     return std::string();
 }
 
-
 template <std::size_t W, typename T>
-inline std::string build_four_flip_group(CoefficientTables<W, T>& tables, const OperatorTerms<W>& terms, const std::int64_t g)
+inline std::string build_four_flip_group(CoefficientTables<W, T>& tables,
+                                         const OperatorTerms<W>& terms,
+                                         const std::int64_t g)
 {
     const int cls = terms.group_class[static_cast<std::size_t>(g)];
     const std::int64_t index = terms.group_index[static_cast<std::size_t>(g)];
     int count = 0;
-    const std::array<std::pair<int, int>, 4> orbitals = group_orbitals(cls, index, tables.num_pairs, count);
+    const std::array<std::pair<int, int>, 4> orbitals =
+        group_orbitals(cls, index, tables.num_pairs, count);
     const bool mixed = cls == kMixed;
     const std::array<std::int8_t, 16>& slots = mixed ? kMixedSlot : kDoubleSlot;
     std::array<Word, 2 * W> ket{};
@@ -825,7 +808,8 @@ inline std::string build_four_flip_group(CoefficientTables<W, T>& tables, const 
         const T mirror = terms.template group_value<T>(g, ket.data());
         if(!values_agree(value, conjugate(mirror), 0.0))
         {
-            return "output patterns " + std::to_string(pattern) + " and " + std::to_string(15 - pattern) +
+            return "output patterns " + std::to_string(pattern) + " and " +
+                   std::to_string(15 - pattern) +
                    " have different values (operator is not Hermitian)";
         }
         if(mixed)
@@ -835,12 +819,12 @@ inline std::string build_four_flip_group(CoefficientTables<W, T>& tables, const 
         else
         {
             const int sector = cls == kAlphaDouble ? 0 : 1;
-            tables.double_value[static_cast<std::size_t>((sector * tables.num_quads + index) * 3 + slot)] = value;
+            tables.double_value[static_cast<std::size_t>((sector * tables.num_quads + index) * 3 +
+                                                         slot)] = value;
         }
     }
     return std::string();
 }
-
 
 template <std::size_t W, typename T>
 inline std::string verify_group(const CoefficientTables<W, T>& tables,
@@ -852,7 +836,8 @@ inline std::string verify_group(const CoefficientTables<W, T>& tables,
     const int cls = terms.group_class[static_cast<std::size_t>(g)];
     const std::int64_t index = terms.group_index[static_cast<std::size_t>(g)];
     int count = 0;
-    const std::array<std::pair<int, int>, 4> orbitals = group_orbitals(cls, index, tables.num_pairs, count);
+    const std::array<std::pair<int, int>, 4> orbitals =
+        group_orbitals(cls, index, tables.num_pairs, count);
     std::array<int, 6> patterns{};
     int num_patterns = 0;
     if(count == 2)
@@ -876,7 +861,9 @@ inline std::string verify_group(const CoefficientTables<W, T>& tables,
     for(int k = 0; k < count; k++)
     {
         const auto [sector, orbital] = orbitals[static_cast<std::size_t>(k)];
-        excluded[static_cast<std::size_t>(sector)][static_cast<std::size_t>(num_excluded[static_cast<std::size_t>(sector)]++)] = orbital;
+        excluded[static_cast<std::size_t>(sector)]
+                [static_cast<std::size_t>(num_excluded[static_cast<std::size_t>(sector)]++)] =
+                    orbital;
     }
     std::uint64_t state = mix64(static_cast<std::uint64_t>(g) * 0x100000001B3ULL + 0x5EED);
     std::array<Word, 2 * W> out{};
@@ -884,7 +871,9 @@ inline std::string verify_group(const CoefficientTables<W, T>& tables,
     for(int sample = 0; sample <= kVerifySamples; sample++)
     {
         state = mix64(state);
-        const int pattern = sample == 0 ? patterns[0] : patterns[static_cast<std::size_t>(state % static_cast<std::uint64_t>(num_patterns))];
+        const int pattern = sample == 0 ? patterns[0]
+                                        : patterns[static_cast<std::size_t>(
+                                              state % static_cast<std::uint64_t>(num_patterns))];
         minimal_state<W>(orbitals, count, pattern, out.data());
         for(int sector = 0; sector < 2; sector++)
         {
@@ -892,7 +881,10 @@ inline std::string verify_group(const CoefficientTables<W, T>& tables,
             int held = 0;
             for(int k = 0; k < count; k++)
             {
-                held += (orbitals[static_cast<std::size_t>(k)].first == sector && ((pattern >> k) & 1)) ? 1 : 0;
+                held +=
+                    (orbitals[static_cast<std::size_t>(k)].first == sector && ((pattern >> k) & 1))
+                        ? 1
+                        : 0;
             }
             fill_random<W>(out.data() + sector * W,
                            n,
@@ -925,16 +917,17 @@ inline std::string verify_group(const CoefficientTables<W, T>& tables,
         if(!values_agree(got, expected, scale))
         {
             return "the table element differs from the operator terms on a sample state (sample " +
-                   std::to_string(sample) + ", difference " + std::to_string(std::abs(got - expected)) +
+                   std::to_string(sample) + ", difference " +
+                   std::to_string(std::abs(got - expected)) +
                    "); the group has terms that the single and double tables cannot express";
         }
     }
     return std::string();
 }
 
-
 template <std::size_t W, typename T>
-inline CoefficientTables<W, T> build_coefficients(const OperatorTerms<W>& terms, const TableSpec<W>& spec)
+inline CoefficientTables<W, T> build_coefficients(const OperatorTerms<W>& terms,
+                                                  const TableSpec<W>& spec)
 {
     CoefficientTables<W, T> tables;
     const int n = terms.num_orbitals;
@@ -946,7 +939,8 @@ inline CoefficientTables<W, T> build_coefficients(const OperatorTerms<W>& terms,
     tables.single_delta.assign(static_cast<std::size_t>(4 * tables.num_pairs * 2 * n), T(0));
     tables.single_reference.assign(static_cast<std::size_t>(4 * tables.num_pairs), T(0));
     tables.double_value.assign(static_cast<std::size_t>(2 * tables.num_quads * 3), T(0));
-    tables.mixed_value.assign(static_cast<std::size_t>(tables.num_pairs * tables.num_pairs * 2), T(0));
+    tables.mixed_value.assign(static_cast<std::size_t>(tables.num_pairs * tables.num_pairs * 2),
+                              T(0));
     const std::int64_t num_groups = terms.num_groups();
     TableFailure failure;
     for(int pass = 0; pass < 2; pass++)
@@ -958,8 +952,9 @@ inline CoefficientTables<W, T> build_coefficients(const OperatorTerms<W>& terms,
             std::string reason;
             if(pass == 0)
             {
-                reason = (cls == kAlphaSingle || cls == kBetaSingle) ? build_single_group(tables, terms, g)
-                                                                     : build_four_flip_group(tables, terms, g);
+                reason = (cls == kAlphaSingle || cls == kBetaSingle)
+                             ? build_single_group(tables, terms, g)
+                             : build_four_flip_group(tables, terms, g);
             }
             else
             {
@@ -982,14 +977,13 @@ inline CoefficientTables<W, T> build_coefficients(const OperatorTerms<W>& terms,
                 set_orbital<W>(flips.data() + orbitals[static_cast<std::size_t>(k)].first * W,
                                orbitals[static_cast<std::size_t>(k)].second);
             }
-            throw std::invalid_argument("Operator group " + std::to_string(failure.group) + " (flips " +
-                                        flips_text<W>(flips.data()) + ") fails the coefficient check: " +
-                                        failure.reason);
+            throw std::invalid_argument("Operator group " + std::to_string(failure.group) +
+                                        " (flips " + flips_text<W>(flips.data()) +
+                                        ") fails the coefficient check: " + failure.reason);
         }
     }
     return tables;
 }
-
 
 template <std::size_t W, typename T>
 inline std::vector<T> diagonal_values(const OperatorTerms<W>& terms, const KeyStore<W>& store)
@@ -1000,9 +994,10 @@ inline std::vector<T> diagonal_values(const OperatorTerms<W>& terms, const KeySt
 #pragma omp parallel for schedule(static)
     for(std::int64_t row = 0; row < num_rows; row++)
     {
-        out[static_cast<std::size_t>(row)] = term_sum<T>(terms.diagonal, 0, num_terms, store.alpha(row));
+        out[static_cast<std::size_t>(row)] =
+            term_sum<T>(terms.diagonal, 0, num_terms, store.alpha(row));
     }
     return out;
 }
 
-}
+} // namespace fq::full_strs

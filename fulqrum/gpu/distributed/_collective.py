@@ -34,8 +34,6 @@ _backends: dict = {}
 
 
 class _Backend:
-
-
     name: str = "abstract"
 
     needs_pinned_staging: bool = False
@@ -43,7 +41,6 @@ class _Backend:
     uses_caller_pinned: bool = False
 
     def init(self, comm) -> None:  # noqa: D401
-
 
         return None
 
@@ -57,11 +54,9 @@ class _Backend:
 
     def sendrecv_replace_device(self, buf_dev, peer: int, tag: int, comm) -> None:
 
-
         raise NotImplementedError
 
     def allreduce_device(self, buf_dev, op, comm) -> None:
-
 
         raise NotImplementedError
 
@@ -69,11 +64,9 @@ class _Backend:
         self, send_dev, recv_dev, count: int, comm, stream=None
     ) -> None:
 
-
         raise NotImplementedError
 
     def broadcast_device(self, buf_dev, root: int, comm, stream=None) -> None:
-
 
         raise NotImplementedError
 
@@ -85,7 +78,6 @@ class _Backend:
         displs,
         comm,
     ) -> None:
-
 
         raise NotImplementedError
 
@@ -101,7 +93,6 @@ class _Backend:
         send_pinned=None,
         recv_pinned=None,
     ) -> None:
-
 
         raise NotImplementedError
 
@@ -121,16 +112,13 @@ class _Backend:
         recv_pinned=None,
     ) -> None:
 
-
         raise NotImplementedError
 
     def barrier(self, comm) -> None:
 
-
         comm.Barrier()
 
     def comm_split_type_node(self, comm):
-
 
         from mpi4py import MPI  # noqa: PLC0415
 
@@ -138,7 +126,6 @@ class _Backend:
 
 
 def _overlap_disabled() -> bool:
-
 
     import os  # noqa: PLC0415
 
@@ -164,7 +151,6 @@ def _chunks(count: int):
 
 
 def _chunked_sendrecv(comm, send, dst: int, recv, src: int, tag: int) -> None:
-
 
     if send.size <= MPI_CHUNK and recv.size <= MPI_CHUNK:
         comm.Sendrecv(
@@ -204,7 +190,6 @@ def _post_chunked(
     comm, sending: bool, buf, displ: int, count: int, peer: int, double
 ) -> list:
 
-
     requests = []
     for start, size in _chunks(count):
         piece = [buf[displ + start : displ + start + size], size, double]
@@ -216,7 +201,6 @@ def _post_chunked(
 
 
 def _chunked_allgatherv(comm, send, recv, counts, displs, double) -> None:
-
 
     counts = [int(c) for c in counts]
     displs = [int(d) for d in displs]
@@ -235,7 +219,6 @@ def _chunked_allgatherv(comm, send, recv, counts, displs, double) -> None:
 
 def _empty_pinned(shape, dtype):
 
-
     try:
         import cupyx  # noqa: PLC0415
 
@@ -246,7 +229,6 @@ def _empty_pinned(shape, dtype):
 
 
 def _fresh_recv_host(recv_dev, pinned=False, pinned_buf=None):
-
 
     try:
         import cupy  # noqa: PLC0415
@@ -265,7 +247,6 @@ def _fresh_recv_host(recv_dev, pinned=False, pinned_buf=None):
 
 def _sync_device() -> None:
 
-
     try:
         import cupy  # noqa: PLC0415
     except ImportError:
@@ -274,7 +255,6 @@ def _sync_device() -> None:
 
 
 def _resolve_backend_name(comm, requested=None) -> str:
-
 
     global _backend_reason
     if requested is None:
@@ -316,7 +296,6 @@ def _resolve_backend_name(comm, requested=None) -> str:
 
 def _auto_backend_facts():
 
-
     import socket  # noqa: PLC0415
 
     host = socket.gethostname()
@@ -334,7 +313,6 @@ def _auto_backend_facts():
 
 def choose_auto_backend(facts):
 
-
     if len(facts) == 1:
         return BACKEND_HOST_MPI, "one rank: no tile exchange"
     if not all(importable and uuid for importable, _host, uuid in facts):
@@ -349,7 +327,6 @@ def choose_auto_backend(facts):
 
 
 def _mpi_advertises_cuda() -> bool:
-
 
     try:
         from mpi4py import MPI  # noqa: PLC0415
@@ -371,7 +348,6 @@ def _mpi_advertises_cuda() -> bool:
 
 def _probe_cuda_aware_mpi(comm) -> bool:
 
-
     from mpi4py import MPI  # noqa: PLC0415
 
     try:
@@ -392,7 +368,6 @@ def _probe_cuda_aware_mpi(comm) -> bool:
 
 
 def _make_backend(name: str) -> _Backend:
-
 
     if name == BACKEND_HOST_MPI:
         from .backends.host_mpi import _HostMpiBackend  # noqa: PLC0415
@@ -424,7 +399,6 @@ def _current_device() -> int:
 
 
 def backend_for(comm, requested=None):
-
 
     global _active, _init_logged
     from .local_comm import LocalComm  # noqa: PLC0415
@@ -466,12 +440,10 @@ def backend_for(comm, requested=None):
 
 def init(comm, requested=None) -> str:
 
-
     return backend_for(comm, requested)[0].name
 
 
 def get_backend_name() -> str:
-
 
     if _active is None:
         raise RuntimeError("_collective.init(comm) must be called first")
@@ -480,24 +452,20 @@ def get_backend_name() -> str:
 
 def needs_pinned_staging() -> bool:
 
-
     return _active is not None and bool(_active.needs_pinned_staging)
 
 
 def get_backend_reason() -> str:
-
 
     return _backend_reason
 
 
 def is_initialized() -> bool:
 
-
     return _active is not None
 
 
 def reset_for_testing() -> None:
-
 
     global _active, _init_logged
     _active = None
@@ -507,14 +475,12 @@ def reset_for_testing() -> None:
 
 def sendrecv_replace_device(buf_dev, peer: int, tag: int, comm) -> None:
 
-
     if _active is None:
         raise RuntimeError("_collective.init(comm) must be called first")
     _active.sendrecv_replace_device(buf_dev, peer, tag, comm)
 
 
 def allreduce_device(buf_dev, op, comm) -> None:
-
 
     if _active is None:
         raise RuntimeError("_collective.init(comm) must be called first")
@@ -523,14 +489,12 @@ def allreduce_device(buf_dev, op, comm) -> None:
 
 def allgather_device(send_dev, recv_dev, count: int, comm, stream=None) -> None:
 
-
     if _active is None:
         raise RuntimeError("_collective.init(comm) must be called first")
     _active.allgather_device(send_dev, recv_dev, count, comm, stream=stream)
 
 
 def has_allgather_device() -> bool:
-
 
     if _active is None:
         return False
@@ -539,7 +503,6 @@ def has_allgather_device() -> bool:
 
 def broadcast_device(buf_dev, root: int, comm, stream=None) -> None:
 
-
     if _active is None:
         raise RuntimeError("_collective.init(comm) must be called first")
     _active.broadcast_device(buf_dev, root, comm, stream=stream)
@@ -547,14 +510,12 @@ def broadcast_device(buf_dev, root: int, comm, stream=None) -> None:
 
 def has_broadcast_device() -> bool:
 
-
     if _active is None:
         return False
     return type(_active).broadcast_device is not _Backend.broadcast_device
 
 
 def allgatherv_device(send_dev, recv_dev, counts, displs, comm) -> None:
-
 
     if _active is None:
         raise RuntimeError("_collective.init(comm) must be called first")
@@ -572,7 +533,6 @@ def ring_shift_device(
     send_pinned=None,
     recv_pinned=None,
 ) -> None:
-
 
     if _active is None:
         raise RuntimeError("_collective.init(comm) must be called first")
@@ -604,7 +564,6 @@ def grouped_sendrecv_device(
     recv_pinned=None,
 ) -> None:
 
-
     if _active is None:
         raise RuntimeError("_collective.init(comm) must be called first")
     _active.grouped_sendrecv_device(
@@ -625,14 +584,12 @@ def grouped_sendrecv_device(
 
 def barrier(comm) -> None:
 
-
     if _active is None:
         raise RuntimeError("_collective.init(comm) must be called first")
     _active.barrier(comm)
 
 
 def comm_split_type_node(comm):
-
 
     if _active is None:
         raise RuntimeError("_collective.init(comm) must be called first")

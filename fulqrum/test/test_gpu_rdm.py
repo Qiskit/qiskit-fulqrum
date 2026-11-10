@@ -737,7 +737,7 @@ def test_full_strs_rdms_with_a_halo_free_rank_match_one_rank():
 
         return run_ranks(LocalComm.create(ranks, timeout=300.0), body)
 
-    (_, reference), = run(1)
+    ((_, reference),) = run(1)
     results = run(size)
     halos = [num_halo for num_halo, _ in results]
     assert 0 in halos and any(num_halo > 0 for num_halo in halos), halos

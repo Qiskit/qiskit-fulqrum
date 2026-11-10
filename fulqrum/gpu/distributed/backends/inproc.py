@@ -19,13 +19,10 @@ from .._collective import BACKEND_INPROC, _Backend
 
 
 class _InProcessBackend(_Backend):
-
-
     name = BACKEND_INPROC
     needs_pinned_staging = False
 
     def init(self, comm) -> None:
-
 
         return None
 
@@ -36,7 +33,6 @@ class _InProcessBackend(_Backend):
     @staticmethod
     def _send(comm, destination: int, data, stream) -> None:
 
-
         import cupy  # noqa: PLC0415
 
         with stream if stream is not None else cupy.cuda.Stream.null:
@@ -46,7 +42,6 @@ class _InProcessBackend(_Backend):
 
     @staticmethod
     def _receive(comm, source: int, recv, count, stream) -> None:
-
 
         import cupy  # noqa: PLC0415
 
@@ -81,7 +76,6 @@ class _InProcessBackend(_Backend):
         recv_pinned=None,
     ) -> None:
 
-
         if dst_peer >= 0:
             self._send(comm, dst_peer, send_dev.ravel(), stream)
         if src_peer >= 0:
@@ -102,7 +96,6 @@ class _InProcessBackend(_Backend):
         send_pinned=None,
         recv_pinned=None,
     ) -> None:
-
 
         send_flat = send_dev.ravel()
         for count, displ, rank in zip(

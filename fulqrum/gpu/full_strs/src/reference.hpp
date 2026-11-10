@@ -24,7 +24,6 @@
 namespace fq::full_strs
 {
 
-
 template <typename T>
 inline T fused_multiply_add(const T& a, const T& b, const T& c)
 {
@@ -37,7 +36,6 @@ inline T fused_multiply_add(const T& a, const T& b, const T& c)
         return a * b + c;
     }
 }
-
 
 template <std::size_t W, typename T>
 inline void group_partials(const KeyStore<W>& keys,
@@ -76,7 +74,6 @@ inline void group_partials(const KeyStore<W>& keys,
     }
 }
 
-
 template <std::size_t W, typename T>
 inline void reference_matvec(const KeyStore<W>& keys,
                              const GroupStore& groups,
@@ -96,10 +93,11 @@ inline void reference_matvec(const KeyStore<W>& keys,
             s < groups.row_slot_start[static_cast<std::size_t>(row) + 1];
             s++)
         {
-            acc += partials[static_cast<std::size_t>(groups.row_slots[static_cast<std::size_t>(s)])];
+            acc +=
+                partials[static_cast<std::size_t>(groups.row_slots[static_cast<std::size_t>(s)])];
         }
         y[row] = acc;
     }
 }
 
-}
+} // namespace fq::full_strs

@@ -34,14 +34,17 @@ __device__ __forceinline__ void copy_async_16(void* shared, const void* global)
     asm volatile("cp.async.cg.shared.global [%0], [%1], 16;\n" ::"r"(s), "l"(global));
 }
 
-
 __device__ __forceinline__ void copy_async_8(void* shared, const void* global, const bool valid)
 {
     const unsigned s = static_cast<unsigned>(__cvta_generic_to_shared(shared));
-    asm volatile("cp.async.ca.shared.global [%0], [%1], 8, %2;\n" ::"r"(s), "l"(global), "r"(valid ? 8 : 0));
+    asm volatile(
+        "cp.async.ca.shared.global [%0], [%1], 8, %2;\n" ::"r"(s), "l"(global), "r"(valid ? 8 : 0));
 }
 
-__device__ __forceinline__ void copy_async_commit() { asm volatile("cp.async.commit_group;\n" ::); }
+__device__ __forceinline__ void copy_async_commit()
+{
+    asm volatile("cp.async.commit_group;\n" ::);
+}
 
 template <int N>
 __device__ __forceinline__ void copy_async_wait()
@@ -56,11 +59,11 @@ __device__ __forceinline__ void mma_8x8x4(double& c0, double& c1, const double a
                  : "d"(a), "d"(b));
 }
 
-
 template <bool FALLBACK>
-__global__ void __launch_bounds__(256, 4) beta_doubles_class_kernel(const FqTileGeometry geometry,
-                                                                    const FqVectors vectors,
-                                                                    const FqBetaDoubleClassTables tables)
+__global__ void __launch_bounds__(256, 4)
+    beta_doubles_class_kernel(const FqTileGeometry geometry,
+                              const FqVectors vectors,
+                              const FqBetaDoubleClassTables tables)
 {
     if((__ldg(tables.nonfinite) != 0) != FALLBACK)
     {
@@ -68,7 +71,8 @@ __global__ void __launch_bounds__(256, 4) beta_doubles_class_kernel(const FqTile
     }
     extern __shared__ __align__(128) double stage_memory[];
     const int n_a = geometry.a_stop - geometry.a_start;
-    const std::int64_t id = (std::int64_t(blockIdx.z) * gridDim.y + blockIdx.y) * gridDim.x + blockIdx.x;
+    const std::int64_t id =
+        (std::int64_t(blockIdx.z) * gridDim.y + blockIdx.y) * gridDim.x + blockIdx.x;
     const std::int64_t per_super = std::int64_t(tables.num_tiles) * tables.alpha_group;
     const std::int64_t super = id / per_super;
     const int tile = int((id - super * per_super) / tables.alpha_group);
@@ -103,9 +107,13 @@ __global__ void __launch_bounds__(256, 4) beta_doubles_class_kernel(const FqTile
             copy_async_16(sa + 2 * i, ga + 2 * i);
         }
         const int k = chunk * kChunk + kk;
-        const int slot = k < columns ? __ldg(vectors.beta_src_slot + __ldg(tables.col_members + first_column + k)) : -1;
-        const double* row = vectors.src_in + (slot >= 0 ? std::int64_t(slot) * geometry.n_alpha_src_compact : 0)
-                            + geometry.a_start + column0;
+        const int slot =
+            k < columns
+                ? __ldg(vectors.beta_src_slot + __ldg(tables.col_members + first_column + k))
+                : -1;
+        const double* row = vectors.src_in +
+                            (slot >= 0 ? std::int64_t(slot) * geometry.n_alpha_src_compact : 0) +
+                            geometry.a_start + column0;
 #pragma unroll
         for(int j = 0; j < kAlphas / 16; ++j)
         {
@@ -235,18 +243,19 @@ __global__ void __launch_bounds__(256, 4) beta_doubles_class_kernel(const FqTile
     }
 }
 
-
-__global__ void __launch_bounds__(256) nonfinite_kernel(const FqTileGeometry geometry, const double* src_in,
-                                                        int* flag)
+__global__ void __launch_bounds__(256)
+    nonfinite_kernel(const FqTileGeometry geometry, const double* src_in, int* flag)
 {
     const std::int64_t n_a = geometry.a_stop - geometry.a_start;
     const std::int64_t total = n_a * geometry.n_b_src;
     const std::int64_t step = std::int64_t(gridDim.x) * blockDim.x;
     bool found = false;
-    for(std::int64_t i = std::int64_t(blockIdx.x) * blockDim.x + threadIdx.x; i < total && !found; i += step)
+    for(std::int64_t i = std::int64_t(blockIdx.x) * blockDim.x + threadIdx.x; i < total && !found;
+        i += step)
     {
         const std::int64_t row = i / n_a;
-        found = !isfinite(src_in[row * geometry.n_alpha_src_compact + geometry.a_start + (i - row * n_a)]);
+        found = !isfinite(
+            src_in[row * geometry.n_alpha_src_compact + geometry.a_start + (i - row * n_a)]);
     }
     if(__any_sync(0xffffffffu, found) && (threadIdx.x & 31) == 0)
     {
@@ -254,10 +263,12 @@ __global__ void __launch_bounds__(256) nonfinite_kernel(const FqTileGeometry geo
     }
 }
 
-
 template <bool ADD>
-__global__ void __launch_bounds__(256) transpose_kernel(const double* __restrict__ src, double* __restrict__ dst,
-                                                        const int rows, const int cols, const std::int64_t ld_src,
+__global__ void __launch_bounds__(256) transpose_kernel(const double* __restrict__ src,
+                                                        double* __restrict__ dst,
+                                                        const int rows,
+                                                        const int cols,
+                                                        const std::int64_t ld_src,
                                                         const std::int64_t ld_dst)
 {
     __shared__ double tile[32][33];
@@ -283,8 +294,13 @@ __global__ void __launch_bounds__(256) transpose_kernel(const double* __restrict
 }
 
 template <bool ADD>
-cudaError_t transpose(const double* src, double* dst, const int rows, const int cols, const std::int64_t ld_src,
-                      const std::int64_t ld_dst, const cudaStream_t stream)
+cudaError_t transpose(const double* src,
+                      double* dst,
+                      const int rows,
+                      const int cols,
+                      const std::int64_t ld_src,
+                      const std::int64_t ld_dst,
+                      const cudaStream_t stream)
 {
     if(rows <= 0 || cols <= 0)
     {
@@ -294,13 +310,14 @@ cudaError_t transpose(const double* src, double* dst, const int rows, const int 
     {
         return cudaErrorInvalidValue;
     }
-    transpose_kernel<ADD><<<dim3((cols + 31) / 32, (rows + 31) / 32), dim3(32, 8), 0, stream>>>(src, dst, rows, cols,
-                                                                                                ld_src, ld_dst);
+    transpose_kernel<ADD><<<dim3((cols + 31) / 32, (rows + 31) / 32), dim3(32, 8), 0, stream>>>(
+        src, dst, rows, cols, ld_src, ld_dst);
     return cudaGetLastError();
 }
 
-
-int launch_class(const FqTileGeometry& geometry, const FqVectors& vectors, const FqBetaDoubleClassTables& tables,
+int launch_class(const FqTileGeometry& geometry,
+                 const FqVectors& vectors,
+                 const FqBetaDoubleClassTables& tables,
                  const cudaStream_t s)
 {
     if(fq::launch::empty_tile(geometry) || tables.num_tiles <= 0)
@@ -335,7 +352,7 @@ int launch_class(const FqTileGeometry& geometry, const FqVectors& vectors, const
     return int(cudaGetLastError());
 }
 
-}
+} // namespace
 
 extern "C"
 {
@@ -354,16 +371,15 @@ extern "C"
                                       void* stream)
     {
 
-
         if(fq::launch::empty_tile(*geometry) || tables->classes.num_tiles <= 0)
         {
             return int(cudaSuccess);
         }
 
-
-        if(tables->slab < 1 || tables->xt == nullptr || tables->yt == nullptr
-           || (tables->leftover.row_offsets != nullptr && tables->slab_identity == nullptr) || geometry->a_start != 0
-           || geometry->a_stop != geometry->n_a_bra || geometry->n_b_src != geometry->n_b_bra)
+        if(tables->slab < 1 || tables->xt == nullptr || tables->yt == nullptr ||
+           (tables->leftover.row_offsets != nullptr && tables->slab_identity == nullptr) ||
+           geometry->a_start != 0 || geometry->a_stop != geometry->n_a_bra ||
+           geometry->n_b_src != geometry->n_b_bra)
         {
             return int(cudaErrorInvalidValue);
         }
@@ -373,13 +389,20 @@ extern "C"
         const std::int64_t stride = geometry->n_alpha_src_compact;
         for(int b0 = geometry->b_start; b0 < geometry->b_stop; b0 += tables->slab)
         {
-            const int rows = geometry->b_stop - b0 < tables->slab ? geometry->b_stop - b0 : tables->slab;
+            const int rows =
+                geometry->b_stop - b0 < tables->slab ? geometry->b_stop - b0 : tables->slab;
 
-            cudaError_t status = transpose<false>(vectors->src_in + std::int64_t(b0) * stride, tables->xt, rows,
-                                                  n_src_alpha, stride, rows, s);
+            cudaError_t status = transpose<false>(vectors->src_in + std::int64_t(b0) * stride,
+                                                  tables->xt,
+                                                  rows,
+                                                  n_src_alpha,
+                                                  stride,
+                                                  rows,
+                                                  s);
             if(status == cudaSuccess)
             {
-                status = cudaMemsetAsync(tables->yt, 0, sizeof(double) * std::size_t(n_a) * rows, s);
+                status =
+                    cudaMemsetAsync(tables->yt, 0, sizeof(double) * std::size_t(n_a) * rows, s);
             }
             if(status != cudaSuccess)
             {
@@ -404,7 +427,6 @@ extern "C"
             if(tables->leftover.row_offsets != nullptr)
             {
 
-
                 FqVectors left = transposed;
                 left.alpha_src_slot = tables->slab_identity;
                 const int applied = fq_launch_beta_doubles(&slab, &left, &tables->leftover, stream);
@@ -413,8 +435,14 @@ extern "C"
                     return applied;
                 }
             }
-            status = transpose<true>(tables->yt, vectors->out_local + std::int64_t(b0 - geometry->b_start) * n_a, n_a,
-                                     rows, rows, n_a, s);
+            status =
+                transpose<true>(tables->yt,
+                                vectors->out_local + std::int64_t(b0 - geometry->b_start) * n_a,
+                                n_a,
+                                rows,
+                                rows,
+                                n_a,
+                                s);
             if(status != cudaSuccess)
             {
                 return int(status);

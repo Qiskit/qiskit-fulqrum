@@ -21,11 +21,10 @@
 namespace fq::arms
 {
 
-
 inline constexpr int kFactorMaxOrbitals = 64;
 
-
-__device__ __forceinline__ long long pair_group(const FqTermTables& terms, const std::uint8_t p0, const std::uint8_t p1)
+__device__ __forceinline__ long long
+pair_group(const FqTermTables& terms, const std::uint8_t p0, const std::uint8_t p1)
 {
     const std::uint32_t key = pack2_d(p0, p1);
     std::uint32_t k = key;
@@ -51,12 +50,11 @@ __device__ __forceinline__ long long pair_group(const FqTermTables& terms, const
     }
 }
 
-
 __device__ __forceinline__ long long quad_group(const FqTermTables& terms,
-                                          const std::uint8_t p0,
-                                          const std::uint8_t p1,
-                                          const std::uint8_t p2,
-                                          const std::uint8_t p3)
+                                                const std::uint8_t p0,
+                                                const std::uint8_t p1,
+                                                const std::uint8_t p2,
+                                                const std::uint8_t p3)
 {
     const unsigned long long key = pack4_d(p0, p1, p2, p3);
     unsigned long long k = key;
@@ -83,12 +81,10 @@ __device__ __forceinline__ long long quad_group(const FqTermTables& terms,
     }
 }
 
-
 __device__ __forceinline__ double2 term_header(const FqTermTables& terms, const int t)
 {
     return __ldg(reinterpret_cast<const double2*>(terms.term_header) + t);
 }
-
 
 __device__ __forceinline__ double term_element(const FqTermTables& terms,
                                                const unsigned long long a_val,
@@ -100,7 +96,8 @@ __device__ __forceinline__ double term_element(const FqTermTables& terms,
 {
     std::int8_t temp = 1;
     const int packed_stride = (terms.term_inds_stride + 3) >> 2;
-    const auto* row = reinterpret_cast<const unsigned long long*>(terms.term_inds_vals) + (long long)t * packed_stride;
+    const auto* row = reinterpret_cast<const unsigned long long*>(terms.term_inds_vals) +
+                      (long long)t * packed_stride;
     unsigned long long packed = 0;
     for(int k = 0; k < num_ops; ++k)
     {
@@ -118,7 +115,6 @@ __device__ __forceinline__ double term_element(const FqTermTables& terms,
     }
     return coefficient * (double)temp;
 }
-
 
 __device__ __forceinline__ double quad_group_sum(const FqTermTables& terms,
                                                  const unsigned long long a_val,
@@ -148,7 +144,13 @@ __device__ __forceinline__ double quad_group_sum(const FqTermTables& terms,
         const std::uint16_t meta = (std::uint16_t)(__double_as_longlong(header.y) & 0xFFFFull);
         const int num_ops = (int)(meta & 0xFFu);
         const int num_proj = (int)((meta >> 8) & 0xFFu);
-        if(passes_proj(a_val, b_val, terms.term_proj_inds, terms.term_proj_bits, t, num_proj, num_alpha,
+        if(passes_proj(a_val,
+                       b_val,
+                       terms.term_proj_inds,
+                       terms.term_proj_bits,
+                       t,
+                       num_proj,
+                       num_alpha,
                        terms.term_proj_stride))
         {
             sum += term_element(terms, a_val, b_val, col, t, num_ops, header.x);
@@ -156,7 +158,6 @@ __device__ __forceinline__ double quad_group_sum(const FqTermTables& terms,
     }
     return sum;
 }
-
 
 template <bool ALPHA>
 __device__ __forceinline__ int factor_pair_group(const FqTermTables& terms,
@@ -173,8 +174,10 @@ __device__ __forceinline__ int factor_pair_group(const FqTermTables& terms,
     const unsigned int other = ALPHA ? (unsigned int)terms.num_beta : num_alpha;
     const unsigned int pp = get_bit_row(a_val, b_val, q0, num_alpha);
     const unsigned int qq = get_bit_row(a_val, b_val, q1, num_alpha);
-    const unsigned int row_int = compute_row_int2(pp, qq, 0u, 0u, (int)((unsigned int)group & 0xFFu));
-    const std::uint32_t base = (std::uint32_t)((int)((unsigned int)group >> 8)) * terms.ladder_offset;
+    const unsigned int row_int =
+        compute_row_int2(pp, qq, 0u, 0u, (int)((unsigned int)group & 0xFFu));
+    const std::uint32_t base =
+        (std::uint32_t)((int)((unsigned int)group >> 8)) * terms.ladder_offset;
     const int t0 = (int)terms.ladder_offsets[base + row_int];
     const int t1 = (int)terms.ladder_offsets[base + row_int + 1u];
     double c0 = 0.0;
@@ -195,8 +198,10 @@ __device__ __forceinline__ int factor_pair_group(const FqTermTables& terms,
         bool passes = true;
         for(int k = 0; k < num_proj; ++k)
         {
-            const unsigned int pos = (unsigned int)terms.term_proj_inds[t * terms.term_proj_stride + k];
-            const unsigned int expected = (unsigned int)terms.term_proj_bits[t * terms.term_proj_stride + k];
+            const unsigned int pos =
+                (unsigned int)terms.term_proj_inds[t * terms.term_proj_stride + k];
+            const unsigned int expected =
+                (unsigned int)terms.term_proj_bits[t * terms.term_proj_stride + k];
             if((pos < num_alpha) == ALPHA)
             {
                 if(get_bit_row(a_val, b_val, pos, num_alpha) != expected)
@@ -228,8 +233,8 @@ __device__ __forceinline__ int factor_pair_group(const FqTermTables& terms,
             continue;
         }
         std::int8_t temp = 1;
-        const auto* row =
-            reinterpret_cast<const unsigned long long*>(terms.term_inds_vals) + (long long)t * packed_stride;
+        const auto* row = reinterpret_cast<const unsigned long long*>(terms.term_inds_vals) +
+                          (long long)t * packed_stride;
         unsigned long long packed = 0;
         for(int k = 0; k < num_ops; ++k)
         {
@@ -275,4 +280,4 @@ __device__ __forceinline__ int factor_pair_group(const FqTermTables& terms,
     return 0;
 }
 
-}
+} // namespace fq::arms

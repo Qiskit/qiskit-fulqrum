@@ -25,11 +25,11 @@
 namespace
 {
 
-
 template <int K>
-__global__ void __launch_bounds__(fq::launch::kArmThreads, 4) alpha_singles_pair_kernel(const FqTileGeometry geometry,
-                                                                                        const FqVectors vectors,
-                                                                                        const FqAlphaSinglePairTables tables)
+__global__ void __launch_bounds__(fq::launch::kArmThreads, 4)
+    alpha_singles_pair_kernel(const FqTileGeometry geometry,
+                              const FqVectors vectors,
+                              const FqAlphaSinglePairTables tables)
 {
     const int a_gpu = int(fq::device::thread_column());
     const int a = geometry.a_start + a_gpu;
@@ -58,7 +58,8 @@ __global__ void __launch_bounds__(fq::launch::kArmThreads, 4) alpha_singles_pair
     const auto* words = reinterpret_cast<const unsigned long long*>(tables.sell_words);
     for(fq::device::EdgeStream<unsigned long long> edges(
             words, fq::device::SellRow::at(tables.sell_offsets, tables.sell_lengths, a));
-        edges.valid(); edges.advance())
+        edges.valid();
+        edges.advance())
     {
         const int column = fq::edge_word::cross_column(edges.current);
         if(column < 0)
@@ -78,7 +79,8 @@ __global__ void __launch_bounds__(fq::launch::kArmThreads, 4) alpha_singles_pair
             const double element = fq::arms::pair_element(c0, sign, __ldg(factors[k] + pair));
             if(fq::arms::is_applied(element))
             {
-                const std::int64_t input = fq::device::tile_index(beta_slot[k], geometry.n_alpha_src_compact, column);
+                const std::int64_t input =
+                    fq::device::tile_index(beta_slot[k], geometry.n_alpha_src_compact, column);
                 rows.add(k, element, __ldg(vectors.src_in + input));
             }
         }
@@ -94,10 +96,11 @@ __global__ void __launch_bounds__(fq::launch::kArmThreads, 4) alpha_singles_pair
     }
 }
 
-
 template <int K>
-__global__ void __launch_bounds__(fq::launch::kArmThreads, 4) alpha_singles_pair_hoist_kernel(
-    const FqTileGeometry geometry, const FqVectors vectors, const FqAlphaSinglePairTables tables)
+__global__ void __launch_bounds__(fq::launch::kArmThreads, 4)
+    alpha_singles_pair_hoist_kernel(const FqTileGeometry geometry,
+                                    const FqVectors vectors,
+                                    const FqAlphaSinglePairTables tables)
 {
     const int a_gpu = int(fq::device::thread_column());
     const int a = geometry.a_start + a_gpu;
@@ -122,13 +125,15 @@ __global__ void __launch_bounds__(fq::launch::kArmThreads, 4) alpha_singles_pair
         const int b = geometry.b_start + (row < n_b ? row : 0);
         beta_slot[k] = row < n_b ? __ldg(vectors.beta_src_slot + b) : -1;
         factors[k] = tables.pair_table + std::int64_t(b) * tables.num_pairs;
-        input_row[k] = std::int64_t(beta_slot[k] < 0 ? 0 : beta_slot[k]) * geometry.n_alpha_src_compact;
+        input_row[k] =
+            std::int64_t(beta_slot[k] < 0 ? 0 : beta_slot[k]) * geometry.n_alpha_src_compact;
     }
     fq::device::RowAccumulator<K> rows;
     const auto* words = reinterpret_cast<const unsigned long long*>(tables.sell_words);
     for(fq::device::EdgeStream<unsigned long long> edges(
             words, fq::device::SellRow::at(tables.sell_offsets, tables.sell_lengths, a));
-        edges.valid(); edges.advance())
+        edges.valid();
+        edges.advance())
     {
         const int column = fq::edge_word::cross_column(edges.current);
         const bool live = column >= 0;
@@ -164,11 +169,11 @@ __global__ void __launch_bounds__(fq::launch::kArmThreads, 4) alpha_singles_pair
     }
 }
 
-
 template <int K>
-__global__ void __launch_bounds__(fq::launch::kArmThreads, 4) alpha_singles_delta_kernel(const FqTileGeometry geometry,
-                                                                                         const FqVectors vectors,
-                                                                                         const FqAlphaSingleDeltaTables tables)
+__global__ void __launch_bounds__(fq::launch::kArmThreads, 4)
+    alpha_singles_delta_kernel(const FqTileGeometry geometry,
+                               const FqVectors vectors,
+                               const FqAlphaSingleDeltaTables tables)
 {
     const int a_gpu = int(fq::device::thread_column());
     const int a = geometry.a_start + a_gpu;
@@ -225,7 +230,8 @@ __global__ void __launch_bounds__(fq::launch::kArmThreads, 4) alpha_singles_delt
         {
             if(beta_slot[k] >= 0 && fq::arms::is_applied(element[k]))
             {
-                const std::int64_t input = fq::device::tile_index(beta_slot[k], geometry.n_alpha_src_compact, column);
+                const std::int64_t input =
+                    fq::device::tile_index(beta_slot[k], geometry.n_alpha_src_compact, column);
                 rows.add(k, element[k], vectors.src_in[input]);
             }
         }
@@ -241,7 +247,7 @@ __global__ void __launch_bounds__(fq::launch::kArmThreads, 4) alpha_singles_delt
     }
 }
 
-}
+} // namespace
 
 extern "C"
 {
@@ -257,11 +263,12 @@ extern "C"
             const cudaStream_t s = static_cast<cudaStream_t>(stream);
             if(tables->hoist_loads != 0)
             {
-                alpha_singles_pair_hoist_kernel<K><<<grid, geometry->threads_per_block, 0, s>>>(*geometry, *vectors,
-                                                                                               *tables);
+                alpha_singles_pair_hoist_kernel<K>
+                    <<<grid, geometry->threads_per_block, 0, s>>>(*geometry, *vectors, *tables);
                 return;
             }
-            alpha_singles_pair_kernel<K><<<grid, geometry->threads_per_block, 0, s>>>(*geometry, *vectors, *tables);
+            alpha_singles_pair_kernel<K>
+                <<<grid, geometry->threads_per_block, 0, s>>>(*geometry, *vectors, *tables);
         });
     }
 
@@ -272,8 +279,11 @@ extern "C"
     {
         return fq::launch::with_rows_per_thread(*geometry, tables->rows_per_thread, [&](auto rows) {
             constexpr int K = decltype(rows)::value;
-            alpha_singles_delta_kernel<K><<<fq::launch::beta_row_block_grid<K>(*geometry), geometry->threads_per_block, 0,
-                                           static_cast<cudaStream_t>(stream)>>>(*geometry, *vectors, *tables);
+            alpha_singles_delta_kernel<K>
+                <<<fq::launch::beta_row_block_grid<K>(*geometry),
+                   geometry->threads_per_block,
+                   0,
+                   static_cast<cudaStream_t>(stream)>>>(*geometry, *vectors, *tables);
         });
     }
 }

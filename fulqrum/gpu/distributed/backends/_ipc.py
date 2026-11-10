@@ -28,8 +28,6 @@ _DONE_TAG = 2 << 20
 
 
 class IpcPeers:
-
-
     def __init__(self, enabled: bool, node_of, device_of, reason: str):
 
         self.enabled = enabled
@@ -41,7 +39,6 @@ class IpcPeers:
 
     @classmethod
     def discover(cls, comm) -> "IpcPeers":
-
 
         from ...config import read  # noqa: PLC0415
 
@@ -184,7 +181,6 @@ _LIBCUDA = None
 
 
 def _allocation_base(address: int) -> int:
-
 
     import ctypes  # noqa: PLC0415
 

@@ -24,7 +24,6 @@ from ..common.hash_utils import (
 
 def _pack_half_strs_to_uint64(alpha, beta, widths=(64, 64)):
 
-
     from ..common.wide import pack_values  # noqa: PLC0415
 
     return (
@@ -55,7 +54,6 @@ def _build_hash_table_simple(arr: np.ndarray):
 def _ht_lookup_batch(
     ht_keys: np.ndarray, ht_vals: np.ndarray, mask_int: int, keys: np.ndarray
 ) -> np.ndarray:
-
 
     mask = np.uint64(mask_int)
     slots = (_splitmix64_vec(keys) & mask).astype(np.intp)

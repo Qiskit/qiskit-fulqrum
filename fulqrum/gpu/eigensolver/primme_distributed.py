@@ -30,7 +30,6 @@ __all__ = ["distributed_primme_eigsh", "is_primme_mpi_available"]
 
 def _load_backend():
 
-
     alt = os.environ.get("FQ_PRIMME_MPI_SO", "").strip()
     if alt:
         import importlib.util  # noqa: PLC0415
@@ -229,9 +228,7 @@ def distributed_primme_eigsh(
         use_gpu = choose_leg(H, gpu, backend)
         return backend, use_gpu, _local_callbacks(use_gpu, H, options, *inputs)
 
-    backend, use_gpu, callbacks = run_on_every_rank(
-        H._comm, "eigensolver setup", setup
-    )
+    backend, use_gpu, callbacks = run_on_every_rank(H._comm, "eigensolver setup", setup)
     check_same_choice(
         H._comm, use_gpu, "GPU leg" if use_gpu else "host leg", "eigensolver leg"
     )
@@ -256,8 +253,6 @@ def distributed_primme_eigsh(
 
 @dataclass(frozen=True)
 class EigshOptions:
-
-
     k: int
     tol: float
     maxiter: int | None
@@ -294,8 +289,6 @@ class EigshOptions:
 
 @dataclass
 class SolverCallbacks:
-
-
     precond_diag_local: np.ndarray | None
     v0_local: np.ndarray | None
     gpu_evecs: object = None
@@ -309,7 +302,6 @@ class SolverCallbacks:
 
 
 def _check_operator(H):
-
 
     if hasattr(H, "_is_primary") and not H._is_primary:
         raise RuntimeError(
@@ -325,7 +317,6 @@ def _check_operator(H):
 
 
 def _local_inputs(H, precond_diag_local, v0_local):
-
 
     n_local = int(H.n_local)
     if precond_diag_local is not None:
@@ -348,7 +339,6 @@ def _local_inputs(H, precond_diag_local, v0_local):
 
 def choose_leg(H, gpu, backend) -> bool:
 
-
     if isinstance(gpu, str):
         if gpu != "auto":
             raise ValueError(f"gpu must be True, False or 'auto', got {gpu!r}")
@@ -369,7 +359,6 @@ def make_callbacks(
     use_gpu, H, options, precond_diag_local, v0_local
 ) -> SolverCallbacks:
 
-
     callbacks = _local_callbacks(use_gpu, H, options, precond_diag_local, v0_local)
     return _finish_callbacks(use_gpu, H, callbacks)
 
@@ -378,7 +367,6 @@ def _local_callbacks(
     use_gpu, H, options, precond_diag_local, v0_local
 ) -> SolverCallbacks:
 
-
     n_local = int(H.n_local)
     if use_gpu:
         return _gpu_leg_callbacks(H, n_local, options, precond_diag_local, v0_local)
@@ -386,7 +374,6 @@ def _local_callbacks(
 
 
 def _finish_callbacks(use_gpu, H, callbacks) -> SolverCallbacks:
-
 
     if not use_gpu:
         _host_leg_collective(H, callbacks)
@@ -402,7 +389,6 @@ def _finish_callbacks(use_gpu, H, callbacks) -> SolverCallbacks:
 def _gpu_leg_callbacks(
     H, n_local, options, precond_diag_local, v0_local
 ) -> SolverCallbacks:
-
 
     import cupy  # noqa: PLC0415
 
@@ -427,7 +413,6 @@ def _gpu_leg_callbacks(
 
 def _check_gpu_basis_fits(n_local: int, ncv: int, managed_basis: bool):
 
-
     import cupy  # noqa: PLC0415
 
     _int32_max = 2**31 - 1
@@ -450,14 +435,12 @@ def _check_gpu_basis_fits(n_local: int, ncv: int, managed_basis: bool):
 
 def _host_leg_callbacks(H, n_local, precond_diag_local, v0_local) -> SolverCallbacks:
 
-
     callbacks = _host_leg_local(H, n_local, precond_diag_local, v0_local)
     _host_leg_collective(H, callbacks)
     return callbacks
 
 
 def _host_leg_local(H, n_local, precond_diag_local, v0_local) -> SolverCallbacks:
-
 
     callbacks = SolverCallbacks(precond_diag_local, v0_local)
     if precond_diag_local is not None and config.read("FQ_PRIMME_GPU_PRECOND"):
@@ -476,7 +459,6 @@ def _host_leg_local(H, n_local, precond_diag_local, v0_local) -> SolverCallbacks
 
 
 def _host_leg_collective(H, callbacks) -> None:
-
 
     if getattr(H, "supports_device_matvec", False):
         direct = callbacks.gpu_matvec
@@ -512,7 +494,6 @@ def _host_leg_collective(H, callbacks) -> None:
 
 def _host_overlap_mode(H):
 
-
     if not config.read("FQ_PRIMME_OVERLAP_MATVEC"):
         return False, "FQ_PRIMME_OVERLAP_MATVEC is off"
     comm = H._comm
@@ -545,7 +526,6 @@ def _host_overlap_mode(H):
 
 
 def run_primme(backend, H, options, callbacks):
-
 
     return backend.eigsh(
         H,
@@ -583,7 +563,6 @@ def run_primme(backend, H, options, callbacks):
 
 def _host_result(result, use_gpu, options):
 
-
     if use_gpu and options.return_eigenvectors:
         import cupy  # noqa: PLC0415
 
@@ -604,7 +583,6 @@ def _host_result(result, use_gpu, options):
 
 
 def _abort_on_rank_error(fn, comm, what: str):
-
 
     if fn is None or comm.Get_size() == 1:
         return fn
@@ -649,7 +627,6 @@ def _device_vector_wrapper(n_local: int):
 
 def _make_gpu_block_matvec(H, n_local: int, stage: bool = False):
 
-
     import cupy  # noqa: PLC0415
 
     _wrap = _device_vector_wrapper(n_local)
@@ -657,7 +634,6 @@ def _make_gpu_block_matvec(H, n_local: int, stage: bool = False):
     d_y = cupy.empty(int(n_local), dtype=cupy.float64) if stage else None
 
     def _block_matvec(x_ptr, ldx, y_ptr, ldy, block_size):
-
 
         cupy.cuda.runtime.deviceSynchronize()
         for j in range(block_size):
@@ -675,8 +651,6 @@ def _make_gpu_block_matvec(H, n_local: int, stage: bool = False):
 
 
 class _HostDirectMatvec:
-
-
     def __init__(self, H, n_local: int):
 
         import ctypes  # noqa: PLC0415
@@ -708,7 +682,6 @@ class _HostDirectMatvec:
 
     def __call__(self, x_ptr, ldx, y_ptr, ldy, block_size):
 
-
         for j in range(block_size):
             self._d_x.set(self._host(int(x_ptr) + 8 * int(ldx) * j))
             self._H._matvec(self._d_x, out=self._d_y)
@@ -716,7 +689,6 @@ class _HostDirectMatvec:
             self._d_y.get(out=self._host(int(y_ptr) + 8 * int(ldy) * j))
 
     def start(self, x_ptr, y_ptr, spec=False):
-
 
         if self._thread is not None:
             raise RuntimeError("an overlapped matvec is still running")
@@ -733,7 +705,6 @@ class _HostDirectMatvec:
 
     def _run(self, x_ptr, y_ptr, spec):
 
-
         started = time.perf_counter()
         try:
             with self._cupy.cuda.Device(self._device):
@@ -746,14 +717,11 @@ class _HostDirectMatvec:
                     self._input_ready.set()
                 self._H._matvec(self._d_x, out=self._d_y)
                 if spec:
-
                     from cupy import cublas  # noqa: PLC0415
 
                     cublas.dot(self._d_x, self._d_y, out=self._d_dot)
                 self._cupy.cuda.runtime.deviceSynchronize()
                 if spec:
-
-
                     self._backend.spec_wait_output_free()
                 self._d_y.get(out=self._host(y_ptr))
                 if spec:
@@ -765,7 +733,6 @@ class _HostDirectMatvec:
             self._thread_seconds += time.perf_counter() - started
 
     def _copy_in_chunks(self, x_ptr):
-
 
         n = self._d_x.size
         chunk = max(1, int(self._backend.spec_chunk_rows()))
@@ -789,7 +756,6 @@ class _HostDirectMatvec:
             raise self._error
 
     def wait(self, accept):
-
 
         started = time.perf_counter()
         if self._thread is not None:
@@ -845,8 +811,6 @@ def _abort_on_stuck_close(close, comm):
 
 
 class _GuardedOverlap:
-
-
     def __init__(self, inner, comm):
 
         self.start = _abort_on_rank_error(inner.start, comm, "overlapped matvec")
@@ -865,12 +829,10 @@ class _GuardedOverlap:
 
 def _make_host_direct_matvec(H, n_local: int):
 
-
     return _HostDirectMatvec(H, n_local)
 
 
 def _clamped_jacobi_kernel():
-
 
     import cupy  # noqa: PLC0415
 
@@ -884,7 +846,6 @@ def _clamped_jacobi_kernel():
 
 
 def _make_host_gpu_precond(precond_diag_local, n_local: int, tile_rows: int):
-
 
     import cupy
 
@@ -904,7 +865,6 @@ def _make_host_gpu_precond(precond_diag_local, n_local: int, tile_rows: int):
 
     def _block_precond(x_ptr, ldx, y_ptr, ldy, block_size, shifts):
 
-
         diag_ptr = int(diag_host.ctypes.data)
         for j in range(block_size):
             xj = int(x_ptr) + 8 * int(ldx) * j
@@ -923,7 +883,6 @@ def _make_host_gpu_precond(precond_diag_local, n_local: int, tile_rows: int):
 
 def _make_gpu_precond(precond_diag_local, n_local: int):
 
-
     import cupy  # noqa: PLC0415
 
     _wrap = _device_vector_wrapper(n_local)
@@ -931,7 +890,6 @@ def _make_gpu_precond(precond_diag_local, n_local: int):
     fused = _clamped_jacobi_kernel()
 
     def _block_precond(x_ptr, ldx, y_ptr, ldy, block_size, shifts):
-
 
         for j in range(block_size):
             d_x = _wrap(int(x_ptr) + 8 * int(ldx) * j)

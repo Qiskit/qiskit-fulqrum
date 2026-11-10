@@ -13,11 +13,10 @@
  * Modified: opt-in native memory reports and readable CUDA warnings.
  */
 
-
 #include <cuda_runtime.h>
 
-#include <cstdio>
 #include <cctype>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 
@@ -100,7 +99,6 @@ double env_gb(const char* name, double fallback)
     return std::atof(v);
 }
 
-
 cudaError_t advise(const void* p, size_t n, cudaMemoryAdvise adv, cudaMemLocation loc)
 {
 #if CUDART_VERSION >= 13000
@@ -125,7 +123,6 @@ cudaError_t prefetch(const void* p, size_t n, cudaMemLocation loc)
 #endif
 }
 
-
 bool warn(const char* what, cudaError_t e)
 {
     if(e != cudaSuccess)
@@ -142,8 +139,7 @@ bool warn(const char* what, cudaError_t e)
     return false;
 }
 
-}
-
+} // namespace
 
 extern "C" int
 fq_primme_gpu_basis_malloc(void** x, size_t bytes, long long nLocal, int maxBasisSize)
@@ -181,7 +177,8 @@ fq_primme_gpu_basis_malloc(void** x, size_t bytes, long long nLocal, int maxBasi
         if(log_enabled())
         {
             std::fprintf(stderr,
-                         "PRIMME managed basis budget: rank=%s, device=%d, free_gpu_memory=%.2f GiB, reserve=%.2f GiB, "
+                         "PRIMME managed basis budget: rank=%s, device=%d, free_gpu_memory=%.2f "
+                         "GiB, reserve=%.2f GiB, "
                          "basis_budget=%.2f GiB\n",
                          rank_text(),
                          dev,
@@ -257,19 +254,19 @@ fq_primme_gpu_basis_malloc(void** x, size_t bytes, long long nLocal, int maxBasi
         {
             std::snprintf(numa_text, sizeof(numa_text), "%d", numa);
         }
-        std::fprintf(stderr,
-                     "PRIMME managed basis allocated: rank=%s, total=%.2f GiB, gpu_preferred=%.2f GiB, "
-                     "host_preferred=%.2f GiB, host_numa_node=%s, remaining_gpu_budget=%.2f GiB\n",
-                     rank_text(),
-                     bytes / double(1ULL << 30),
-                     hbm / double(1ULL << 30),
-                     host / double(1ULL << 30),
-                     numa_text,
-                     g_budget / double(1ULL << 30));
+        std::fprintf(
+            stderr,
+            "PRIMME managed basis allocated: rank=%s, total=%.2f GiB, gpu_preferred=%.2f GiB, "
+            "host_preferred=%.2f GiB, host_numa_node=%s, remaining_gpu_budget=%.2f GiB\n",
+            rank_text(),
+            bytes / double(1ULL << 30),
+            hbm / double(1ULL << 30),
+            host / double(1ULL << 30),
+            numa_text,
+            g_budget / double(1ULL << 30));
     }
     return 0;
 }
-
 
 extern "C" void fq_primme_gpu_basis_free(void* x)
 {

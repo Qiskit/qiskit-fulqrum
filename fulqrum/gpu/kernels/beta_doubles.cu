@@ -24,19 +24,20 @@
 namespace
 {
 
-
 template <int K, bool GROUPED>
-__global__ void __launch_bounds__(fq::launch::kArmThreads, 4) beta_doubles_kernel(const FqTileGeometry geometry,
-                                                              const FqVectors vectors,
-                                                              const FqBetaDoubleTables tables)
+__global__ void __launch_bounds__(fq::launch::kArmThreads, 4)
+    beta_doubles_kernel(const FqTileGeometry geometry,
+                        const FqVectors vectors,
+                        const FqBetaDoubleTables tables)
 {
     const int n_a = geometry.a_stop - geometry.a_start;
     std::int64_t block_x = blockIdx.x, block_y = fq::device::block_row();
     if(GROUPED)
     {
         const std::int64_t per_block = std::int64_t(blockDim.x) * K;
-        const fq::device::BlockXY xy = fq::device::grouped_block(
-            (n_a + per_block - 1) / per_block, geometry.b_stop - geometry.b_start, tables.block_group);
+        const fq::device::BlockXY xy = fq::device::grouped_block((n_a + per_block - 1) / per_block,
+                                                                 geometry.b_stop - geometry.b_start,
+                                                                 tables.block_group);
         if(!xy.valid)
         {
             return;
@@ -50,7 +51,8 @@ __global__ void __launch_bounds__(fq::launch::kArmThreads, 4) beta_doubles_kerne
     {
         return;
     }
-    const fq::device::AlphaColumns<K> alphas = fq::device::AlphaColumns<K>::of_block(geometry, int(block_x));
+    const fq::device::AlphaColumns<K> alphas =
+        fq::device::AlphaColumns<K>::of_block(geometry, int(block_x));
     int alpha_slot[K];
 #pragma unroll
     for(int k = 0; k < K; ++k)
@@ -97,7 +99,7 @@ __global__ void __launch_bounds__(fq::launch::kArmThreads, 4) beta_doubles_kerne
     }
 }
 
-}
+} // namespace
 
 extern "C"
 {
@@ -107,17 +109,23 @@ extern "C"
                                const FqBetaDoubleTables* tables,
                                void* stream)
     {
-        return fq::launch::with_rows_per_thread(*geometry, tables->alphas_per_thread, [&](auto alphas) {
-            constexpr int K = decltype(alphas)::value;
-            const cudaStream_t s = static_cast<cudaStream_t>(stream);
-            if(tables->block_group >= 1)
-            {
-                beta_doubles_kernel<K, true><<<fq::launch::linear_grid(fq::launch::alpha_column_blocks<K>(*geometry)),
-                                               geometry->threads_per_block, 0, s>>>(*geometry, *vectors, *tables);
-                return;
-            }
-            beta_doubles_kernel<K, false><<<fq::launch::alpha_column_grid<K>(*geometry), geometry->threads_per_block, 0,
-                                           s>>>(*geometry, *vectors, *tables);
-        });
+        return fq::launch::with_rows_per_thread(
+            *geometry, tables->alphas_per_thread, [&](auto alphas) {
+                constexpr int K = decltype(alphas)::value;
+                const cudaStream_t s = static_cast<cudaStream_t>(stream);
+                if(tables->block_group >= 1)
+                {
+                    beta_doubles_kernel<K, true>
+                        <<<fq::launch::linear_grid(fq::launch::alpha_column_blocks<K>(*geometry)),
+                           geometry->threads_per_block,
+                           0,
+                           s>>>(*geometry, *vectors, *tables);
+                    return;
+                }
+                beta_doubles_kernel<K, false><<<fq::launch::alpha_column_grid<K>(*geometry),
+                                                geometry->threads_per_block,
+                                                0,
+                                                s>>>(*geometry, *vectors, *tables);
+            });
     }
 }

@@ -19,7 +19,7 @@ from fulqrum.test.test_cartesian_two_words import padded_hamiltonians
 
 tile_tables = pytest.importorskip("fulqrum.gpu.distributed.tile_tables")
 
-from fulqrum.gpu.distributed.tables import (
+from fulqrum.gpu.distributed.tables import (  # noqa: E402
     aabb_coefficients,
     chunked_pair_table,
     pair_table,

@@ -20,9 +20,9 @@
 #include <vector>
 
 #include "base.hpp"
-#include "checked_size.hpp"
 #include "bitset_hashmap.hpp"
 #include "bitset_utils.hpp"
+#include "checked_size.hpp"
 #include "element_evaluator.hpp"
 #include "elements.hpp"
 #include <boost/dynamic_bitset.hpp>
@@ -97,7 +97,8 @@ inline bool fast_diag_compatible(const QubitOperator& oper)
         out = false;
     }
     // Number of non-constant terms in diag must be W * (W + 1) / 2
-    else if(oper.size() != static_cast<std::size_t>(oper.width) * (static_cast<std::size_t>(oper.width) + 1) / 2)
+    else if(oper.size() !=
+            static_cast<std::size_t>(oper.width) * (static_cast<std::size_t>(oper.width) + 1) / 2)
     {
         out = false;
     }
@@ -518,14 +519,16 @@ inline void compute_diag_factors_words(const unsigned long long* __restrict alph
                                        T* __restrict Fc_out,
                                        T* __restrict G_out)
 {
-    static_assert((WA == 1 || WA == 2) && (WB == 1 || WB == 2),
-                  "strings have one or two words");
-    if(a0 > a1) throw std::invalid_argument("Invalid diagonal alpha range.");
+    static_assert((WA == 1 || WA == 2) && (WB == 1 || WB == 2), "strings have one or two words");
+    if(a0 > a1)
+        throw std::invalid_argument("Invalid diagonal alpha range.");
     const std::size_t na_local = a1 - a0;
     const std::size_t n_terms = diag_oper.terms.size();
     const std::size_t cross_count = count_diag_cross_terms(diag_oper, num_alpha);
-    if(Fc_out != nullptr) checked_multiply(checked_multiply(na_local, cross_count), sizeof(T));
-    if(G_out != nullptr) checked_multiply(checked_multiply(n_b, cross_count), sizeof(T));
+    if(Fc_out != nullptr)
+        checked_multiply(checked_multiply(na_local, cross_count), sizeof(T));
+    if(G_out != nullptr)
+        checked_multiply(checked_multiply(n_b, cross_count), sizeof(T));
 
     struct HalfInfo
     {
@@ -697,7 +700,6 @@ inline void compute_diag_factors_words(const unsigned long long* __restrict alph
     }
 }
 
-
 /**
  * Compute the four factor arrays of the product-space diagonal decomposition
  * for one-word strings.
@@ -728,7 +730,6 @@ inline void compute_diag_factors(const unsigned long long* __restrict alpha_uint
                                         G_out);
 }
 
-
 template <typename T>
 inline bool compute_diag_cross_factors(const QubitOperator& diag_oper,
                                        const unsigned int num_alpha,
@@ -747,11 +748,37 @@ inline bool compute_diag_cross_factors(const QubitOperator& diag_oper,
         int a_orb = -1, b_orb = -1;
         bool a_multi = false, b_multi = false;
         for(auto idx : term.indices)
-            if(idx < num_alpha) { if(a_orb < 0) a_orb = (int)idx; else if(a_orb != (int)idx) a_multi = true; }
-            else { int q = (int)(idx - num_alpha); if(b_orb < 0) b_orb = q; else if(b_orb != q) b_multi = true; }
+            if(idx < num_alpha)
+            {
+                if(a_orb < 0)
+                    a_orb = (int)idx;
+                else if(a_orb != (int)idx)
+                    a_multi = true;
+            }
+            else
+            {
+                int q = (int)(idx - num_alpha);
+                if(b_orb < 0)
+                    b_orb = q;
+                else if(b_orb != q)
+                    b_multi = true;
+            }
         for(auto idx : term.proj_indices)
-            if(idx < num_alpha) { if(a_orb < 0) a_orb = (int)idx; else if(a_orb != (int)idx) a_multi = true; }
-            else { int q = (int)(idx - num_alpha); if(b_orb < 0) b_orb = q; else if(b_orb != q) b_multi = true; }
+            if(idx < num_alpha)
+            {
+                if(a_orb < 0)
+                    a_orb = (int)idx;
+                else if(a_orb != (int)idx)
+                    a_multi = true;
+            }
+            else
+            {
+                int q = (int)(idx - num_alpha);
+                if(b_orb < 0)
+                    b_orb = q;
+                else if(b_orb != q)
+                    b_multi = true;
+            }
 
         if(a_orb < 0 || b_orb < 0)
             continue;
@@ -762,8 +789,20 @@ inline bool compute_diag_cross_factors(const QubitOperator& diag_oper,
         for(std::size_t k = 0; k < term.proj_indices.size(); k++)
         {
             const unsigned int bit = term.proj_bits[k];
-            if(term.proj_indices[k] < num_alpha) { if(bit != 0u) a0 = 0.0; if(bit != 1u) a1 = 0.0; }
-            else { if(bit != 0u) b0 = 0.0; if(bit != 1u) b1 = 0.0; }
+            if(term.proj_indices[k] < num_alpha)
+            {
+                if(bit != 0u)
+                    a0 = 0.0;
+                if(bit != 1u)
+                    a1 = 0.0;
+            }
+            else
+            {
+                if(bit != 0u)
+                    b0 = 0.0;
+                if(bit != 1u)
+                    b1 = 0.0;
+            }
         }
         for(std::size_t k = 0; k < term.indices.size(); k++)
         {

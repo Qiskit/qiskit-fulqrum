@@ -22,7 +22,6 @@ ERROR_TYPES = {
 
 def raise_on_every_rank(comm, error, error_type=ValueError, what="check"):
 
-
     errors = comm.allgather(error)
     found = [f"rank {rank}: {text}" for rank, text in enumerate(errors) if text]
     if found:
@@ -34,7 +33,6 @@ _BASE_ORDER = ("MemoryError", "ValueError", "RuntimeError")
 
 def _base_name(error):
 
-
     for name in _BASE_ORDER:
         if isinstance(error, ERROR_TYPES[name]):
             return name
@@ -43,7 +41,6 @@ def _base_name(error):
 
 def _report(error):
 
-
     name = _base_name(error)
     if type(error) is ERROR_TYPES[name]:
         return name, str(error)
@@ -51,7 +48,6 @@ def _report(error):
 
 
 def run_on_every_rank(comm, what, function):
-
 
     result, error = None, None
     try:
@@ -68,7 +64,6 @@ def run_on_every_rank(comm, what, function):
 
 
 def check_same_choice(comm, choice, detail, what):
-
 
     reports = comm.allgather((choice, detail))
     if len({c for c, _ in reports}) > 1:

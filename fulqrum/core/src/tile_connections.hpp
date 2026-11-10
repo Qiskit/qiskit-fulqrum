@@ -90,16 +90,19 @@ struct TileConnections
  *     Size arithmetic is checked before allocating the result vector.
  */
 template <typename T>
-std::vector<StringConnections<T>> find_output_connections(const OperatorTables& tables,
-                                                          const HalfKeyView& store,
-                                                          const SectorGroupIndex& groups,
-                                                          const int sector,
-                                                          const std::array<std::size_t, 2>& num_pairs,
-                                                          const std::size_t output_begin,
-                                                          const std::size_t output_end)
+std::vector<StringConnections<T>>
+find_output_connections(const OperatorTables& tables,
+                        const HalfKeyView& store,
+                        const SectorGroupIndex& groups,
+                        const int sector,
+                        const std::array<std::size_t, 2>& num_pairs,
+                        const std::size_t output_begin,
+                        const std::size_t output_end)
 {
-    const std::size_t half_width = sector == 0 ? store.split_bit() : store.width() - store.split_bit();
-    if(sector < 0 || sector > 1 || output_begin > output_end || output_end > store.num_half_keys(sector))
+    const std::size_t half_width =
+        sector == 0 ? store.split_bit() : store.width() - store.split_bit();
+    if(sector < 0 || sector > 1 || output_begin > output_end ||
+       output_end > store.num_half_keys(sector))
         throw std::invalid_argument("Invalid tile sector or output range.");
     checked_multiply(output_end - output_begin, sizeof(StringConnections<T>));
     std::vector<StringConnections<T>> found(output_end - output_begin);
@@ -121,8 +124,26 @@ std::vector<StringConnections<T>> find_output_connections(const OperatorTables& 
                 (half_bit(key, rank) ? occupied : empty).push_back(rank);
             }
             StringConnections<T>& string_found = found[string - output_begin];
-            find_string_singles(tables, store, groups, sector, key, row.data(), occupied, empty, target, string_found);
-            find_string_doubles(tables, store, groups, sector, num_pairs, key, row.data(), occupied, empty, target,
+            find_string_singles(tables,
+                                store,
+                                groups,
+                                sector,
+                                key,
+                                row.data(),
+                                occupied,
+                                empty,
+                                target,
+                                string_found);
+            find_string_doubles(tables,
+                                store,
+                                groups,
+                                sector,
+                                num_pairs,
+                                key,
+                                row.data(),
+                                occupied,
+                                empty,
+                                target,
                                 string_found);
         }
     }
@@ -199,7 +220,8 @@ std::vector<TileConnections<T>> split_by_blocks(const std::vector<StringConnecti
                                                 const std::vector<std::size_t>& block_bounds)
 {
     if(block_bounds.size() < 2 || !std::is_sorted(block_bounds.begin(), block_bounds.end()))
-        throw std::invalid_argument("Tile block boundaries must be sorted and contain at least two entries.");
+        throw std::invalid_argument(
+            "Tile block boundaries must be sorted and contain at least two entries.");
     const std::size_t num_blocks = block_bounds.size() - 1;
     std::vector<TileConnections<T>> tiles(num_blocks);
     for(TileConnections<T>& tile : tiles)
@@ -215,7 +237,8 @@ std::vector<TileConnections<T>> split_by_blocks(const std::vector<StringConnecti
             const std::size_t block = block_of(block_bounds, single_column(packed_entry));
             if(block < num_blocks)
             {
-                tiles[block].single_packed_entries.push_back(shift_single_column(packed_entry, block_bounds[block]));
+                tiles[block].single_packed_entries.push_back(
+                    shift_single_column(packed_entry, block_bounds[block]));
                 tiles[block].single_values.push_back(string.single_values[edge]);
             }
         }
@@ -225,7 +248,8 @@ std::vector<TileConnections<T>> split_by_blocks(const std::vector<StringConnecti
             const std::size_t block = block_of(block_bounds, column);
             if(block < num_blocks)
             {
-                tiles[block].double_columns.push_back(static_cast<std::uint32_t>(column - block_bounds[block]));
+                tiles[block].double_columns.push_back(
+                    static_cast<std::uint32_t>(column - block_bounds[block]));
                 tiles[block].double_values.push_back(string.double_values[edge]);
             }
         }
@@ -273,9 +297,11 @@ std::vector<TileConnections<T>> build_tile_connections(const OperatorTables& tab
                                                        const std::vector<std::size_t>& block_bounds)
 {
     if(sector < 0 || sector > 1 || block_bounds.size() < 2 ||
-       !std::is_sorted(block_bounds.begin(), block_bounds.end()) || block_bounds.back() > store.num_half_keys(sector))
+       !std::is_sorted(block_bounds.begin(), block_bounds.end()) ||
+       block_bounds.back() > store.num_half_keys(sector))
         throw std::invalid_argument("Invalid tile block boundaries.");
-    return split_by_blocks(find_output_connections<T>(tables, store, groups, sector, num_pairs, output_begin, output_end),
+    return split_by_blocks(find_output_connections<T>(
+                               tables, store, groups, sector, num_pairs, output_begin, output_end),
                            block_bounds);
 }
 
@@ -317,7 +343,8 @@ std::vector<T> build_tile_cross_table(const OperatorTables& tables,
 {
     const FactorList& factors = tables.factors();
     const int other = 1 - sector;
-    if(sector < 0 || sector > 1 || other_begin > other_end || other_end > store.num_half_keys(1 - sector))
+    if(sector < 0 || sector > 1 || other_begin > other_end ||
+       other_end > store.num_half_keys(1 - sector))
         throw std::invalid_argument("Invalid tile cross-table range.");
     const std::size_t directed_pairs = checked_multiply(2, num_pairs[sector]);
     const std::size_t cells = checked_multiply(other_end - other_begin, directed_pairs);
@@ -343,7 +370,8 @@ std::vector<T> build_tile_cross_table(const OperatorTables& tables,
                     const EntryRange cross = tables.group(group).single[direction].cross;
                     if(cross.end > cross.begin)
                     {
-                        values[2 * pair + direction] = to_value<T>(factors.sum(cross.begin, cross.end, row.data()));
+                        values[2 * pair + direction] =
+                            to_value<T>(factors.sum(cross.begin, cross.end, row.data()));
                     }
                 }
             }

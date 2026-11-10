@@ -30,13 +30,11 @@
 namespace fq::full_strs
 {
 
-
 struct ChunkClass
 {
     std::vector<std::int32_t> members;
     std::vector<std::uint16_t> sizes;
     std::array<std::int64_t, kSizeBuckets + 1> bucket_start{};
-
 
     std::int64_t num_groups() const
     {
@@ -44,12 +42,10 @@ struct ChunkClass
     }
 };
 
-
 struct GroupChunk
 {
     GroupSlice slice;
     std::array<ChunkClass, kNumClasses> classes;
-
 
     std::int64_t num_members() const
     {
@@ -60,7 +56,6 @@ struct GroupChunk
         }
         return total;
     }
-
 
     std::int64_t num_groups() const
     {
@@ -73,7 +68,6 @@ struct GroupChunk
     }
 };
 
-
 inline void release_chunk(GroupChunk& chunk)
 {
     for(ChunkClass& c : chunk.classes)
@@ -82,7 +76,6 @@ inline void release_chunk(GroupChunk& chunk)
         std::vector<std::uint16_t>().swap(c.sizes);
     }
 }
-
 
 inline void pack_chunk_class(const ClassGroups& source, ChunkClass& out)
 {
@@ -96,26 +89,32 @@ inline void pack_chunk_class(const ClassGroups& source, ChunkClass& out)
     std::array<std::int64_t, kSizeBuckets> counts{};
     for(std::int64_t g = 0; g < num_groups; g++)
     {
-        const std::int64_t size = source.member_start[static_cast<std::size_t>(g) + 1] - source.member_start[static_cast<std::size_t>(g)];
+        const std::int64_t size = source.member_start[static_cast<std::size_t>(g) + 1] -
+                                  source.member_start[static_cast<std::size_t>(g)];
         if(size > std::numeric_limits<std::uint16_t>::max())
         {
-            throw std::invalid_argument("A group has " + std::to_string(size) + " members; the limit is 65535");
+            throw std::invalid_argument("A group has " + std::to_string(size) +
+                                        " members; the limit is 65535");
         }
         counts[static_cast<std::size_t>(size_bucket(size))]++;
     }
     out.bucket_start[0] = 0;
     for(int bucket = 0; bucket < kSizeBuckets; bucket++)
     {
-        out.bucket_start[static_cast<std::size_t>(bucket) + 1] = out.bucket_start[static_cast<std::size_t>(bucket)] + counts[static_cast<std::size_t>(bucket)];
+        out.bucket_start[static_cast<std::size_t>(bucket) + 1] =
+            out.bucket_start[static_cast<std::size_t>(bucket)] +
+            counts[static_cast<std::size_t>(bucket)];
     }
     std::array<std::int64_t, kSizeBuckets> cursor{};
     for(int bucket = 0; bucket < kSizeBuckets; bucket++)
     {
-        cursor[static_cast<std::size_t>(bucket)] = out.bucket_start[static_cast<std::size_t>(bucket)];
+        cursor[static_cast<std::size_t>(bucket)] =
+            out.bucket_start[static_cast<std::size_t>(bucket)];
     }
     for(std::int64_t g = 0; g < num_groups; g++)
     {
-        const std::int64_t size = source.member_start[static_cast<std::size_t>(g) + 1] - source.member_start[static_cast<std::size_t>(g)];
+        const std::int64_t size = source.member_start[static_cast<std::size_t>(g) + 1] -
+                                  source.member_start[static_cast<std::size_t>(g)];
         order[static_cast<std::size_t>(cursor[static_cast<std::size_t>(size_bucket(size))]++)] = g;
     }
     out.sizes.resize(static_cast<std::size_t>(num_groups));
@@ -132,23 +131,24 @@ inline void pack_chunk_class(const ClassGroups& source, ChunkClass& out)
     }
 }
 
-
 template <std::size_t W>
-inline GroupChunk build_chunk(const KeyStore<W>& store, const GroupKinds& kinds, const GroupSlice& slice)
+inline GroupChunk
+build_chunk(const KeyStore<W>& store, const GroupKinds& kinds, const GroupSlice& slice)
 {
     const GroupStore groups = build_groups(store, kinds, slice, false);
     GroupChunk chunk;
     chunk.slice = slice;
     for(int cls = 0; cls < kNumClasses; cls++)
     {
-        pack_chunk_class(groups.classes[static_cast<std::size_t>(cls)], chunk.classes[static_cast<std::size_t>(cls)]);
+        pack_chunk_class(groups.classes[static_cast<std::size_t>(cls)],
+                         chunk.classes[static_cast<std::size_t>(cls)]);
     }
     return chunk;
 }
 
-
 template <std::size_t W>
-inline std::vector<GroupChunk> build_chunks(const KeyStore<W>& store, const GroupKinds& kinds, const int num_slices)
+inline std::vector<GroupChunk>
+build_chunks(const KeyStore<W>& store, const GroupKinds& kinds, const int num_slices)
 {
     std::vector<GroupChunk> chunks;
     chunks.reserve(static_cast<std::size_t>(num_slices));
@@ -158,7 +158,6 @@ inline std::vector<GroupChunk> build_chunks(const KeyStore<W>& store, const Grou
     }
     return chunks;
 }
-
 
 template <std::size_t W, typename T>
 inline void chunk_class_partials(const KeyStore<W>& keys,
@@ -171,7 +170,8 @@ inline void chunk_class_partials(const KeyStore<W>& keys,
     std::vector<std::int64_t> start(static_cast<std::size_t>(c.num_groups()) + 1, 0);
     for(std::int64_t g = 0; g < c.num_groups(); g++)
     {
-        start[static_cast<std::size_t>(g) + 1] = start[static_cast<std::size_t>(g)] + c.sizes[static_cast<std::size_t>(g)];
+        start[static_cast<std::size_t>(g) + 1] =
+            start[static_cast<std::size_t>(g)] + c.sizes[static_cast<std::size_t>(g)];
     }
 #pragma omp parallel for schedule(dynamic, 256)
     for(std::int64_t g = 0; g < c.num_groups(); g++)
@@ -198,7 +198,6 @@ inline void chunk_class_partials(const KeyStore<W>& keys,
     }
 }
 
-
 template <std::size_t W, typename T>
 inline void chunk_matvec(const KeyStore<W>& keys,
                          const std::vector<GroupChunk>& chunks,
@@ -215,7 +214,8 @@ inline void chunk_matvec(const KeyStore<W>& keys,
     }
     for(const GroupChunk& chunk : chunks)
     {
-        std::vector<std::pair<std::int32_t, T>> entries(static_cast<std::size_t>(chunk.num_members()));
+        std::vector<std::pair<std::int32_t, T>> entries(
+            static_cast<std::size_t>(chunk.num_members()));
         std::int64_t base = 0;
         for(int cls = 0; cls < kNumClasses; cls++)
         {
@@ -228,7 +228,9 @@ inline void chunk_matvec(const KeyStore<W>& keys,
             }
             base += static_cast<std::int64_t>(c.members.size());
         }
-        std::stable_sort(entries.begin(), entries.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
+        std::stable_sort(entries.begin(), entries.end(), [](const auto& a, const auto& b) {
+            return a.first < b.first;
+        });
         for(const auto& [row, value] : entries)
         {
             y[row] += value;
@@ -236,4 +238,4 @@ inline void chunk_matvec(const KeyStore<W>& keys,
     }
 }
 
-}
+} // namespace fq::full_strs

@@ -20,26 +20,24 @@
 namespace fq::device
 {
 
-
 struct SellRow
 {
     std::int64_t slice_offset;
     int row;
     int length;
 
-
-    __device__ static SellRow at(const std::int64_t* __restrict__ offsets, const int* __restrict__ lengths, const int row)
+    __device__ static SellRow
+    at(const std::int64_t* __restrict__ offsets, const int* __restrict__ lengths, const int row)
     {
-        return SellRow{std::int64_t(__ldg(offsets + fq::sell::slice_of(row))), row, __ldg(lengths + row)};
+        return SellRow{
+            std::int64_t(__ldg(offsets + fq::sell::slice_of(row))), row, __ldg(lengths + row)};
     }
-
 
     __device__ std::int64_t slot(const int k) const
     {
         return fq::sell::slot(slice_offset, row, k);
     }
 };
-
 
 template <typename Word>
 struct EdgeStream
@@ -50,26 +48,23 @@ struct EdgeStream
     Word current;
     Word next;
 
-
     __device__ EdgeStream(const Word* __restrict__ word_table, const SellRow& sell_row)
-        : words(word_table), row(sell_row), k(0),
-          current(sell_row.length > 0 ? __ldg(word_table + sell_row.slot(0)) : Word(0)),
-          next(sell_row.length > 1 ? __ldg(word_table + sell_row.slot(1)) : Word(0))
-    {
-    }
-
+        : words(word_table)
+        , row(sell_row)
+        , k(0)
+        , current(sell_row.length > 0 ? __ldg(word_table + sell_row.slot(0)) : Word(0))
+        , next(sell_row.length > 1 ? __ldg(word_table + sell_row.slot(1)) : Word(0))
+    {}
 
     __device__ bool valid() const
     {
         return k < row.length;
     }
 
-
     __device__ std::int64_t slot() const
     {
         return row.slot(k);
     }
-
 
     __device__ void advance()
     {
@@ -79,4 +74,4 @@ struct EdgeStream
     }
 };
 
-}
+} // namespace fq::device

@@ -25,19 +25,20 @@
 namespace
 {
 
-
 template <int K, bool GROUPED>
-__global__ void __launch_bounds__(fq::launch::kArmThreads, 4) beta_singles_pair_kernel(const FqTileGeometry geometry,
-                                                                                       const FqVectors vectors,
-                                                                                       const FqBetaSinglePairTables tables)
+__global__ void __launch_bounds__(fq::launch::kArmThreads, 4)
+    beta_singles_pair_kernel(const FqTileGeometry geometry,
+                             const FqVectors vectors,
+                             const FqBetaSinglePairTables tables)
 {
     const int n_a = geometry.a_stop - geometry.a_start;
     std::int64_t block_x = blockIdx.x, block_y = fq::device::block_row();
     if(GROUPED)
     {
         const std::int64_t per_block = std::int64_t(blockDim.x) * K;
-        const fq::device::BlockXY xy = fq::device::grouped_block(
-            (n_a + per_block - 1) / per_block, geometry.b_stop - geometry.b_start, tables.block_group);
+        const fq::device::BlockXY xy = fq::device::grouped_block((n_a + per_block - 1) / per_block,
+                                                                 geometry.b_stop - geometry.b_start,
+                                                                 tables.block_group);
         if(!xy.valid)
         {
             return;
@@ -51,7 +52,8 @@ __global__ void __launch_bounds__(fq::launch::kArmThreads, 4) beta_singles_pair_
     {
         return;
     }
-    const fq::device::AlphaColumns<K> alphas = fq::device::AlphaColumns<K>::of_block(geometry, int(block_x));
+    const fq::device::AlphaColumns<K> alphas =
+        fq::device::AlphaColumns<K>::of_block(geometry, int(block_x));
     int alpha_slot[K];
 #pragma unroll
     for(int k = 0; k < K; ++k)
@@ -76,7 +78,9 @@ __global__ void __launch_bounds__(fq::launch::kArmThreads, 4) beta_singles_pair_
         const double c0 = __ldg(tables.c0 + edge);
         const std::uint32_t word = __ldg(tables.signed_pairs + edge);
         const double sign = fq::edge_word::signed_pair_sign(word);
-        const double* factors = tables.pair_table + std::int64_t(fq::edge_word::signed_pair_pair(word)) * tables.table_columns;
+        const double* factors =
+            tables.pair_table +
+            std::int64_t(fq::edge_word::signed_pair_pair(word)) * tables.table_columns;
         const std::int64_t input_row = std::int64_t(beta_slot) * geometry.n_alpha_src_compact;
 #pragma unroll
         for(int k = 0; k < K; ++k)
@@ -85,7 +89,8 @@ __global__ void __launch_bounds__(fq::launch::kArmThreads, 4) beta_singles_pair_
             {
                 continue;
             }
-            const double element = fq::arms::pair_element(c0, sign, __ldg(factors + alphas.alpha[k]));
+            const double element =
+                fq::arms::pair_element(c0, sign, __ldg(factors + alphas.alpha[k]));
             if(fq::arms::is_applied(element))
             {
                 sums.add(k, element, __ldg(vectors.src_in + input_row + alpha_slot[k]));
@@ -102,18 +107,20 @@ __global__ void __launch_bounds__(fq::launch::kArmThreads, 4) beta_singles_pair_
     }
 }
 
-
 template <int K, int U, bool GROUPED>
-__global__ void __launch_bounds__(fq::launch::kArmThreads, 4) beta_singles_pair_hoist_kernel(
-    const FqTileGeometry geometry, const FqVectors vectors, const FqBetaSinglePairTables tables)
+__global__ void __launch_bounds__(fq::launch::kArmThreads, 4)
+    beta_singles_pair_hoist_kernel(const FqTileGeometry geometry,
+                                   const FqVectors vectors,
+                                   const FqBetaSinglePairTables tables)
 {
     const int n_a = geometry.a_stop - geometry.a_start;
     std::int64_t block_x = blockIdx.x, block_y = fq::device::block_row();
     if(GROUPED)
     {
         const std::int64_t per_block = std::int64_t(blockDim.x) * K;
-        const fq::device::BlockXY xy = fq::device::grouped_block(
-            (n_a + per_block - 1) / per_block, geometry.b_stop - geometry.b_start, tables.block_group);
+        const fq::device::BlockXY xy = fq::device::grouped_block((n_a + per_block - 1) / per_block,
+                                                                 geometry.b_stop - geometry.b_start,
+                                                                 tables.block_group);
         if(!xy.valid)
         {
             return;
@@ -127,7 +134,8 @@ __global__ void __launch_bounds__(fq::launch::kArmThreads, 4) beta_singles_pair_
     {
         return;
     }
-    const fq::device::AlphaColumns<K> alphas = fq::device::AlphaColumns<K>::of_block(geometry, int(block_x));
+    const fq::device::AlphaColumns<K> alphas =
+        fq::device::AlphaColumns<K>::of_block(geometry, int(block_x));
     int alpha_slot[K];
 #pragma unroll
     for(int k = 0; k < K; ++k)
@@ -167,8 +175,10 @@ __global__ void __launch_bounds__(fq::launch::kArmThreads, 4) beta_singles_pair_
         for(int u = 0; u < U; ++u)
         {
             const double* factors =
-                tables.pair_table + std::int64_t(fq::edge_word::signed_pair_pair(word[u])) * tables.table_columns;
-            const std::int64_t input_row = std::int64_t(beta_slot[u]) * geometry.n_alpha_src_compact;
+                tables.pair_table +
+                std::int64_t(fq::edge_word::signed_pair_pair(word[u])) * tables.table_columns;
+            const std::int64_t input_row =
+                std::int64_t(beta_slot[u]) * geometry.n_alpha_src_compact;
 #pragma unroll
             for(int k = 0; k < K; ++k)
             {
@@ -210,12 +220,13 @@ __global__ void __launch_bounds__(fq::launch::kArmThreads, 4) beta_singles_pair_
     }
 }
 
-
 constexpr int kHoistEdges = 2;
 
 template <int K, bool HOIST>
-void launch_beta_singles_pair_order(const FqTileGeometry& geometry, const FqVectors& vectors,
-                                    const FqBetaSinglePairTables& tables, const cudaStream_t s)
+void launch_beta_singles_pair_order(const FqTileGeometry& geometry,
+                                    const FqVectors& vectors,
+                                    const FqBetaSinglePairTables& tables,
+                                    const cudaStream_t s)
 {
     const int threads = geometry.threads_per_block;
     if(tables.block_group >= 1)
@@ -223,7 +234,8 @@ void launch_beta_singles_pair_order(const FqTileGeometry& geometry, const FqVect
         const dim3 grid = fq::launch::linear_grid(fq::launch::alpha_column_blocks<K>(geometry));
         if(HOIST)
         {
-            beta_singles_pair_hoist_kernel<K, kHoistEdges, true><<<grid, threads, 0, s>>>(geometry, vectors, tables);
+            beta_singles_pair_hoist_kernel<K, kHoistEdges, true>
+                <<<grid, threads, 0, s>>>(geometry, vectors, tables);
         }
         else
         {
@@ -234,7 +246,8 @@ void launch_beta_singles_pair_order(const FqTileGeometry& geometry, const FqVect
     const dim3 grid = fq::launch::alpha_column_grid<K>(geometry);
     if(HOIST)
     {
-        beta_singles_pair_hoist_kernel<K, kHoistEdges, false><<<grid, threads, 0, s>>>(geometry, vectors, tables);
+        beta_singles_pair_hoist_kernel<K, kHoistEdges, false>
+            <<<grid, threads, 0, s>>>(geometry, vectors, tables);
     }
     else
     {
@@ -242,11 +255,11 @@ void launch_beta_singles_pair_order(const FqTileGeometry& geometry, const FqVect
     }
 }
 
-
 template <int K>
-__global__ void __launch_bounds__(fq::launch::kArmThreads, 4) beta_singles_delta_kernel(const FqTileGeometry geometry,
-                                                                                        const FqVectors vectors,
-                                                                                        const FqBetaSingleDeltaTables tables)
+__global__ void __launch_bounds__(fq::launch::kArmThreads, 4)
+    beta_singles_delta_kernel(const FqTileGeometry geometry,
+                              const FqVectors vectors,
+                              const FqBetaSingleDeltaTables tables)
 {
     const int row = int(fq::device::block_row());
     const int b = geometry.b_start + row;
@@ -262,7 +275,8 @@ __global__ void __launch_bounds__(fq::launch::kArmThreads, 4) beta_singles_delta
     for(int k = 0; k < K; ++k)
     {
         alpha_slot[k] = alphas.active[k] ? vectors.alpha_src_slot[alphas.alpha[k]] : -1;
-        alpha[k] = alphas.active[k] ? tables.alpha_strings[geometry.bra_a0 + alphas.alpha[k]] : 0ull;
+        alpha[k] =
+            alphas.active[k] ? tables.alpha_strings[geometry.bra_a0 + alphas.alpha[k]] : 0ull;
     }
     if(!alphas.any())
     {
@@ -315,7 +329,7 @@ __global__ void __launch_bounds__(fq::launch::kArmThreads, 4) beta_singles_delta
     }
 }
 
-}
+} // namespace
 
 extern "C"
 {
@@ -325,16 +339,17 @@ extern "C"
                                     const FqBetaSinglePairTables* tables,
                                     void* stream)
     {
-        return fq::launch::with_rows_per_thread(*geometry, tables->alphas_per_thread, [&](auto alphas) {
-            constexpr int K = decltype(alphas)::value;
-            const cudaStream_t s = static_cast<cudaStream_t>(stream);
-            if(tables->hoist_loads != 0)
-            {
-                launch_beta_singles_pair_order<K, true>(*geometry, *vectors, *tables, s);
-                return;
-            }
-            launch_beta_singles_pair_order<K, false>(*geometry, *vectors, *tables, s);
-        });
+        return fq::launch::with_rows_per_thread(
+            *geometry, tables->alphas_per_thread, [&](auto alphas) {
+                constexpr int K = decltype(alphas)::value;
+                const cudaStream_t s = static_cast<cudaStream_t>(stream);
+                if(tables->hoist_loads != 0)
+                {
+                    launch_beta_singles_pair_order<K, true>(*geometry, *vectors, *tables, s);
+                    return;
+                }
+                launch_beta_singles_pair_order<K, false>(*geometry, *vectors, *tables, s);
+            });
     }
 
     int fq_launch_beta_singles_delta(const FqTileGeometry* geometry,
@@ -342,10 +357,14 @@ extern "C"
                                      const FqBetaSingleDeltaTables* tables,
                                      void* stream)
     {
-        return fq::launch::with_rows_per_thread(*geometry, tables->alphas_per_thread, [&](auto alphas) {
-            constexpr int K = decltype(alphas)::value;
-            beta_singles_delta_kernel<K><<<fq::launch::alpha_column_grid<K>(*geometry), geometry->threads_per_block, 0,
-                                          static_cast<cudaStream_t>(stream)>>>(*geometry, *vectors, *tables);
-        });
+        return fq::launch::with_rows_per_thread(
+            *geometry, tables->alphas_per_thread, [&](auto alphas) {
+                constexpr int K = decltype(alphas)::value;
+                beta_singles_delta_kernel<K>
+                    <<<fq::launch::alpha_column_grid<K>(*geometry),
+                       geometry->threads_per_block,
+                       0,
+                       static_cast<cudaStream_t>(stream)>>>(*geometry, *vectors, *tables);
+            });
     }
 }

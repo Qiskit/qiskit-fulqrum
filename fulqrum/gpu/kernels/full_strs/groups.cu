@@ -33,9 +33,9 @@ constexpr int kOffsetThreads = 256;
 constexpr int kBlockGroupThreads = 256;
 constexpr int kMaxSharedMembers = 1024;
 
-
 template <int W>
-__device__ __forceinline__ void load_key(const FsKeys& keys, const std::uint32_t row, std::uint64_t* key)
+__device__ __forceinline__ void
+load_key(const FsKeys& keys, const std::uint32_t row, std::uint64_t* key)
 {
     const std::uint64_t* source = key_of<W>(keys, row);
 #pragma unroll
@@ -45,8 +45,8 @@ __device__ __forceinline__ void load_key(const FsKeys& keys, const std::uint32_t
     }
 }
 
-
-__device__ __forceinline__ void write_partial(const FsGroups& groups, const std::int64_t position, const double acc)
+__device__ __forceinline__ void
+write_partial(const FsGroups& groups, const std::int64_t position, const double acc)
 {
     if(groups.y != nullptr)
     {
@@ -59,12 +59,11 @@ __device__ __forceinline__ void write_partial(const FsGroups& groups, const std:
     groups.partials[position] = acc;
 }
 
-
 template <int W, int CLS>
 __global__ void __launch_bounds__(kGroupThreads) tiny_group_kernel(const FsKeys keys,
-                                                                    const FsTables tables,
-                                                                    const FsGroups groups,
-                                                                    const double* __restrict__ x)
+                                                                   const FsTables tables,
+                                                                   const FsGroups groups,
+                                                                   const double* __restrict__ x)
 {
     const std::int64_t stride = std::int64_t(gridDim.x) * blockDim.x;
     for(std::int64_t g = groups.first_group + std::int64_t(blockIdx.x) * blockDim.x + threadIdx.x;
@@ -112,12 +111,11 @@ __global__ void __launch_bounds__(kGroupThreads) tiny_group_kernel(const FsKeys 
     }
 }
 
-
 template <int W, int CLS, int TILE, int MPL>
 __global__ void __launch_bounds__(kGroupThreads) tile_group_kernel(const FsKeys keys,
-                                                                    const FsTables tables,
-                                                                    const FsGroups groups,
-                                                                    const double* __restrict__ x)
+                                                                   const FsTables tables,
+                                                                   const FsGroups groups,
+                                                                   const double* __restrict__ x)
 {
     constexpr int kTilesPerWarp = 32 / TILE;
     const int lane = threadIdx.x % TILE;
@@ -125,7 +123,8 @@ __global__ void __launch_bounds__(kGroupThreads) tile_group_kernel(const FsKeys 
     const std::int64_t warp = (std::int64_t(blockIdx.x) * blockDim.x + threadIdx.x) >> 5;
     const std::int64_t num_warps = (std::int64_t(gridDim.x) * blockDim.x) >> 5;
     const std::int64_t last_group = groups.first_group + groups.num_groups;
-    for(std::int64_t first = groups.first_group + warp * kTilesPerWarp; first < last_group; first += num_warps * kTilesPerWarp)
+    for(std::int64_t first = groups.first_group + warp * kTilesPerWarp; first < last_group;
+        first += num_warps * kTilesPerWarp)
     {
         const std::int64_t g = first + tile_in_warp;
         const bool active = g < last_group;
@@ -169,8 +168,10 @@ __global__ void __launch_bounds__(kGroupThreads) tile_group_kernel(const FsKeys 
         const int output_last = bounds[1];
         const int source_first = bounds[2];
         const int source_last = bounds[3];
-        const int warp_first = static_cast<int>(__reduce_min_sync(mask, static_cast<unsigned int>(output_first)));
-        const int warp_max = static_cast<int>(__reduce_max_sync(mask, static_cast<unsigned int>(output_last)));
+        const int warp_first =
+            static_cast<int>(__reduce_min_sync(mask, static_cast<unsigned int>(output_first)));
+        const int warp_max =
+            static_cast<int>(__reduce_max_sync(mask, static_cast<unsigned int>(output_last)));
         for(int k = warp_first; k < warp_max; k++)
         {
             std::uint64_t out[2 * W];
@@ -210,19 +211,18 @@ __global__ void __launch_bounds__(kGroupThreads) tile_group_kernel(const FsKeys 
     }
 }
 
-
 template <int W, int CLS>
-__global__ void __launch_bounds__(kBlockGroupThreads) block_group_kernel(const FsKeys keys,
-                                                                          const FsTables tables,
-                                                                          const FsGroups groups,
-                                                                          const double* __restrict__ x)
+__global__ void __launch_bounds__(kBlockGroupThreads) block_group_kernel(
+    const FsKeys keys, const FsTables tables, const FsGroups groups, const double* __restrict__ x)
 {
     __shared__ std::uint64_t shared_keys[kMaxSharedMembers * 2 * W];
     __shared__ double shared_values[kMaxSharedMembers];
     const int lane = threadIdx.x & 31;
     const int warp = threadIdx.x >> 5;
     constexpr int kWarps = kBlockGroupThreads / 32;
-    for(std::int64_t g = groups.first_group + blockIdx.x; g < groups.first_group + groups.num_groups; g += gridDim.x)
+    for(std::int64_t g = groups.first_group + blockIdx.x;
+        g < groups.first_group + groups.num_groups;
+        g += gridDim.x)
     {
         const std::int32_t begin = groups.offsets[g];
         const int m = groups.offsets[g + 1] - begin;
@@ -244,14 +244,17 @@ __global__ void __launch_bounds__(kBlockGroupThreads) block_group_kernel(const F
         __syncthreads();
         for(int k = output_first + warp; k < output_last; k += kWarps)
         {
-            const std::uint64_t* out = staged ? shared_keys + k * 2 * W : key_of<W>(keys, groups.members[begin + k]);
+            const std::uint64_t* out =
+                staged ? shared_keys + k * 2 * W : key_of<W>(keys, groups.members[begin + k]);
             double acc = 0.0;
             for(int j = lane; j < m; j += 32)
             {
                 const std::uint32_t row = staged ? 0u : groups.members[begin + j];
-                const std::uint64_t* source = staged ? shared_keys + j * 2 * W : key_of<W>(keys, row);
+                const std::uint64_t* source =
+                    staged ? shared_keys + j * 2 * W : key_of<W>(keys, row);
                 const double value = staged ? shared_values[j] : x[row];
-                if(j >= source_first && j < source_last && j != k && dev::pair_counts<W, CLS>(out, source))
+                if(j >= source_first && j < source_last && j != k &&
+                   dev::pair_counts<W, CLS>(out, source))
                 {
                     acc = fma(dev::element<W, CLS>(tables, out, source), value, acc);
                 }
@@ -269,38 +272,51 @@ __global__ void __launch_bounds__(kBlockGroupThreads) block_group_kernel(const F
     }
 }
 
-
 inline unsigned int strided_grid(const std::int64_t items, const std::int64_t per_block)
 {
     const std::int64_t blocks = (items + per_block - 1) / per_block;
-    return static_cast<unsigned int>(blocks < 1 ? 1 : (blocks < kMaxGroupBlocks ? blocks : kMaxGroupBlocks));
+    return static_cast<unsigned int>(
+        blocks < 1 ? 1 : (blocks < kMaxGroupBlocks ? blocks : kMaxGroupBlocks));
 }
 
-
 template <int W, int CLS>
-int launch_binned(const FsKeys& keys, const FsTables& tables, const FsGroups& groups, const double* x, cudaStream_t stream)
+int launch_binned(const FsKeys& keys,
+                  const FsTables& tables,
+                  const FsGroups& groups,
+                  const double* x,
+                  cudaStream_t stream)
 {
     const std::int64_t n = groups.num_groups;
     switch(groups.bucket)
     {
     case 0:
-        tiny_group_kernel<W, CLS><<<strided_grid(n, kGroupThreads), kGroupThreads, 0, stream>>>(keys, tables, groups, x);
+        tiny_group_kernel<W, CLS>
+            <<<strided_grid(n, kGroupThreads), kGroupThreads, 0, stream>>>(keys, tables, groups, x);
         break;
     case 1:
-        tile_group_kernel<W, CLS, 8, 1><<<strided_grid(n, kGroupThreads / 8), kGroupThreads, 0, stream>>>(keys, tables, groups, x);
+        tile_group_kernel<W, CLS, 8, 1>
+            <<<strided_grid(n, kGroupThreads / 8), kGroupThreads, 0, stream>>>(
+                keys, tables, groups, x);
         break;
     case 2:
-        tile_group_kernel<W, CLS, 16, 1><<<strided_grid(n, kGroupThreads / 16), kGroupThreads, 0, stream>>>(keys, tables, groups, x);
+        tile_group_kernel<W, CLS, 16, 1>
+            <<<strided_grid(n, kGroupThreads / 16), kGroupThreads, 0, stream>>>(
+                keys, tables, groups, x);
         break;
     case 3:
-        tile_group_kernel<W, CLS, 32, 1><<<strided_grid(n, kGroupThreads / 32), kGroupThreads, 0, stream>>>(keys, tables, groups, x);
+        tile_group_kernel<W, CLS, 32, 1>
+            <<<strided_grid(n, kGroupThreads / 32), kGroupThreads, 0, stream>>>(
+                keys, tables, groups, x);
         break;
     case 4:
-        tile_group_kernel<W, CLS, 32, 2><<<strided_grid(n, kGroupThreads / 32), kGroupThreads, 0, stream>>>(keys, tables, groups, x);
+        tile_group_kernel<W, CLS, 32, 2>
+            <<<strided_grid(n, kGroupThreads / 32), kGroupThreads, 0, stream>>>(
+                keys, tables, groups, x);
         break;
     case 5:
     case 6:
-        block_group_kernel<W, CLS><<<strided_grid(n, 1), kBlockGroupThreads, 0, stream>>>(keys, tables, groups, x);
+        block_group_kernel<W, CLS>
+            <<<strided_grid(n, 1), kBlockGroupThreads, 0, stream>>>(keys, tables, groups, x);
         break;
     default:
         return int(cudaErrorInvalidValue);
@@ -308,24 +324,28 @@ int launch_binned(const FsKeys& keys, const FsTables& tables, const FsGroups& gr
     return int(cudaGetLastError());
 }
 
-
 template <int W, int CLS>
 __global__ void __launch_bounds__(kGroupThreads) uniform_group_kernel(const FsKeys keys,
-                                                                       const FsTables tables,
-                                                                       const FsGroups groups,
-                                                                       const double* __restrict__ x)
+                                                                      const FsTables tables,
+                                                                      const FsGroups groups,
+                                                                      const double* __restrict__ x)
 {
     const int lane = threadIdx.x & 31;
     const std::int64_t warp = (std::int64_t(blockIdx.x) * blockDim.x + threadIdx.x) >> 5;
     const std::int64_t num_warps = (std::int64_t(gridDim.x) * blockDim.x) >> 5;
-    for(std::int64_t g = groups.first_group + warp; g < groups.first_group + groups.num_groups; g += num_warps)
+    for(std::int64_t g = groups.first_group + warp; g < groups.first_group + groups.num_groups;
+        g += num_warps)
     {
         const std::int32_t begin = groups.offsets[g];
         const std::int32_t end = groups.offsets[g + 1];
-        const std::int32_t first_output = begin + members_below(groups.members + begin, end - begin, groups.output_begin);
-        const std::int32_t last_output = begin + members_below(groups.members + begin, end - begin, groups.output_end);
-        const std::int32_t first_source = begin + members_below(groups.members + begin, end - begin, groups.source_begin);
-        const std::int32_t last_source = begin + members_below(groups.members + begin, end - begin, groups.source_end);
+        const std::int32_t first_output =
+            begin + members_below(groups.members + begin, end - begin, groups.output_begin);
+        const std::int32_t last_output =
+            begin + members_below(groups.members + begin, end - begin, groups.output_end);
+        const std::int32_t first_source =
+            begin + members_below(groups.members + begin, end - begin, groups.source_begin);
+        const std::int32_t last_source =
+            begin + members_below(groups.members + begin, end - begin, groups.source_end);
         for(std::int32_t k = first_output; k < last_output; k++)
         {
             const std::uint64_t* out = key_of<W>(keys, groups.members[k]);
@@ -356,13 +376,13 @@ __global__ void __launch_bounds__(kGroupThreads) uniform_group_kernel(const FsKe
     }
 }
 
-
 __global__ void __launch_bounds__(kOffsetThreads) widen_sizes_kernel(const std::uint16_t* sizes,
                                                                      const std::int64_t num_groups,
                                                                      std::int32_t* offsets)
 {
     const std::int64_t stride = std::int64_t(gridDim.x) * blockDim.x;
-    for(std::int64_t g = std::int64_t(blockIdx.x) * blockDim.x + threadIdx.x; g < num_groups; g += stride)
+    for(std::int64_t g = std::int64_t(blockIdx.x) * blockDim.x + threadIdx.x; g < num_groups;
+        g += stride)
     {
         offsets[g + 1] = sizes[g];
     }
@@ -372,25 +392,30 @@ __global__ void __launch_bounds__(kOffsetThreads) widen_sizes_kernel(const std::
     }
 }
 
-
 template <int W, int CLS>
-int launch_uniform(const FsKeys& keys, const FsTables& tables, const FsGroups& groups, const double* x, cudaStream_t stream)
+int launch_uniform(const FsKeys& keys,
+                   const FsTables& tables,
+                   const FsGroups& groups,
+                   const double* x,
+                   cudaStream_t stream)
 {
     const std::int64_t blocks = (groups.num_groups + kWarpsPerBlock - 1) / kWarpsPerBlock;
-    const unsigned int grid = static_cast<unsigned int>(blocks < kMaxGroupBlocks ? blocks : kMaxGroupBlocks);
+    const unsigned int grid =
+        static_cast<unsigned int>(blocks < kMaxGroupBlocks ? blocks : kMaxGroupBlocks);
     uniform_group_kernel<W, CLS><<<grid, kGroupThreads, 0, stream>>>(keys, tables, groups, x);
     return int(cudaGetLastError());
 }
-
 
 int key_words(const FsKeys& keys)
 {
     return keys.key_words == 0 ? 1 : keys.key_words;
 }
 
-
 template <int W>
-int launch_uniform_class(const FsKeys& keys, const FsTables& tables, const FsGroups& groups, const double* x,
+int launch_uniform_class(const FsKeys& keys,
+                         const FsTables& tables,
+                         const FsGroups& groups,
+                         const double* x,
                          const cudaStream_t s)
 {
     switch(groups.cls)
@@ -410,9 +435,11 @@ int launch_uniform_class(const FsKeys& keys, const FsTables& tables, const FsGro
     }
 }
 
-
 template <int W>
-int launch_binned_class(const FsKeys& keys, const FsTables& tables, const FsGroups& groups, const double* x,
+int launch_binned_class(const FsKeys& keys,
+                        const FsTables& tables,
+                        const FsGroups& groups,
+                        const double* x,
                         const cudaStream_t s)
 {
     switch(groups.cls)
@@ -432,12 +459,15 @@ int launch_binned_class(const FsKeys& keys, const FsTables& tables, const FsGrou
     }
 }
 
-}
+} // namespace
 
 extern "C"
 {
 
-    int fs_launch_groups_uniform(const FsKeys* keys, const FsTables* tables, const FsGroups* groups, const double* x,
+    int fs_launch_groups_uniform(const FsKeys* keys,
+                                 const FsTables* tables,
+                                 const FsGroups* groups,
+                                 const double* x,
                                  void* stream)
     {
         if(groups->num_groups <= 0)
@@ -456,7 +486,10 @@ extern "C"
         }
     }
 
-    int fs_launch_groups_binned(const FsKeys* keys, const FsTables* tables, const FsGroups* groups, const double* x,
+    int fs_launch_groups_binned(const FsKeys* keys,
+                                const FsTables* tables,
+                                const FsGroups* groups,
+                                const double* x,
                                 void* stream)
     {
         if(groups->num_groups <= 0)
@@ -478,23 +511,32 @@ extern "C"
     std::size_t fs_group_offsets_scratch_bytes(const std::int64_t num_groups)
     {
         std::size_t bytes = 0;
-        cub::DeviceScan::InclusiveSum(nullptr, bytes, static_cast<std::int32_t*>(nullptr),
-                                      static_cast<std::int32_t*>(nullptr), static_cast<int>(num_groups));
+        cub::DeviceScan::InclusiveSum(nullptr,
+                                      bytes,
+                                      static_cast<std::int32_t*>(nullptr),
+                                      static_cast<std::int32_t*>(nullptr),
+                                      static_cast<int>(num_groups));
         return bytes;
     }
 
-    int fs_launch_group_offsets(const std::uint16_t* sizes, const std::int64_t num_groups, std::int32_t* offsets,
-                                void* scratch, std::size_t scratch_bytes, void* stream)
+    int fs_launch_group_offsets(const std::uint16_t* sizes,
+                                const std::int64_t num_groups,
+                                std::int32_t* offsets,
+                                void* scratch,
+                                std::size_t scratch_bytes,
+                                void* stream)
     {
         const cudaStream_t s = static_cast<cudaStream_t>(stream);
         const std::int64_t blocks = (num_groups + kOffsetThreads - 1) / kOffsetThreads;
-        const unsigned int grid = static_cast<unsigned int>(blocks < 1 ? 1 : (blocks < kMaxGroupBlocks ? blocks : kMaxGroupBlocks));
+        const unsigned int grid = static_cast<unsigned int>(
+            blocks < 1 ? 1 : (blocks < kMaxGroupBlocks ? blocks : kMaxGroupBlocks));
         widen_sizes_kernel<<<grid, kOffsetThreads, 0, s>>>(sizes, num_groups, offsets);
         const cudaError_t launched = cudaGetLastError();
         if(launched != cudaSuccess || num_groups == 0)
         {
             return int(launched);
         }
-        return int(cub::DeviceScan::InclusiveSum(scratch, scratch_bytes, offsets + 1, offsets + 1, static_cast<int>(num_groups), s));
+        return int(cub::DeviceScan::InclusiveSum(
+            scratch, scratch_bytes, offsets + 1, offsets + 1, static_cast<int>(num_groups), s));
     }
 }

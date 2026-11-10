@@ -18,8 +18,8 @@
 #include <utility>
 #include <vector>
 
-#include "key_words.hpp"
 #include "checked_size.hpp"
+#include "key_words.hpp"
 
 inline constexpr std::size_t PARALLEL_SORT_MIN_ITEMS = std::size_t(1) << 16;
 
@@ -48,9 +48,10 @@ void parallel_sort(std::vector<T>& items, const Less& less)
         std::sort(items.begin() + begin, items.begin() + end, less);
     }
     std::vector<T> buffer(num_items);
-    for(std::size_t run = chunk_size; run < num_items; run = run > num_items / 2 ? num_items : run * 2)
+    for(std::size_t run = chunk_size; run<num_items; run = run> num_items / 2 ? num_items : run * 2)
     {
-        const std::size_t num_pairs = ceiling_divide(num_items, run > num_items / 2 ? num_items : 2 * run);
+        const std::size_t num_pairs =
+            ceiling_divide(num_items, run > num_items / 2 ? num_items : 2 * run);
 #pragma omp parallel for schedule(dynamic)
         for(std::size_t pair = 0; pair < num_pairs; pair++)
         {
@@ -77,13 +78,13 @@ void parallel_sort(std::vector<T>& items, const Less& less)
  * @param num_words The number of words in each key.
  */
 template <typename Word>
-inline void permute_keys(std::vector<Word>& keys,
-                         std::vector<std::size_t>& order,
-                         const std::size_t num_words)
+inline void
+permute_keys(std::vector<Word>& keys, std::vector<std::size_t>& order, const std::size_t num_words)
 {
     if(keys.size() != checked_multiply(order.size(), num_words))
         throw std::invalid_argument("Key permutation shape mismatch.");
-    if(order.empty()) return;
+    if(order.empty())
+        return;
     std::vector<Word> held(num_words);
     for(std::size_t start = 0; start < order.size(); start++)
     {
@@ -96,7 +97,8 @@ inline void permute_keys(std::vector<Word>& keys,
         while(order[position] != start)
         {
             const std::size_t source = order[position];
-            std::copy_n(keys.data() + source * num_words, num_words, keys.data() + position * num_words);
+            std::copy_n(
+                keys.data() + source * num_words, num_words, keys.data() + position * num_words);
             order[position] = position;
             position = source;
         }

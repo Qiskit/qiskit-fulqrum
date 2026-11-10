@@ -20,7 +20,6 @@
 namespace fq::full_strs::device
 {
 
-
 enum MoveClass : int
 {
     kAlphaSingle = 0,
@@ -30,12 +29,11 @@ enum MoveClass : int
     kMixed = 4
 };
 
+__device__ __constant__ const signed char kDoubleSlot[16] = {
+    -1, -1, -1, 0, -1, 1, 2, -1, -1, 2, 1, -1, 0, -1, -1, -1};
 
-__device__ __constant__ const signed char kDoubleSlot[16] = {-1, -1, -1, 0, -1, 1, 2, -1, -1, 2, 1, -1, 0, -1, -1, -1};
-
-
-__device__ __constant__ const signed char kMixedSlot[16] = {-1, -1, -1, -1, -1, 0, 1, -1, -1, 1, 0, -1, -1, -1, -1, -1};
-
+__device__ __constant__ const signed char kMixedSlot[16] = {
+    -1, -1, -1, -1, -1, 0, 1, -1, -1, 1, 0, -1, -1, -1, -1, -1};
 
 template <int W>
 __device__ __forceinline__ bool has_orbital(const std::uint64_t* words, const int orbital)
@@ -43,24 +41,23 @@ __device__ __forceinline__ bool has_orbital(const std::uint64_t* words, const in
     return ((words[orbital >> 6] >> (orbital & 63)) & 1ull) != 0;
 }
 
-
 __device__ __forceinline__ std::int64_t pair_rank(const int p, const int q)
 {
     return std::int64_t(q) * (q - 1) / 2 + p;
 }
-
 
 __device__ __forceinline__ std::int64_t quad_rank(const int* pos)
 {
     const std::int64_t z = pos[3];
     const std::int64_t y = pos[2];
     const std::int64_t x = pos[1];
-    return z * (z - 1) * (z - 2) * (z - 3) / 24 + y * (y - 1) * (y - 2) / 6 + x * (x - 1) / 2 + pos[0];
+    return z * (z - 1) * (z - 2) * (z - 3) / 24 + y * (y - 1) * (y - 2) / 6 + x * (x - 1) / 2 +
+           pos[0];
 }
 
-
 template <int W>
-__device__ __forceinline__ bool between_parity(const std::uint64_t* words, const int lo, const int hi)
+__device__ __forceinline__ bool
+between_parity(const std::uint64_t* words, const int lo, const int hi)
 {
     unsigned int count = 0;
 #pragma unroll
@@ -72,16 +69,17 @@ __device__ __forceinline__ bool between_parity(const std::uint64_t* words, const
         if(begin < end)
         {
             const int width = end - begin;
-            const std::uint64_t mask = (width == 64 ? ~0ull : ((1ull << width) - 1ull)) << (begin - first);
+            const std::uint64_t mask = (width == 64 ? ~0ull : ((1ull << width) - 1ull))
+                                       << (begin - first);
             count += static_cast<unsigned int>(__popcll(words[word] & mask));
         }
     }
     return (count & 1u) != 0;
 }
 
-
 template <int W>
-__device__ __forceinline__ int flip_orbitals(const std::uint64_t* a, const std::uint64_t* b, int* out, const int max_count)
+__device__ __forceinline__ int
+flip_orbitals(const std::uint64_t* a, const std::uint64_t* b, int* out, const int max_count)
 {
     int count = 0;
 #pragma unroll
@@ -101,7 +99,6 @@ __device__ __forceinline__ int flip_orbitals(const std::uint64_t* a, const std::
     return count;
 }
 
-
 template <int W>
 __device__ __forceinline__ int flip_count(const std::uint64_t* a, const std::uint64_t* b)
 {
@@ -113,7 +110,6 @@ __device__ __forceinline__ int flip_count(const std::uint64_t* a, const std::uin
     }
     return count;
 }
-
 
 template <int W, int CLS>
 __device__ __forceinline__ bool pair_counts(const std::uint64_t* out, const std::uint64_t* source)
@@ -140,10 +136,9 @@ __device__ __forceinline__ bool pair_counts(const std::uint64_t* out, const std:
     }
 }
 
-
 template <int W>
-__device__ __forceinline__ double single_element(const FsTables& tables, const std::uint64_t* out, const int sector,
-                                                 const int p, const int q)
+__device__ __forceinline__ double single_element(
+    const FsTables& tables, const std::uint64_t* out, const int sector, const int p, const int q)
 {
     const int n = tables.num_orbitals;
     const std::uint64_t* own = out + sector * W;
@@ -184,45 +179,49 @@ __device__ __forceinline__ double single_element(const FsTables& tables, const s
     return between_parity<W>(own, p, q) ? -value : value;
 }
 
-
 template <int W>
-__device__ __forceinline__ double double_element(const FsTables& tables, const std::uint64_t* out, const int sector,
-                                                 const int* pos)
+__device__ __forceinline__ double
+double_element(const FsTables& tables, const std::uint64_t* out, const int sector, const int* pos)
 {
     const std::uint64_t* own = out + sector * W;
     const int pattern = int(has_orbital<W>(own, pos[0])) | int(has_orbital<W>(own, pos[1])) << 1 |
-                        int(has_orbital<W>(own, pos[2])) << 2 | int(has_orbital<W>(own, pos[3])) << 3;
+                        int(has_orbital<W>(own, pos[2])) << 2 |
+                        int(has_orbital<W>(own, pos[3])) << 3;
     const int slot = kDoubleSlot[pattern];
     if(slot < 0)
     {
         return 0.0;
     }
-    const double value = tables.double_value[(sector * tables.num_quads + quad_rank(pos)) * 3 + slot];
-    const bool odd = between_parity<W>(own, pos[0], pos[1]) != between_parity<W>(own, pos[2], pos[3]);
+    const double value =
+        tables.double_value[(sector * tables.num_quads + quad_rank(pos)) * 3 + slot];
+    const bool odd =
+        between_parity<W>(own, pos[0], pos[1]) != between_parity<W>(own, pos[2], pos[3]);
     return odd ? -value : value;
 }
 
-
 template <int W>
-__device__ __forceinline__ double mixed_element(const FsTables& tables, const std::uint64_t* out, const int* alpha,
-                                                const int* beta)
+__device__ __forceinline__ double
+mixed_element(const FsTables& tables, const std::uint64_t* out, const int* alpha, const int* beta)
 {
-    const int pattern = int(has_orbital<W>(out, alpha[0])) | int(has_orbital<W>(out, alpha[1])) << 1 |
-                        int(has_orbital<W>(out + W, beta[0])) << 2 | int(has_orbital<W>(out + W, beta[1])) << 3;
+    const int pattern =
+        int(has_orbital<W>(out, alpha[0])) | int(has_orbital<W>(out, alpha[1])) << 1 |
+        int(has_orbital<W>(out + W, beta[0])) << 2 | int(has_orbital<W>(out + W, beta[1])) << 3;
     const int slot = kMixedSlot[pattern];
     if(slot < 0)
     {
         return 0.0;
     }
-    const std::int64_t index = pair_rank(alpha[0], alpha[1]) * tables.num_pairs + pair_rank(beta[0], beta[1]);
+    const std::int64_t index =
+        pair_rank(alpha[0], alpha[1]) * tables.num_pairs + pair_rank(beta[0], beta[1]);
     const double value = tables.mixed_value[index * 2 + slot];
-    const bool odd = between_parity<W>(out, alpha[0], alpha[1]) != between_parity<W>(out + W, beta[0], beta[1]);
+    const bool odd =
+        between_parity<W>(out, alpha[0], alpha[1]) != between_parity<W>(out + W, beta[0], beta[1]);
     return odd ? -value : value;
 }
 
-
 template <int W, int CLS>
-__device__ __forceinline__ double element(const FsTables& tables, const std::uint64_t* out, const std::uint64_t* source)
+__device__ __forceinline__ double
+element(const FsTables& tables, const std::uint64_t* out, const std::uint64_t* source)
 {
     int alpha[4];
     int beta[4];
@@ -254,4 +253,4 @@ __device__ __forceinline__ double element(const FsTables& tables, const std::uin
     }
 }
 
-}
+} // namespace fq::full_strs::device

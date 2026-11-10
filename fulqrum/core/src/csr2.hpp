@@ -63,7 +63,8 @@ void csr_matrix_builder2(const std::vector<OperatorTerm_t>& terms,
                          const int compute_values,
                          const TermMasks* prepared_masks = nullptr)
 {
-    if(subspace_dim) checked_index<T>(subspace_dim - 1);
+    if(subspace_dim)
+        checked_index<T>(subspace_dim - 1);
     checked_add(subspace_dim, 1);
     const TermMasks owned_masks =
         prepared_masks ? TermMasks{} : build_term_masks(terms, words_for_width(width));

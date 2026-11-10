@@ -173,7 +173,8 @@ derive_sectors(const std::vector<std::vector<width_t>>& group_flips, const width
     for(width_t qubit = 0; qubit < width; qubit++)
     {
         const width_t root = root_of(qubit);
-        const bool seen = std::find(joined_roots.begin(), joined_roots.end(), root) != joined_roots.end();
+        const bool seen =
+            std::find(joined_roots.begin(), joined_roots.end(), root) != joined_roots.end();
         if(members[root] > 1 && !seen)
         {
             joined_roots.push_back(root);
@@ -245,12 +246,14 @@ inline bool sector_electrons_are_constant(const HalfKeyView& store,
             const std::size_t words = store.half_words(sector);
             auto count = [&](const KeyWord* key) {
                 std::size_t value = 0;
-                for(std::size_t word = 0; word < words; word++) value += __builtin_popcountll(key[word]);
+                for(std::size_t word = 0; word < words; word++)
+                    value += __builtin_popcountll(key[word]);
                 return value;
             };
             const std::size_t first = count(store.half_key(sector, 0));
             for(std::size_t i = 1; i < store.num_half_keys(sector); i++)
-                if(count(store.half_key(sector, i)) != first) return false;
+                if(count(store.half_key(sector, i)) != first)
+                    return false;
         }
         return true;
     }
@@ -268,8 +271,8 @@ inline bool sector_electrons_are_constant(const HalfKeyView& store,
         for(std::size_t word = 0; word < store.num_words(); word++)
         {
             total += static_cast<std::size_t>(__builtin_popcountll(key.m_bits[word]));
-            in_sector_one +=
-                static_cast<std::size_t>(__builtin_popcountll(key.m_bits[word] & sector_one_mask[word]));
+            in_sector_one += static_cast<std::size_t>(
+                __builtin_popcountll(key.m_bits[word] & sector_one_mask[word]));
         }
         return std::array<std::size_t, 2>{total - in_sector_one, in_sector_one};
     };

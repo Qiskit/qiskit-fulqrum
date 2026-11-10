@@ -47,8 +47,6 @@ _DEVICE_TO_HOST = 2
 
 
 class _Pool:
-
-
     def __init__(self):
         self.memory = None
         self.uploads = None
@@ -94,8 +92,6 @@ def _is_device(buffer) -> bool:
 
 
 class _Lane:
-
-
     def __init__(self, sending: bool, peer: int):
         self.sending = sending
         self.peer = peer
@@ -117,8 +113,6 @@ class _Lane:
 
 
 class _HostMpiBackend(_Backend):
-
-
     name = BACKEND_HOST_MPI
     needs_pinned_staging = True
     uses_caller_pinned = False
@@ -130,7 +124,6 @@ class _HostMpiBackend(_Backend):
         self._ipc = None
 
     def init(self, comm) -> None:
-
 
         from ...config import read  # noqa: PLC0415
 
@@ -165,7 +158,6 @@ class _HostMpiBackend(_Backend):
     @staticmethod
     def _to_host(buf_dev):
 
-
         if not _is_device(buf_dev):
             return np.asarray(buf_dev), False
         import cupy  # noqa: PLC0415
@@ -176,7 +168,6 @@ class _HostMpiBackend(_Backend):
     @staticmethod
     def _from_host(buf_dev, host, is_device):
 
-
         if not is_device:
             return
         import cupy  # noqa: PLC0415
@@ -186,13 +177,11 @@ class _HostMpiBackend(_Backend):
 
     def sendrecv_replace_device(self, buf_dev, peer: int, tag: int, comm) -> None:
 
-
         host, is_device = self._to_host(buf_dev)
         _chunked_sendrecv_replace(comm, host, peer, tag)
         self._from_host(buf_dev, host, is_device)
 
     def allreduce_device(self, buf_dev, op, comm) -> None:
-
 
         from mpi4py import MPI  # noqa: PLC0415
 
@@ -208,7 +197,6 @@ class _HostMpiBackend(_Backend):
         displs,
         comm,
     ) -> None:
-
 
         from mpi4py import MPI  # noqa: PLC0415
 
@@ -233,7 +221,6 @@ class _HostMpiBackend(_Backend):
         send_pinned=None,
         recv_pinned=None,
     ) -> None:
-
 
         del send_pinned, recv_pinned
         if np.dtype(send_dev.dtype) != np.dtype(recv_dev.dtype):
@@ -267,7 +254,6 @@ class _HostMpiBackend(_Backend):
         recv_pinned=None,
     ) -> None:
 
-
         del send_pinned, recv_pinned
         if np.dtype(send_dev.dtype) != np.dtype(recv_dev.dtype):
             raise TypeError(
@@ -287,7 +273,6 @@ class _HostMpiBackend(_Backend):
         self._transfer(comm, sends, receives, stream, 0)
 
     def _transfer(self, comm, sends, receives, stream, tag) -> None:
-
 
         import cupy  # noqa: PLC0415
 
@@ -309,8 +294,6 @@ class _HostMpiBackend(_Backend):
             and self._ipc.enabled
             and not self._overlaps(sends, receives)
         ):
-
-
             if stream is not None:
                 start.synchronize()
             sends, receives = self._ipc_transfer(comm, sends, receives, d2h, tag)
@@ -332,7 +315,6 @@ class _HostMpiBackend(_Backend):
             h2d.synchronize()
 
     def _ipc_transfer(self, comm, sends, receives, d2h, tag):
-
 
         import cupy  # noqa: PLC0415
         from mpi4py import MPI  # noqa: PLC0415
@@ -444,7 +426,6 @@ class _HostMpiBackend(_Backend):
     @staticmethod
     def _overlaps(sends, receives) -> bool:
 
-
         def ranges(blocks):
             return [
                 (
@@ -487,7 +468,6 @@ class _HostMpiBackend(_Backend):
     @staticmethod
     def _lanes(blocks, sending: bool, piece_bytes: int) -> list:
 
-
         lanes = {}
         for peer, buffer, first, count in blocks:
             device = _is_device(buffer)
@@ -514,7 +494,6 @@ class _HostMpiBackend(_Backend):
 
     @staticmethod
     def _assign_slots(lanes):
-
 
         import cupy  # noqa: PLC0415
 
@@ -622,7 +601,6 @@ class _HostMpiBackend(_Backend):
                     slot[2] = "MPI"
                 moved = True
             elif state == "the copy to the host" and piece == lane.sent and event.done:
-
                 lane.sent += 1
                 nbytes = lane.pieces[piece][1]
                 slot[5] = comm.Isend(

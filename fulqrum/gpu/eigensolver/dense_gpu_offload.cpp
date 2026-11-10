@@ -12,7 +12,6 @@
  * that they have been altered from the originals.
  */
 
-
 #include <cublas_v2.h>
 #include <cuda_runtime.h>
 
@@ -20,8 +19,8 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
-#include <strings.h>
 #include <initializer_list>
+#include <strings.h>
 #include <vector>
 
 #define FQ_GPU_DENSE_ABI 2
@@ -30,7 +29,6 @@ namespace
 {
 
 thread_local char g_last_error[512] = "";
-
 
 void record_error(const char* call, const char* file, int line, const char* name, const char* text)
 {
@@ -48,7 +46,6 @@ void record_error(const char* call, const char* file, int line, const char* name
              text);
 }
 
-
 bool failed(cudaError_t status, const char* call, const char* file, int line)
 {
     if(status == cudaSuccess)
@@ -59,7 +56,6 @@ bool failed(cudaError_t status, const char* call, const char* file, int line)
     return true;
 }
 
-
 bool failed(cublasStatus_t status, const char* call, const char* file, int line)
 {
     if(status == CUBLAS_STATUS_SUCCESS)
@@ -69,7 +65,6 @@ bool failed(cublasStatus_t status, const char* call, const char* file, int line)
     record_error(call, file, line, cublasGetStatusName(status), cublasGetStatusString(status));
     return true;
 }
-
 
 class DeviceFreeGuard
 {
@@ -95,7 +90,7 @@ private:
     std::vector<double**> buffers_;
 };
 
-}
+} // namespace
 
 #define FQ_CHECK(call)                                                                             \
     do                                                                                             \
@@ -106,12 +101,10 @@ private:
         }                                                                                          \
     } while(0)
 
-
 extern "C" const char* fq_primme_gpu_last_error()
 {
     return g_last_error;
 }
-
 
 extern "C" void fq_primme_gpu_last_error_clear()
 {
@@ -127,10 +120,9 @@ static int coherent_host_memory()
     {
         int device = 0, value = 0;
         const char* forced = getenv("FQ_PRIMME_GPU_DENSE_ASSUME_NONCOHERENT");
-        const bool assume_noncoherent = forced && forced[0] && forced[0] != '0' &&
-                                        strcasecmp(forced, "false") != 0 &&
-                                        strcasecmp(forced, "no") != 0 &&
-                                        strcasecmp(forced, "off") != 0;
+        const bool assume_noncoherent =
+            forced && forced[0] && forced[0] != '0' && strcasecmp(forced, "false") != 0 &&
+            strcasecmp(forced, "no") != 0 && strcasecmp(forced, "off") != 0;
         state = (!assume_noncoherent && cudaGetDevice(&device) == cudaSuccess &&
                  cudaDeviceGetAttribute(&value, cudaDevAttrPageableMemoryAccess, device) ==
                      cudaSuccess &&
@@ -166,7 +158,6 @@ extern "C" int fq_primme_gpu_dense_abi()
     return FQ_GPU_DENSE_ABI;
 }
 
-
 extern "C" void fq_primme_gpu_dense_teardown()
 {
     if(g_handle)
@@ -184,7 +175,6 @@ static inline int imax(int a, int b)
 {
     return a > b ? a : b;
 }
-
 
 extern "C" int fq_primme_dense_update_f64(const double* V,
                                           const double* W,
@@ -231,7 +221,6 @@ extern "C" int fq_primme_dense_update_f64(const double* V,
                                           long long tile_rows)
 {
 
-
     if(!coherent_host_memory())
     {
         return 1;
@@ -249,12 +238,10 @@ extern "C" int fq_primme_dense_update_f64(const double* V,
         return 1;
     }
 
-
     if(ensure_handle() != 0)
     {
         return -1;
     }
-
 
     const bool gG = (G0 != nullptr && nG > 0);
     const bool gH = (H0 != nullptr && nH > 0);
@@ -328,7 +315,6 @@ extern "C" int fq_primme_dense_update_f64(const double* V,
         return 1;
     }
 
-
     {
 
         long long ws_cols = (long long)ncX + (long long)ncY + (long long)ncR +
@@ -363,7 +349,6 @@ extern "C" int fq_primme_dense_update_f64(const double* V,
 
     const double one = 1.0, zero = 0.0;
 
-
     double *dX = nullptr, *dY = nullptr, *dR = nullptr, *dG = nullptr, *dH = nullptr,
            *dVt = nullptr;
     const DeviceFreeGuard guard{&dX, &dY, &dR, &dG, &dH, &dVt};
@@ -389,12 +374,10 @@ extern "C" int fq_primme_dense_update_f64(const double* V,
         FQ_CHECK(cudaMalloc(&dH, sizeof(double) * nH * nH));
     }
 
-
     if(ncX > 0 || ncY > 0)
     {
         FQ_CHECK(cudaMalloc(&dVt, sizeof(double) * tile_rows * nV));
     }
-
 
     if(Rnorms)
     {
@@ -418,13 +401,11 @@ extern "C" int fq_primme_dense_update_f64(const double* V,
         }
     }
 
-
     bool first = true;
     for(long long i0 = 0; i0 < mV; i0 += tile_rows)
     {
         const int m = (int)imin((long long)tile_rows, mV - i0);
         const int ldx = m, ldy = m, ldr = m;
-
 
         if(ncX > 0)
         {
@@ -476,7 +457,6 @@ extern "C" int fq_primme_dense_update_f64(const double* V,
                                  ldy));
         }
 
-
         auto copy_sub = [&](double* dst, int nb, int ne, long long ld) -> cudaError_t {
             if(!dst)
             {
@@ -499,7 +479,6 @@ extern "C" int fq_primme_dense_update_f64(const double* V,
         FQ_CHECK(copy_sub(X0, nX0b, nX0e, ldX0));
         FQ_CHECK(copy_sub(X1, nX1b, nX1e, ldX1));
         FQ_CHECK(copy_sub(X2, nX2b, nX2e, ldX2));
-
 
         if(Wo && nWob < nWoe)
         {
@@ -551,7 +530,6 @@ extern "C" int fq_primme_dense_update_f64(const double* V,
                                  nH));
         }
 
-
         if(gxn)
         {
             for(int j = nxb; j < nxe; j++)
@@ -567,7 +545,6 @@ extern "C" int fq_primme_dense_update_f64(const double* V,
                 xnorms[j - nxb] += s;
             }
         }
-
 
         if(gR)
         {
@@ -595,7 +572,6 @@ extern "C" int fq_primme_dense_update_f64(const double* V,
                                   cudaMemcpyDeviceToHost));
         }
 
-
         if(grn)
         {
             for(int c = 0; c < (nre - nrb); c++)
@@ -612,7 +588,6 @@ extern "C" int fq_primme_dense_update_f64(const double* V,
 
         first = false;
     }
-
 
     if(gG)
     {
@@ -639,7 +614,6 @@ extern "C" int fq_primme_dense_update_f64(const double* V,
     return 0;
 }
 
-
 extern "C" int fq_primme_ortho_kernel_f64(const double* Q,
                                           long long M,
                                           int nQ,
@@ -659,7 +633,6 @@ extern "C" int fq_primme_ortho_kernel_f64(const double* Q,
                                           int has_WB,
                                           long long tile_rows)
 {
-
 
     if(!coherent_host_memory())
     {
@@ -762,7 +735,6 @@ extern "C" int fq_primme_ortho_kernel_f64(const double* Q,
         const int m = (int)(M - i0 < tile_rows ? M - i0 : tile_rows);
         const int ldx = m;
         double* Xdev = dV + (long long)b1 * ldx;
-
 
         if(nQ > 0)
         {

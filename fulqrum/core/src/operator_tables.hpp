@@ -142,7 +142,8 @@ struct FactorList
      * @param end One past the last entry.
      * @param row The row words, num_words words.
      */
-    std::complex<double> sum(const std::size_t begin, const std::size_t end, const KeyWord* row) const
+    std::complex<double>
+    sum(const std::size_t begin, const std::size_t end, const KeyWord* row) const
     {
         std::complex<double> total = 0;
         for(std::size_t entry = begin; entry < end; entry++)
@@ -455,7 +456,8 @@ public:
     {
         const GroupData& data = groups_[group];
         auto row_bit = [row](const width_t qubit) {
-            return static_cast<unsigned int>((row[qubit / KEY_WORD_BITS] >> (qubit % KEY_WORD_BITS)) & 1u);
+            return static_cast<unsigned int>(
+                (row[qubit / KEY_WORD_BITS] >> (qubit % KEY_WORD_BITS)) & 1u);
         };
         if(data.tier == GroupTier::same_sector_single)
         {
@@ -512,8 +514,10 @@ public:
      */
     std::size_t count(const GroupTier tier) const
     {
-        return static_cast<std::size_t>(std::count_if(
-            groups_.begin(), groups_.end(), [tier](const GroupData& data) { return data.tier == tier; }));
+        return static_cast<std::size_t>(
+            std::count_if(groups_.begin(), groups_.end(), [tier](const GroupData& data) {
+                return data.tier == tier;
+            }));
     }
 
 private:
@@ -628,10 +632,15 @@ private:
         for(std::size_t term = 0; term < num_terms; term++)
         {
             const OperatorTerm_t& source = oper.terms[begin + term];
-            const std::vector<std::complex<double>> both = flip_values(source, flips, {0b01u, 0b10u});
+            const std::vector<std::complex<double>> both =
+                flip_values(source, flips, {0b01u, 0b10u});
             values[term] = {both[0], both[1]};
-            diagonal_masks(source, sector_masks_[data.sector], num_words, own_masks.data() + term * stride);
-            diagonal_masks(source, sector_masks_[1 - data.sector], num_words, other_masks.data() + term * stride);
+            diagonal_masks(
+                source, sector_masks_[data.sector], num_words, own_masks.data() + term * stride);
+            diagonal_masks(source,
+                           sector_masks_[1 - data.sector],
+                           num_words,
+                           other_masks.data() + term * stride);
         }
         for(int direction = 0; direction < 2; direction++)
         {
@@ -690,7 +699,8 @@ private:
                                     FactorList& factors,
                                     GroupData& data) const
     {
-        static const std::vector<unsigned int> patterns = {0b0011u, 0b0101u, 0b0110u, 0b1001u, 0b1010u, 0b1100u};
+        static const std::vector<unsigned int> patterns = {
+            0b0011u, 0b0101u, 0b0110u, 0b1001u, 0b1010u, 0b1100u};
         const std::size_t num_words = factors.num_words;
         const std::size_t stride = 3 * num_words;
         const std::size_t num_terms = end - begin;
@@ -701,14 +711,17 @@ private:
         {
             const OperatorTerm_t& source = oper.terms[begin + term];
             values[term] = flip_values(source, flips, patterns);
-            const bool acts = std::any_of(values[term].begin(), values[term].end(),
-                                          [](const std::complex<double>& value) { return value != 0.0; });
+            const bool acts =
+                std::any_of(values[term].begin(),
+                            values[term].end(),
+                            [](const std::complex<double>& value) { return value != 0.0; });
             diagonal_masks(source, sector_masks_[1 - data.sector], num_words, other_masks.data());
             if(acts && !mask_is_empty(other_masks.data(), stride))
             {
                 return GenericReason::double_with_other_factor;
             }
-            diagonal_masks(source, sector_masks_[data.sector], num_words, own_masks.data() + term * stride);
+            diagonal_masks(
+                source, sector_masks_[data.sector], num_words, own_masks.data() + term * stride);
         }
         for(std::size_t pattern = 0; pattern < patterns.size(); pattern++)
         {
@@ -772,8 +785,9 @@ private:
         {
             const OperatorTerm_t& term = oper.terms[index];
             const std::vector<std::complex<double>> values = flip_values(term, flips, patterns);
-            if(std::all_of(values.begin(), values.end(),
-                           [](const std::complex<double>& value) { return value == 0.0; }))
+            if(std::all_of(values.begin(), values.end(), [](const std::complex<double>& value) {
+                   return value == 0.0;
+               }))
             {
                 continue;
             }
@@ -782,7 +796,8 @@ private:
             {
                 return GenericReason::cross_with_projector;
             }
-            if(!std::equal(expected_parity.begin(), expected_parity.end(), masks.begin() + 2 * num_words))
+            if(!std::equal(
+                   expected_parity.begin(), expected_parity.end(), masks.begin() + 2 * num_words))
             {
                 return GenericReason::cross_sign_not_separable;
             }

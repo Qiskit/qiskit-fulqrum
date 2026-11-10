@@ -48,7 +48,8 @@ I checked_index(V value)
     if constexpr(std::is_signed_v<V>)
         if(value < 0)
             throw std::invalid_argument("Size or index must be nonnegative.");
-    if(static_cast<std::uintmax_t>(value) > static_cast<std::uintmax_t>(std::numeric_limits<I>::max()))
+    if(static_cast<std::uintmax_t>(value) >
+       static_cast<std::uintmax_t>(std::numeric_limits<I>::max()))
         throw std::overflow_error("Size or index exceeds the destination type.");
     return static_cast<I>(value);
 }

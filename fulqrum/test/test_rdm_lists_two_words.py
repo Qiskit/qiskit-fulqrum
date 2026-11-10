@@ -103,7 +103,10 @@ def pad(value, at, count):
 
 def remap_label(label, m, extra, at=3):
     p, q = divmod(int(label), m)
-    shift = lambda o: o + extra if o >= at else o
+
+    def shift(o):
+        return o + extra if o >= at else o
+
     return shift(p) * (m + extra) + shift(q)
 
 

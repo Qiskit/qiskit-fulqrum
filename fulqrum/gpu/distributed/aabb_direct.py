@@ -13,7 +13,6 @@
 
 def full_source_plan(graph, n_alpha):
 
-
     import numpy as np
 
     limit = np.iinfo(np.int32).max
@@ -44,7 +43,6 @@ def full_source_plan(graph, n_alpha):
 
 def _int32_array(values, name):
 
-
     import numpy as np
 
     a = np.asarray(values)
@@ -58,7 +56,6 @@ def _int32_array(values, name):
 def sorted_beta_graph(
     ptr, columns, p0, p1, bra_beta, num_beta, n_source, source_slots=None
 ):
-
 
     import numpy as np
 

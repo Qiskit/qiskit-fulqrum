@@ -23,8 +23,8 @@
 #include "../checked_size.hpp"
 #include "../operator_tables.hpp"
 #include "../subspace.hpp"
-#include "connections.hpp"
 #include "../tier_utils.hpp"
+#include "connections.hpp"
 
 /**
  * How the tensor-product engine gets the cross values of same-sector single excitation.
@@ -104,11 +104,13 @@ std::vector<T> build_stored_cross_table(const OperatorTables& tables,
 
             for(std::size_t slot = 0; slot < num_slots; slot++)
             {
-                const EntryRange cross = slot_cross_entries(tables, groups, sector, connections.slot_pair[slot]);
+                const EntryRange cross =
+                    slot_cross_entries(tables, groups, sector, connections.slot_pair[slot]);
 
                 if(cross.end > cross.begin)
                 {
-                    table[slot * num_other + string] = to_value<T>(factors.sum(cross.begin, cross.end, row.data()));
+                    table[slot * num_other + string] =
+                        to_value<T>(factors.sum(cross.begin, cross.end, row.data()));
                 }
             }
         }
@@ -165,7 +167,8 @@ bool build_cross_entries(const OperatorTables& tables,
                 if(projector[word] != 0)
                 {
                     count += static_cast<unsigned int>(__builtin_popcountll(projector[word]));
-                    qubit = word * KEY_WORD_BITS + static_cast<std::size_t>(__builtin_ctzll(projector[word]));
+                    qubit = word * KEY_WORD_BITS +
+                            static_cast<std::size_t>(__builtin_ctzll(projector[word]));
                 }
             }
 
@@ -174,7 +177,8 @@ bool build_cross_entries(const OperatorTables& tables,
                 return false;
             }
 
-            const unsigned int bit = (expected[qubit / KEY_WORD_BITS] >> (qubit % KEY_WORD_BITS)) & 1u;
+            const unsigned int bit =
+                (expected[qubit / KEY_WORD_BITS] >> (qubit % KEY_WORD_BITS)) & 1u;
             bits.push_back(static_cast<std::uint16_t>(2 * rank[qubit] + bit));
             values.push_back(to_value<T>(factors.values[entry]));
         }
@@ -215,7 +219,8 @@ void form_cross_block(const SectorCrossValues<T>& cross,
     {
         for(int r = 0; r < R; r++)
         {
-            const double set = r < count ? static_cast<double>(half_bit(keys + (first + r) * words, rank)) : 0.0;
+            const double set =
+                r < count ? static_cast<double>(half_bit(keys + (first + r) * words, rank)) : 0.0;
             occupancy[(2 * rank + 1) * R + r] = set;
             occupancy[2 * rank * R + r] = r < count ? 1.0 - set : 0.0;
         }
@@ -263,9 +268,10 @@ void set_cross_arm_columns(SectorConnections<T>& alpha)
     for(std::size_t k = 0; k < num_singles; k++)
     {
         const std::uint64_t packed_entry = alpha.single_packed_entries[k];
-        const std::uint32_t signed_slot =
-            2 * alpha.pair_slot[single_directed_pair(packed_entry)] + (single_jw_sign(packed_entry) < 0 ? 1u : 0u);
-        alpha.single_cross_index[k] = std::uint64_t(single_column(packed_entry)) | (std::uint64_t(signed_slot) << 32);
+        const std::uint32_t signed_slot = 2 * alpha.pair_slot[single_directed_pair(packed_entry)] +
+                                          (single_jw_sign(packed_entry) < 0 ? 1u : 0u);
+        alpha.single_cross_index[k] =
+            std::uint64_t(single_column(packed_entry)) | (std::uint64_t(signed_slot) << 32);
     }
 }
 
@@ -436,7 +442,8 @@ void index_sparse_cross_singles(const SectorConnections<T>& alpha, SparseCrossTa
 
     for(std::size_t slot = 0; slot < num_slots; slot++)
     {
-        sparse.single_offsets[slot + 1] = checked_add(sparse.single_offsets[slot + 1], sparse.single_offsets[slot]);
+        sparse.single_offsets[slot + 1] =
+            checked_add(sparse.single_offsets[slot + 1], sparse.single_offsets[slot]);
     }
 
     sparse.single_row.resize(num_singles);
@@ -458,7 +465,9 @@ void index_sparse_cross_singles(const SectorConnections<T>& alpha, SparseCrossTa
 }
 
 template <typename T>
-T sparse_cross_value(const SparseCrossTable<T>& sparse, const std::uint32_t beta_slot, const std::uint32_t signed_slot)
+T sparse_cross_value(const SparseCrossTable<T>& sparse,
+                     const std::uint32_t beta_slot,
+                     const std::uint32_t signed_slot)
 {
     const auto first = sparse.alpha_slot.begin() + sparse.offsets[beta_slot];
     const auto last = sparse.alpha_slot.begin() + sparse.offsets[beta_slot + 1];

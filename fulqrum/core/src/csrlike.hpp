@@ -85,7 +85,8 @@ void set_csr_data(std::vector<std::vector<T>>& in_data,
                   T* __restrict out_data)
 {
     std::size_t num_rows = in_data.size();
-    if(num_rows) checked_index<V>(num_rows - 1);
+    if(num_rows)
+        checked_index<V>(num_rows - 1);
     std::size_t kk;
     std::vector<V> diffs;
     diffs.resize(num_rows);

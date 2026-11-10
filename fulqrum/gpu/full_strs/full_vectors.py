@@ -19,8 +19,6 @@ from fulqrum.gpu.distributed.rank_agreement import raise_on_every_rank
 
 
 class FullVectorExchange:
-
-
     def __init__(self, comm, stride, num_own):
         self.comm = comm
         self.backend = _collective.backend_for(comm)[0]
@@ -49,7 +47,6 @@ class FullVectorExchange:
 
     def allgather(self, values, stream, width=1):
 
-
         count = self.stride * width
         own = values[self.rank * count : (self.rank + 1) * count]
         if self.collectives:
@@ -72,7 +69,6 @@ class FullVectorExchange:
             )
 
     def reduce_scatter(self, values, stream):
-
 
         count = self.stride
         own = values[self.rank * count : (self.rank + 1) * count]

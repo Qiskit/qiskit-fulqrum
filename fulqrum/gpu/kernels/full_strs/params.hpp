@@ -15,7 +15,6 @@
 
 #include <cstdint>
 
-
 struct FsKeys
 {
     const std::uint64_t* keys;
@@ -24,7 +23,6 @@ struct FsKeys
     std::int32_t num_orbitals;
     std::int32_t key_words;
 };
-
 
 struct FsTables
 {
@@ -40,7 +38,6 @@ struct FsTables
     std::int32_t reserved;
 };
 
-
 struct FsVectors
 {
     const double* x;
@@ -48,7 +45,6 @@ struct FsVectors
     const double* diagonal;
     std::int64_t num_rows;
 };
-
 
 struct FsGroups
 {
@@ -66,7 +62,6 @@ struct FsGroups
     std::uint32_t source_end;
 };
 
-
 struct FsReduce
 {
     std::int32_t* rows;
@@ -83,7 +78,6 @@ struct FsReduce
     std::int32_t reserved;
 };
 
-
 struct FsRuns
 {
     const std::int32_t* perm;
@@ -93,7 +87,6 @@ struct FsRuns
     double* y;
     std::int64_t num_runs;
 };
-
 
 struct FsRdm
 {
@@ -109,7 +102,6 @@ struct FsRdm
     std::int32_t num_orbitals;
     std::int32_t half;
 };
-
 
 enum FsParamStruct
 {

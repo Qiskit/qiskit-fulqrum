@@ -26,15 +26,16 @@
 namespace
 {
 
-
 template <bool REMAPPED>
-__global__ void __launch_bounds__(fq::launch::kArmThreads, 6) cross_direct_kernel(const FqTileGeometry geometry,
-                                                                                  const FqVectors vectors,
-                                                                                  const FqCrossDirectTables tables)
+__global__ void __launch_bounds__(fq::launch::kArmThreads, 6)
+    cross_direct_kernel(const FqTileGeometry geometry,
+                        const FqVectors vectors,
+                        const FqCrossDirectTables tables)
 {
     const std::int64_t task = fq::device::block_row();
     const int r = int(fq::device::thread_column());
-    if(task >= tables.num_tasks || (REMAPPED ? r >= tables.num_rows : geometry.a_start + r >= geometry.a_stop))
+    if(task >= tables.num_tasks ||
+       (REMAPPED ? r >= tables.num_rows : geometry.a_start + r >= geometry.a_stop))
     {
         return;
     }
@@ -49,22 +50,28 @@ __global__ void __launch_bounds__(fq::launch::kArmThreads, 6) cross_direct_kerne
     const int b = range[0];
     const auto* words = reinterpret_cast<const unsigned long long*>(tables.sell_words);
     const auto* beta_words = reinterpret_cast<const unsigned long long*>(tables.beta_words);
-    const fq::device::SellRow alpha_row = fq::device::SellRow::at(tables.sell_offsets, tables.sell_lengths, row);
+    const fq::device::SellRow alpha_row =
+        fq::device::SellRow::at(tables.sell_offsets, tables.sell_lengths, row);
     fq::device::RowAccumulator<1> sum;
     for(int edge = range[1]; edge < range[2]; ++edge)
     {
         const unsigned long long beta_word = __ldg(beta_words + edge);
         const double* coefficients =
-            tables.coefficients + std::int64_t(fq::edge_word::cross_pair(beta_word)) * tables.num_pairs;
+            tables.coefficients +
+            std::int64_t(fq::edge_word::cross_pair(beta_word)) * tables.num_pairs;
         const double* source =
-            vectors.src_in + std::int64_t(fq::edge_word::cross_column(beta_word)) * geometry.n_alpha_src_compact;
-        fq::arms::add_cross_row(sum, alpha_row, words, coefficients, fq::edge_word::cross_sign(beta_word), source);
+            vectors.src_in +
+            std::int64_t(fq::edge_word::cross_column(beta_word)) * geometry.n_alpha_src_compact;
+        fq::arms::add_cross_row(
+            sum, alpha_row, words, coefficients, fq::edge_word::cross_sign(beta_word), source);
     }
-    sum.flush(0, vectors.out_local + fq::device::tile_index(b - geometry.b_start, geometry.a_stop - geometry.a_start,
-                                                            column));
+    sum.flush(0,
+              vectors.out_local + fq::device::tile_index(b - geometry.b_start,
+                                                         geometry.a_stop - geometry.a_start,
+                                                         column));
 }
 
-}
+} // namespace
 
 extern "C"
 {
@@ -80,12 +87,15 @@ extern "C"
         {
             return int(cudaSuccess);
         }
-        const dim3 grid = fq::launch::beta_grid(
-            static_cast<unsigned int>((n_rows + fq::launch::kArmThreads - 1) / fq::launch::kArmThreads),
-            tables->num_tasks);
+        const dim3 grid =
+            fq::launch::beta_grid(static_cast<unsigned int>((n_rows + fq::launch::kArmThreads - 1) /
+                                                            fq::launch::kArmThreads),
+                                  tables->num_tasks);
         const cudaStream_t s = static_cast<cudaStream_t>(stream);
-        remapped ? cross_direct_kernel<true><<<grid, fq::launch::kArmThreads, 0, s>>>(*geometry, *vectors, *tables)
-                 : cross_direct_kernel<false><<<grid, fq::launch::kArmThreads, 0, s>>>(*geometry, *vectors, *tables);
+        remapped ? cross_direct_kernel<true>
+            <<<grid, fq::launch::kArmThreads, 0, s>>>(*geometry, *vectors, *tables)
+                 : cross_direct_kernel<false>
+            <<<grid, fq::launch::kArmThreads, 0, s>>>(*geometry, *vectors, *tables);
         return int(cudaGetLastError());
     }
 }

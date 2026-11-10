@@ -41,7 +41,6 @@ def validate_clique_plan(
     max_shared_bytes,
 ):
 
-
     errors = []
     if nparents <= 0:
         errors.append(f"no parents ({nparents})")
@@ -102,7 +101,6 @@ def validate_clique_plan(
 
 def clique_tile_options(environ):
 
-
     rows = int(environ.get("FQ_AABB_CLIQUE_OUTPUT_ROWS_PER_TILE", "64"))
     eb = int(environ.get("FQ_AABB_CLIQUE_EDGES_PER_BATCH", "4"))
     if not 1 <= rows <= 1024 or eb not in (4, 8):
@@ -118,7 +116,6 @@ def clique_tile_options(environ):
 
 
 def clique_edge_group_plan(words, rows, n_rows, tile_rows):
-
 
     import numpy as np
 
@@ -172,7 +169,6 @@ def clique_edge_group_plan(words, rows, n_rows, tile_rows):
 
 def clique_size_buckets(parent_ptr):
 
-
     import numpy as np
 
     sizes = np.diff(np.asarray(parent_ptr, dtype=np.int64))
@@ -187,7 +183,6 @@ def clique_size_buckets(parent_ptr):
 
 
 def remote_alpha_mode(environ):
-
 
     parent_on = environ.get("FQ_AABB_CLIQUE_ENABLE", "1") == "1"
     mode = environ.get(
@@ -205,7 +200,6 @@ def remote_alpha_mode(environ):
 
 
 def alpha_task_words(off, lengths, pack, n_out):
-
 
     import numpy as np
 
@@ -241,7 +235,6 @@ def alpha_task_words(off, lengths, pack, n_out):
 
 def parent_options(environ):
 
-
     flag = environ.get("FQ_AABB_CLIQUE_ENABLE", "1")
     timing = environ.get("FQ_AABB_TIME_CLIQUE_KERNELS", "0")
     threshold = int(environ.get("FQ_AABB_CLIQUE_MIN_MEMBERS", "6"))
@@ -253,7 +246,6 @@ def parent_options(environ):
 
 
 def remote_beta_options(environ):
-
 
     parent_on = environ.get("FQ_AABB_CLIQUE_ENABLE", "1") == "1"
     mode = environ.get(
@@ -274,7 +266,6 @@ def remote_beta_options(environ):
 
 
 def parent_kind(environ):
-
 
     kind = environ.get("FQ_AABB_CLIQUE_GROUPING_KIND", "auto").strip().lower()
     if kind not in ("auto",) + PARENT_KINDS:
@@ -360,7 +351,6 @@ def _int32(values, name):
 
 def _integers(values, name):
 
-
     import numpy as np
 
     x = np.asarray(values)
@@ -401,7 +391,6 @@ def unpack_sell(off, lengths, pack):
 
 def _residual_sell(rows, words, n):
 
-
     import numpy as np
 
     lengths = np.bincount(rows, minlength=n).astype(np.int64)
@@ -416,7 +405,6 @@ def _residual_sell(rows, words, n):
 
 
 def degree_sorted_sell(off, lengths, pack):
-
 
     import numpy as np
 
@@ -435,7 +423,6 @@ def degree_sorted_sell(off, lengths, pack):
 
 
 def parent_plan(alpha, off, lengths, pack, num_alpha, min_parent=8, kind="union"):
-
 
     import numpy as np
 
@@ -567,7 +554,6 @@ def parent_plan(alpha, off, lengths, pack, num_alpha, min_parent=8, kind="union"
 
 
 def orbital_g(g, num_alpha):
-
 
     import numpy as np
 

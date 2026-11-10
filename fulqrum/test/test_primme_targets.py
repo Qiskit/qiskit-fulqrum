@@ -82,7 +82,6 @@ class _Aborted(Exception):
 
 
 class _Ranks:
-
     def __init__(self, size):
         self.size = size
         self.aborts = []

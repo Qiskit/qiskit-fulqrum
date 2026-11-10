@@ -21,7 +21,6 @@
 namespace fq::arms
 {
 
-
 __device__ inline void add_cross_row(fq::device::RowAccumulator<1>& sum,
                                      const fq::device::SellRow& alpha_row,
                                      const unsigned long long* __restrict__ words,
@@ -29,18 +28,19 @@ __device__ inline void add_cross_row(fq::device::RowAccumulator<1>& sum,
                                      const double beta_sign,
                                      const double* __restrict__ source)
 {
-    for(fq::device::EdgeStream<unsigned long long> edges(words, alpha_row); edges.valid(); edges.advance())
+    for(fq::device::EdgeStream<unsigned long long> edges(words, alpha_row); edges.valid();
+        edges.advance())
     {
-
 
         const int column = fq::edge_word::cross_column(edges.current);
         const double coefficient = __ldg(coefficients + fq::edge_word::cross_pair(edges.current));
         if(coefficient != 0.0 && column >= 0)
         {
-            sum.add(0, cross_element(coefficient, fq::edge_word::cross_sign(edges.current), beta_sign),
+            sum.add(0,
+                    cross_element(coefficient, fq::edge_word::cross_sign(edges.current), beta_sign),
                     __ldg(source + column));
         }
     }
 }
 
-}
+} // namespace fq::arms

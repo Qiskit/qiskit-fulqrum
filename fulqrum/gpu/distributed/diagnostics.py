@@ -23,7 +23,6 @@ REPORT_LOGGER = "fulqrum.gpu.diagnostics"
 
 def report(line: str, *, rank: int = 0, matvec=None) -> None:
 
-
     logging.getLogger(REPORT_LOGGER).debug(
         line, extra={"gpu_rank": rank, "gpu_matvec": matvec}
     )
@@ -46,7 +45,6 @@ def _per_source_enabled() -> bool:
 
 
 def _hv_tail_fingerprint(d_out_local, comm, rank: int, iter_idx: int) -> None:
-
 
     if not _hv_tail_enabled():
         return
@@ -91,7 +89,6 @@ def _dbg_hv_fingerprint(
     iter_idx: int,
 ) -> None:
 
-
     if not _debug_matvec_enabled():
         return
     if iter_idx not in (1, 2, 3, 4, 5):
@@ -133,7 +130,6 @@ def _dbg_ring_slot_fingerprint(
     iter_idx: int,
 ) -> None:
 
-
     if not _debug_matvec_enabled():
         return
     if iter_idx not in (1, 2, 3, 4, 5):
@@ -159,7 +155,6 @@ def _dbg_ring_slot_fingerprint(
 
 
 def _dbg_v_fingerprint(d_v_local, comm, rank: int, iter_idx: int) -> None:
-
 
     if not _debug_matvec_enabled():
         return
@@ -193,7 +188,6 @@ def _dbg_ritz_resnorm(
     rank: int,
     iter_idx: int,
 ) -> None:
-
 
     if not _debug_matvec_enabled():
         return

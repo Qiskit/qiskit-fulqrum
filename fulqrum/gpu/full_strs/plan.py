@@ -24,8 +24,6 @@ EXCHANGES = ("stepped", "grouped", "two_level")
 
 @dataclass
 class LayoutPlan:
-
-
     copies: int = 1
     num_slices: int = 4
     exchange: str = "stepped"
@@ -127,12 +125,10 @@ def agree(comm, plan):
 
 def volume_objective(metrics):
 
-
     return float(metrics["volume_max"])
 
 
 def choose_copies(candidates, objective=volume_objective, max_imbalance=1.25):
-
 
     balanced = [
         t

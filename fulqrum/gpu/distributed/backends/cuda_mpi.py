@@ -29,7 +29,6 @@ from .._collective import (
 
 def _wait_before_mpi(stream=None) -> None:
 
-
     if stream is None:
         _sync_device()
     elif hasattr(stream, "synchronize"):
@@ -41,24 +40,19 @@ def _wait_before_mpi(stream=None) -> None:
 
 
 class _CudaMpiBackend(_Backend):
-
-
     name = BACKEND_CUDA_MPI
 
     def init(self, comm) -> None:
 
-
         return None
 
     def sendrecv_replace_device(self, buf_dev, peer: int, tag: int, comm) -> None:
-
 
         _wait_before_mpi()
         _chunked_sendrecv_replace(comm, buf_dev, peer, tag)
         _sync_device()
 
     def allreduce_device(self, buf_dev, op, comm) -> None:
-
 
         from mpi4py import MPI  # noqa: PLC0415
 
@@ -74,7 +68,6 @@ class _CudaMpiBackend(_Backend):
         displs,
         comm,
     ) -> None:
-
 
         from mpi4py import MPI  # noqa: PLC0415
 
@@ -94,7 +87,6 @@ class _CudaMpiBackend(_Backend):
         send_pinned=None,
         recv_pinned=None,
     ) -> None:
-
 
         del send_pinned, recv_pinned
         _wait_before_mpi(stream)
@@ -116,7 +108,6 @@ class _CudaMpiBackend(_Backend):
         send_pinned=None,
         recv_pinned=None,
     ) -> None:
-
 
         del send_pinned, recv_pinned
         from mpi4py import MPI  # noqa: PLC0415

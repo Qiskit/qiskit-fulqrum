@@ -24,8 +24,6 @@ logger = logging.getLogger(__name__)
 
 
 class _NcclBackend(_Backend):
-
-
     name = BACKEND_NCCL
 
     _NCCL_DOUBLE = None
@@ -34,7 +32,6 @@ class _NcclBackend(_Backend):
     _NCCL_UINT64 = None
 
     def __init__(self):
-
 
         self._world_comm = None
         self._world_nccl = None
@@ -56,7 +53,6 @@ class _NcclBackend(_Backend):
         return nccl
 
     def init(self, comm) -> None:
-
 
         import time as _time  # noqa: PLC0415
 
@@ -151,7 +147,6 @@ class _NcclBackend(_Backend):
 
     def _get_nccl_for(self, comm):
 
-
         if self._world_nccl is None:
             raise RuntimeError("NCCL backend used before init()")
         self._check_device()
@@ -190,7 +185,6 @@ class _NcclBackend(_Backend):
         displs,
         comm,
     ) -> None:
-
 
         import cupy  # noqa: PLC0415
 
@@ -257,7 +251,6 @@ class _NcclBackend(_Backend):
 
     def allreduce_device(self, buf_dev, op, comm) -> None:
 
-
         from mpi4py import MPI  # noqa: PLC0415
 
         nccl = self._import_nccl()
@@ -291,7 +284,6 @@ class _NcclBackend(_Backend):
     def allgather_device(
         self, send_dev, recv_dev, count: int, comm, stream=None
     ) -> None:
-
 
         sub_nccl = self._get_nccl_for(comm)
         if send_dev.dtype != np.float64 or recv_dev.dtype != np.float64:
@@ -328,7 +320,6 @@ class _NcclBackend(_Backend):
         self, send_dev, recv_dev, count: int, comm, stream=None
     ) -> None:
 
-
         nccl = self._import_nccl()
         sub_nccl = self._get_nccl_for(comm)
         if send_dev.dtype != np.float64 or recv_dev.dtype != np.float64:
@@ -363,7 +354,6 @@ class _NcclBackend(_Backend):
 
     def broadcast_device(self, buf_dev, root: int, comm, stream=None) -> None:
 
-
         sub_nccl = self._get_nccl_for(comm)
         if buf_dev.dtype != np.float64:
             raise NotImplementedError(
@@ -385,7 +375,6 @@ class _NcclBackend(_Backend):
 
     def sendrecv_replace_device(self, buf_dev, peer: int, tag: int, comm) -> None:
 
-
         raise NotImplementedError(
             "NCCL sendrecv_replace_device is not implemented; ring-shift uses "
             "ring_shift_device with separate send/recv buffers."
@@ -403,7 +392,6 @@ class _NcclBackend(_Backend):
         send_pinned=None,
         recv_pinned=None,
     ) -> None:
-
 
         del send_pinned, recv_pinned
 
@@ -446,7 +434,6 @@ class _NcclBackend(_Backend):
         send_pinned=None,
         recv_pinned=None,
     ) -> None:
-
 
         del send_pinned, recv_pinned
 

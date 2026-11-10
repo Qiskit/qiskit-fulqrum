@@ -27,8 +27,6 @@ DEFAULT_TIMEOUT_S = 3600.0
 
 @dataclass(frozen=True)
 class _Op:
-
-
     name: str
     function: object
 
@@ -62,7 +60,6 @@ class LocalCommAborted(RuntimeError):
 
 def mpi_namespace(comm):
 
-
     if isinstance(comm, LocalComm):
         return LOCAL_MPI
     from mpi4py import MPI  # noqa: PLC0415
@@ -71,10 +68,7 @@ def mpi_namespace(comm):
 
 
 class _Group:
-
-
     def __init__(self, size: int, timeout: float):
-
 
         self.size = size
         self.timeout = timeout
@@ -122,8 +116,6 @@ class _Group:
 
 
 class LocalComm:
-
-
     mpi_constants = LOCAL_MPI
 
     def __init__(self, group: _Group, rank: int):
@@ -134,7 +126,6 @@ class LocalComm:
 
     @classmethod
     def create(cls, size: int, timeout: float = DEFAULT_TIMEOUT_S) -> list:
-
 
         if size < 1:
             raise ValueError(
@@ -190,7 +181,6 @@ class LocalComm:
 
     def Allreduce(self, sendbuf, recvbuf, op=SUM) -> None:  # noqa: N802
 
-
         recv = _buffer(recvbuf)
         send = recv if sendbuf is LOCAL_MPI.IN_PLACE else _buffer(sendbuf)
         arrays = self.allgather(np.array(send, copy=True))
@@ -214,7 +204,6 @@ class LocalComm:
             recv_blocks[source] = blocks[source][self._rank]
 
     def Split(self, color: int = 0, key: int = 0):  # noqa: N802
-
 
         self._splits += 1
         members = self.allgather((int(color), int(key), self._rank))
@@ -273,14 +262,12 @@ def _buffer(spec):
 
 def run_ranks(comms, function) -> list:
 
-
     if len(comms) == 1:
         return [function(comms[0])]
     results: list = [None] * len(comms)
     errors: list = [None] * len(comms)
 
     def body(rank: int) -> None:
-
 
         try:
             results[rank] = function(comms[rank])

@@ -19,12 +19,10 @@
 #include "formats/clique_word.hpp"
 #include "launch.hpp"
 
-
 namespace
 {
 
 namespace clique = fq::clique_word;
-
 
 template <int NMAX>
 struct LbgPanel
@@ -42,12 +40,12 @@ __device__ __forceinline__ void lbg_dmma(double& d0, double& d1, const double a,
                  : "d"(a), "d"(b));
 }
 
-
-__global__ void __launch_bounds__(256) lbg_finite_kernel(const double* __restrict__ source, const long long n,
-                                                       std::int32_t* nonfinite)
+__global__ void __launch_bounds__(256)
+    lbg_finite_kernel(const double* __restrict__ source, const long long n, std::int32_t* nonfinite)
 {
     bool bad = false;
-    for(long long i = (long long)blockIdx.x * blockDim.x + threadIdx.x; i < n; i += (long long)gridDim.x * blockDim.x)
+    for(long long i = (long long)blockIdx.x * blockDim.x + threadIdx.x; i < n;
+        i += (long long)gridDim.x * blockDim.x)
     {
         bad |= !isfinite(__ldg(source + i));
     }
@@ -57,11 +55,11 @@ __global__ void __launch_bounds__(256) lbg_finite_kernel(const double* __restric
     }
 }
 
-
 template <int NMAX>
-__global__ void __launch_bounds__(128) lbg_kernel(const __grid_constant__ FqTileGeometry geometry,
-                                                 const __grid_constant__ FqCrossCliqueTables tables,
-                                                 const __grid_constant__ FqCrossLbgTables lbg)
+__global__ void __launch_bounds__(128)
+    lbg_kernel(const __grid_constant__ FqTileGeometry geometry,
+               const __grid_constant__ FqCrossCliqueTables tables,
+               const __grid_constant__ FqCrossLbgTables lbg)
 {
     using P = LbgPanel<NMAX>;
     constexpr int MT = P::kMTiles;
@@ -86,9 +84,11 @@ __global__ void __launch_bounds__(128) lbg_kernel(const __grid_constant__ FqTile
     for(int s = 0; s < KS; ++s)
     {
         const int k = 4 * s + t;
-        k_offset[s] = k < count ? clique::member_orbital(__ldg(members + first + k)) * tables.orbitals : -1;
+        k_offset[s] =
+            k < count ? clique::member_orbital(__ldg(members + first + k)) * tables.orbitals : -1;
     }
-    const double* block = tables.coefficients + (long long)__ldg(lbg.segment_pair + sg) * tables.orbitals * tables.orbitals;
+    const double* block = tables.coefficients + (long long)__ldg(lbg.segment_pair + sg) *
+                                                    tables.orbitals * tables.orbitals;
     double a[MT][KS];
 #pragma unroll
     for(int n = 0; n < MT; ++n)
@@ -148,7 +148,8 @@ __global__ void __launch_bounds__(128) lbg_kernel(const __grid_constant__ FqTile
             }
             if(exists && hi[n])
             {
-                atomicAdd(orow + 8 * n + 4, __longlong_as_double(__double_as_longlong(y[n][1]) ^ sign));
+                atomicAdd(orow + 8 * n + 4,
+                          __longlong_as_double(__double_as_longlong(y[n][1]) ^ sign));
             }
         }
         {
@@ -165,11 +166,11 @@ __global__ void __launch_bounds__(128) lbg_kernel(const __grid_constant__ FqTile
     }
 }
 
-
-__global__ void __launch_bounds__(256) lbg_unpack_kernel(const __grid_constant__ FqTileGeometry geometry,
-                                                        const __grid_constant__ FqVectors vectors,
-                                                        const __grid_constant__ FqCrossCliqueTables tables,
-                                                        const __grid_constant__ FqCrossLbgTables lbg)
+__global__ void __launch_bounds__(256)
+    lbg_unpack_kernel(const __grid_constant__ FqTileGeometry geometry,
+                      const __grid_constant__ FqVectors vectors,
+                      const __grid_constant__ FqCrossCliqueTables tables,
+                      const __grid_constant__ FqCrossLbgTables lbg)
 {
     const int lane = int(threadIdx.x % 32);
     const long long item = (long long)blockIdx.x * 8 + threadIdx.x / 32;
@@ -188,11 +189,13 @@ __global__ void __launch_bounds__(256) lbg_unpack_kernel(const __grid_constant__
     {
         return;
     }
-    const unsigned long long member = __ldg(reinterpret_cast<const unsigned long long*>(tables.members) + first + lane);
+    const unsigned long long member =
+        __ldg(reinterpret_cast<const unsigned long long*>(tables.members) + first + lane);
     const long long out_sign = (long long)clique::output_sign_bit(member);
     const int alpha = clique::member_alpha(member);
     const int c = lane & 7;
-    const double* yp = lbg.out_panel + (long long)parent * n_rows * lbg.out_stride + (lane & ~7) + (c & 1) * 4 + (c >> 1);
+    const double* yp = lbg.out_panel + (long long)parent * n_rows * lbg.out_stride + (lane & ~7) +
+                       (c & 1) * 4 + (c >> 1);
     for(int r = r0; r < r0 + 8 && r < n_rows; ++r)
     {
         const double y = yp[(long long)r * lbg.out_stride];
@@ -204,11 +207,11 @@ __global__ void __launch_bounds__(256) lbg_unpack_kernel(const __grid_constant__
     }
 }
 
-
 template <int M>
-__global__ void __launch_bounds__(256) rsl_pack_kernel(const __grid_constant__ FqTileGeometry geometry,
-                                                      const double* __restrict__ source,
-                                                      const __grid_constant__ FqCrossRslTables rsl)
+__global__ void __launch_bounds__(256)
+    rsl_pack_kernel(const __grid_constant__ FqTileGeometry geometry,
+                    const double* __restrict__ source,
+                    const __grid_constant__ FqCrossRslTables rsl)
 {
     const long long i = (long long)blockIdx.x * 256 + threadIdx.x;
     const long long per_block = (long long)rsl.panel_rows * M * 32;
@@ -224,18 +227,20 @@ __global__ void __launch_bounds__(256) rsl_pack_kernel(const __grid_constant__ F
     double v = 0.0;
     if(lane < __ldg(rsl.block_count + blk))
     {
-        const unsigned long long w = __ldg(rsl.members + (long long)(__ldg(rsl.block_first + blk) + lane) * M + k);
-        v = __longlong_as_double(__double_as_longlong(__ldg(source + (long long)row * geometry.n_alpha_src_compact +
-                                                            clique::member_alpha(w))) ^ (long long)(w & clique::kSignBit));
+        const unsigned long long w =
+            __ldg(rsl.members + (long long)(__ldg(rsl.block_first + blk) + lane) * M + k);
+        v = __longlong_as_double(
+            __double_as_longlong(__ldg(source + (long long)row * geometry.n_alpha_src_compact +
+                                       clique::member_alpha(w))) ^
+            (long long)(w & clique::kSignBit));
     }
     rsl.panel[i] = v;
 }
 
-
 template <int M, bool MIXED>
 __global__ void __launch_bounds__(128) rsl_kernel(const __grid_constant__ FqTileGeometry geometry,
-                                                 const __grid_constant__ FqVectors vectors,
-                                                 const __grid_constant__ FqCrossRslTables rsl)
+                                                  const __grid_constant__ FqVectors vectors,
+                                                  const __grid_constant__ FqCrossRslTables rsl)
 {
     constexpr int NP = M * (M - 1) / 2;
     const int lane = int(threadIdx.x % 32);
@@ -271,7 +276,8 @@ __global__ void __launch_bounds__(128) rsl_kernel(const __grid_constant__ FqTile
 #pragma unroll
             for(int j = i + 1; j < M; ++j)
             {
-                off[q++] = __shfl_sync(0xffffffffu, orb[i], 0) * rsl.orbitals + __shfl_sync(0xffffffffu, orb[j], 0);
+                off[q++] = __shfl_sync(0xffffffffu, orb[i], 0) * rsl.orbitals +
+                           __shfl_sync(0xffffffffu, orb[j], 0);
             }
         }
     }
@@ -291,8 +297,9 @@ __global__ void __launch_bounds__(128) rsl_kernel(const __grid_constant__ FqTile
         {
             const unsigned long long w = __ldg(words + e);
             const long long pair = (long long)((w >> 32) & 0xffffull);
-            const double* gc = MIXED ? rsl.coef_table + (((long long)blk * rsl.num_pairs + pair) * NP) * 32 + lane
-                                     : rsl.coefficients + pair * block_size;
+            const double* gc =
+                MIXED ? rsl.coef_table + (((long long)blk * rsl.num_pairs + pair) * NP) * 32 + lane
+                      : rsl.coefficients + pair * block_size;
             const long long sign = (long long)(w & clique::kSignBit);
             const double* xs = panel + (long long)int(w & 0xffffffffull) * M * 32;
             double x[M];
@@ -331,33 +338,45 @@ __global__ void __launch_bounds__(128) rsl_kernel(const __grid_constant__ FqTile
 }
 
 template <int NMAX>
-int launch_lbg_bucket(const FqTileGeometry* geometry, const FqVectors* vectors, const FqCrossCliqueTables* tables,
-                      const FqCrossLbgTables* lbg, cudaStream_t s)
+int launch_lbg_bucket(const FqTileGeometry* geometry,
+                      const FqVectors* vectors,
+                      const FqCrossCliqueTables* tables,
+                      const FqCrossLbgTables* lbg,
+                      cudaStream_t s)
 {
     const long long items = (long long)tables->num_parents * lbg->num_segments;
     if(items <= 0)
     {
         return int(cudaSuccess);
     }
-    const cudaError_t cleared = cudaMemsetAsync(
-        lbg->out_panel, 0, sizeof(double) * (std::size_t)tables->num_parents * geometry->n_b_bra * lbg->out_stride, s);
+    const cudaError_t cleared = cudaMemsetAsync(lbg->out_panel,
+                                                0,
+                                                sizeof(double) * (std::size_t)tables->num_parents *
+                                                    geometry->n_b_bra * lbg->out_stride,
+                                                s);
     if(cleared != cudaSuccess)
     {
         return int(cleared);
     }
-    lbg_kernel<NMAX><<<static_cast<unsigned int>((items + 3) / 4), 128, 0, s>>>(*geometry, *tables, *lbg);
+    lbg_kernel<NMAX>
+        <<<static_cast<unsigned int>((items + 3) / 4), 128, 0, s>>>(*geometry, *tables, *lbg);
     const long long unpack = (long long)tables->num_parents * ((geometry->n_b_bra + 7) / 8);
-    lbg_unpack_kernel<<<static_cast<unsigned int>((unpack + 7) / 8), 256, 0, s>>>(*geometry, *vectors, *tables, *lbg);
+    lbg_unpack_kernel<<<static_cast<unsigned int>((unpack + 7) / 8), 256, 0, s>>>(
+        *geometry, *vectors, *tables, *lbg);
     return int(cudaGetLastError());
 }
 
 template <int M>
-int launch_rsl_block(const FqTileGeometry* geometry, const FqVectors* vectors, const FqCrossRslTables* rsl,
+int launch_rsl_block(const FqTileGeometry* geometry,
+                     const FqVectors* vectors,
+                     const FqCrossRslTables* rsl,
                      cudaStream_t s)
 {
     const long long n = (long long)rsl->num_blocks * rsl->panel_rows * M * 32;
-    rsl_pack_kernel<M><<<static_cast<unsigned int>((n + 255) / 256), 256, 0, s>>>(*geometry, vectors->src_in, *rsl);
-    const long long items = (long long)rsl->num_blocks * ((geometry->n_b_bra + rsl->rows_per_job - 1) / rsl->rows_per_job);
+    rsl_pack_kernel<M><<<static_cast<unsigned int>((n + 255) / 256), 256, 0, s>>>(
+        *geometry, vectors->src_in, *rsl);
+    const long long items = (long long)rsl->num_blocks *
+                            ((geometry->n_b_bra + rsl->rows_per_job - 1) / rsl->rows_per_job);
     const unsigned int blocks = static_cast<unsigned int>((items + 3) / 4);
     if(rsl->coef_table != nullptr)
     {
@@ -370,12 +389,15 @@ int launch_rsl_block(const FqTileGeometry* geometry, const FqVectors* vectors, c
     return int(cudaGetLastError());
 }
 
-}
+} // namespace
 
 extern "C"
 {
 
-    int fq_launch_lbg_finite(const double* source, const long long n, std::int32_t* nonfinite, void* stream)
+    int fq_launch_lbg_finite(const double* source,
+                             const long long n,
+                             std::int32_t* nonfinite,
+                             void* stream)
     {
         const auto s = static_cast<cudaStream_t>(stream);
         const cudaError_t cleared = cudaMemsetAsync(nonfinite, 0, sizeof(std::int32_t), s);
@@ -386,7 +408,10 @@ extern "C"
         if(n > 0)
         {
             const long long blocks = (n + 255) / 256;
-            lbg_finite_kernel<<<static_cast<unsigned int>(blocks < 4096 ? blocks : 4096), 256, 0, s>>>(source, n, nonfinite);
+            lbg_finite_kernel<<<static_cast<unsigned int>(blocks < 4096 ? blocks : 4096),
+                                256,
+                                0,
+                                s>>>(source, n, nonfinite);
         }
         return int(cudaGetLastError());
     }
@@ -397,21 +422,30 @@ extern "C"
                             const FqCrossLbgTables* lbg,
                             void* stream)
     {
-        if(tables->transposed != 0 || tables->panel == nullptr || tables->panel_columns <= 0 || lbg->nonfinite == nullptr)
+        if(tables->transposed != 0 || tables->panel == nullptr || tables->panel_columns <= 0 ||
+           lbg->nonfinite == nullptr)
         {
             return int(cudaErrorInvalidValue);
         }
         const auto s = static_cast<cudaStream_t>(stream);
         switch(tables->bucket)
         {
-        case 0: return launch_lbg_bucket<clique::bucket_members(0)>(geometry, vectors, tables, lbg, s);
-        case 1: return launch_lbg_bucket<clique::bucket_members(1)>(geometry, vectors, tables, lbg, s);
-        case 2: return launch_lbg_bucket<clique::bucket_members(2)>(geometry, vectors, tables, lbg, s);
-        case 3: return launch_lbg_bucket<clique::bucket_members(3)>(geometry, vectors, tables, lbg, s);
-        case 4: return launch_lbg_bucket<clique::bucket_members(4)>(geometry, vectors, tables, lbg, s);
-        case 5: return launch_lbg_bucket<clique::bucket_members(5)>(geometry, vectors, tables, lbg, s);
-        case 6: return launch_lbg_bucket<clique::bucket_members(6)>(geometry, vectors, tables, lbg, s);
-        default: return int(cudaErrorInvalidValue);
+        case 0:
+            return launch_lbg_bucket<clique::bucket_members(0)>(geometry, vectors, tables, lbg, s);
+        case 1:
+            return launch_lbg_bucket<clique::bucket_members(1)>(geometry, vectors, tables, lbg, s);
+        case 2:
+            return launch_lbg_bucket<clique::bucket_members(2)>(geometry, vectors, tables, lbg, s);
+        case 3:
+            return launch_lbg_bucket<clique::bucket_members(3)>(geometry, vectors, tables, lbg, s);
+        case 4:
+            return launch_lbg_bucket<clique::bucket_members(4)>(geometry, vectors, tables, lbg, s);
+        case 5:
+            return launch_lbg_bucket<clique::bucket_members(5)>(geometry, vectors, tables, lbg, s);
+        case 6:
+            return launch_lbg_bucket<clique::bucket_members(6)>(geometry, vectors, tables, lbg, s);
+        default:
+            return int(cudaErrorInvalidValue);
         }
     }
 
@@ -431,11 +465,16 @@ extern "C"
         const auto s = static_cast<cudaStream_t>(stream);
         switch(rsl->members_per_clique)
         {
-        case 2: return launch_rsl_block<2>(geometry, vectors, rsl, s);
-        case 3: return launch_rsl_block<3>(geometry, vectors, rsl, s);
-        case 4: return launch_rsl_block<4>(geometry, vectors, rsl, s);
-        case 5: return launch_rsl_block<5>(geometry, vectors, rsl, s);
-        default: return int(cudaErrorInvalidValue);
+        case 2:
+            return launch_rsl_block<2>(geometry, vectors, rsl, s);
+        case 3:
+            return launch_rsl_block<3>(geometry, vectors, rsl, s);
+        case 4:
+            return launch_rsl_block<4>(geometry, vectors, rsl, s);
+        case 5:
+            return launch_rsl_block<5>(geometry, vectors, rsl, s);
+        default:
+            return int(cudaErrorInvalidValue);
         }
     }
 }

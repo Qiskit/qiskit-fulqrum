@@ -17,9 +17,7 @@ import numpy as np
 
 from ..common.wide import unique_w
 
-ELEMENT_SCREEN = (
-    1e-14
-)
+ELEMENT_SCREEN = 1e-14
 TILE_ROWS = 64
 CHUNK = 16
 CHUNK_DOUBLES = CHUNK // 4 * 8 * 32
@@ -27,8 +25,6 @@ CHUNK_DOUBLES = CHUNK // 4 * 8 * 32
 
 @dataclass
 class DoubleClassTables:
-
-
     blocks: np.ndarray
     block_offsets: np.ndarray
     tile_info: np.ndarray
@@ -42,7 +38,6 @@ class DoubleClassTables:
 
 
 def _members(xp, classes, items, span):
-
 
     key = classes * span + items
     unique, inverse = xp.unique(key, return_inverse=True)
@@ -59,7 +54,6 @@ def _cumsum0(xp, counts):
 def double_class_tables(
     offsets, columns, values, out_strings, src_strings, min_size, xp=np
 ) -> DoubleClassTables:
-
 
     offsets = xp.asarray(offsets, dtype=xp.int64)
     n_rows = len(offsets) - 1
@@ -129,7 +123,6 @@ def double_class_tables(
         axis=1,
     ).astype(xp.int32)
 
-
     e_cls = new_id[t_cls[keep_t]]
     r = r_local[keep_t]
     k = c_local[keep_t]
@@ -182,7 +175,6 @@ def double_class_tables(
 
 
 def sell_from_csr(offsets, columns, values, xp=np, slice_rows=32):
-
 
     offsets = xp.asarray(offsets, dtype=xp.int64)
     n_rows = len(offsets) - 1

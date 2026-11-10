@@ -237,7 +237,7 @@ FQ_KEY_WORDS_HD Key<W> load_w(const std::uint64_t* words, const std::int64_t row
     return key;
 }
 
-}
-}
+} // namespace key_words
+} // namespace fq
 
 #undef FQ_KEY_WORDS_HD

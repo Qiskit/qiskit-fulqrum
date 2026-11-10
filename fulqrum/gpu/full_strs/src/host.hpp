@@ -28,7 +28,6 @@
 namespace fq::full_strs
 {
 
-
 template <std::size_t W>
 class HostLayout
 {
@@ -36,8 +35,11 @@ public:
     KeyStore<W> keys;
     GroupStore groups;
 
-
-    HostLayout(const Word* input, const std::int64_t num_rows, const int num_orbitals, const int alpha_kind, const int beta_kind)
+    HostLayout(const Word* input,
+               const std::int64_t num_rows,
+               const int num_orbitals,
+               const int alpha_kind,
+               const int beta_kind)
         : keys(build_key_store<W>(input, num_rows, num_orbitals))
     {
         GroupKinds kinds = default_kinds(keys);
@@ -52,30 +54,26 @@ public:
         groups = build_groups(keys, kinds);
     }
 
-
     ClassStats stats(const int cls) const
     {
         return class_stats(keys, groups, cls);
     }
-
 
     std::vector<std::int64_t> stored_pairs(const int cls) const
     {
         return flatten(group_pairs(keys, groups, cls));
     }
 
-
     std::vector<std::int64_t> scanned_pairs(const int cls) const
     {
         return flatten(brute_force_pairs(keys, cls));
     }
 
-
     ChunkClass chunk_class(const int num_slices, const int slice, const int cls) const
     {
-        return build_chunk(keys, groups.kinds, GroupSlice{num_slices, slice}).classes[static_cast<std::size_t>(cls)];
+        return build_chunk(keys, groups.kinds, GroupSlice{num_slices, slice})
+            .classes[static_cast<std::size_t>(cls)];
     }
-
 
     std::pair<std::int64_t, std::uint64_t> pair_digest_sum(const int cls) const
     {
@@ -105,9 +103,8 @@ public:
     }
 
 private:
-
-
-    static std::vector<std::int64_t> flatten(const std::vector<std::pair<std::int64_t, std::int64_t>>& pairs)
+    static std::vector<std::int64_t>
+    flatten(const std::vector<std::pair<std::int64_t, std::int64_t>>& pairs)
     {
         std::vector<std::int64_t> out(2 * pairs.size());
         for(std::size_t k = 0; k < pairs.size(); k++)
@@ -119,7 +116,6 @@ private:
     }
 };
 
-
 struct HostCounts
 {
     std::int64_t num_rows = 0;
@@ -128,7 +124,6 @@ struct HostCounts
     double key_seconds = 0.0;
     double group_seconds = 0.0;
 };
-
 
 template <std::size_t W>
 inline HostCounts count_groups(const Word* input,
@@ -157,7 +152,6 @@ inline HostCounts count_groups(const Word* input,
     return out;
 }
 
-
 template <std::size_t W, typename T>
 class HostOperator
 {
@@ -169,7 +163,6 @@ public:
     GroupKinds kinds;
     GroupStore groups;
     std::vector<GroupChunk> chunks;
-
 
     HostOperator(const QubitOperator& op,
                  const Word* input,
@@ -202,7 +195,6 @@ public:
         }
     }
 
-
     void matvec(const T* x, T* y) const
     {
         if(!chunks.empty())
@@ -212,12 +204,16 @@ public:
         reference_matvec(keys, groups, tables, diagonal, x, y);
     }
 
-
     void chunk_partials(const T* x, const int chunk, const int cls, T* partials) const
     {
-        chunk_class_partials(keys, chunks.at(static_cast<std::size_t>(chunk)).classes.at(static_cast<std::size_t>(cls)), cls, tables, x, partials);
+        chunk_class_partials(
+            keys,
+            chunks.at(static_cast<std::size_t>(chunk)).classes.at(static_cast<std::size_t>(cls)),
+            cls,
+            tables,
+            x,
+            partials);
     }
-
 
     void chunk_matvec(const T* x, T* y) const
     {
@@ -228,12 +224,10 @@ public:
         fq::full_strs::chunk_matvec(keys, chunks, tables, diagonal, x, y);
     }
 
-
     T table_element(const Word* out, const Word* source) const
     {
         return tables.element(out, source);
     }
-
 
     T term_element(const Word* out, const Word* source) const
     {
@@ -252,4 +246,4 @@ public:
     }
 };
 
-}
+} // namespace fq::full_strs

@@ -16,12 +16,10 @@
 namespace fq::device
 {
 
-
 template <int K>
 struct RowAccumulator
 {
     double sum[K];
-
 
     __device__ RowAccumulator()
     {
@@ -32,12 +30,10 @@ struct RowAccumulator
         }
     }
 
-
     __device__ void add(const int k, const double element, const double x)
     {
         sum[k] = fma(element, x, sum[k]);
     }
-
 
     __device__ void flush(const int k, double* out) const
     {
@@ -45,4 +41,4 @@ struct RowAccumulator
     }
 };
 
-}
+} // namespace fq::device

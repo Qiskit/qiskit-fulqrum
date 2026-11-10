@@ -16,10 +16,10 @@
 #include <cstdlib>
 #include <vector>
 
-#include "checked_size.hpp"
 #include "base.hpp"
 #include "bitset_hashmap.hpp"
 #include "bitset_utils.hpp"
+#include "checked_size.hpp"
 #include "constants.hpp"
 #include "element_evaluator.hpp"
 #include "elements.hpp"
@@ -42,7 +42,8 @@ void csr_matrix_builder(const std::vector<OperatorTerm_t>& terms,
                         const int compute_values,
                         const TermMasks* prepared_masks = nullptr)
 {
-    if(subspace_dim) checked_index<T>(subspace_dim - 1);
+    if(subspace_dim)
+        checked_index<T>(subspace_dim - 1);
     checked_add(subspace_dim, 1);
     const TermMasks owned_masks =
         prepared_masks ? TermMasks{} : build_term_masks(terms, words_for_width(width));

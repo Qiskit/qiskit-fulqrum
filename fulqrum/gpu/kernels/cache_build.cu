@@ -21,22 +21,20 @@
 namespace
 {
 
-
 __device__ __forceinline__ long long first_row()
 {
     return (long long)blockIdx.x * blockDim.x + threadIdx.x;
 }
-
 
 __device__ __forceinline__ long long row_stride()
 {
     return (long long)gridDim.x * blockDim.x;
 }
 
-
-__global__ void __launch_bounds__(fq::launch::kArmThreads) alpha_doubles_build_kernel(const FqTileGeometry geometry,
-                                                                                    const FqTermTables terms,
-                                                                                    const FqDoublesBuildTables tables)
+__global__ void __launch_bounds__(fq::launch::kArmThreads)
+    alpha_doubles_build_kernel(const FqTileGeometry geometry,
+                               const FqTermTables terms,
+                               const FqDoublesBuildTables tables)
 {
     const unsigned long long b_val = terms.beta_strings[geometry.bra_b0];
     const int jb_slot = tables.beta_slot[0];
@@ -49,24 +47,32 @@ __global__ void __launch_bounds__(fq::launch::kArmThreads) alpha_doubles_build_k
         {
             const std::int64_t slot = base + (std::int64_t(e) << 5) + (a & 31);
             const int ja = tables.columns[slot];
-            const long long group =
-                fq::arms::quad_group(terms, tables.p0[slot], tables.p1[slot], tables.p2[slot], tables.p3[slot]);
+            const long long group = fq::arms::quad_group(
+                terms, tables.p0[slot], tables.p1[slot], tables.p2[slot], tables.p3[slot]);
             double value = 0.0;
             if(group >= 0 && tables.alpha_slot[ja] >= 0 && jb_slot >= 0)
             {
-                const unsigned long long col[2] = {terms.alpha_strings[geometry.src_a0 + ja], b_val};
-                value = fq::arms::quad_group_sum(terms, a_val, b_val, col, group, tables.p0[slot], tables.p1[slot],
-                                                 tables.p2[slot], tables.p3[slot]);
+                const unsigned long long col[2] = {terms.alpha_strings[geometry.src_a0 + ja],
+                                                   b_val};
+                value = fq::arms::quad_group_sum(terms,
+                                                 a_val,
+                                                 b_val,
+                                                 col,
+                                                 group,
+                                                 tables.p0[slot],
+                                                 tables.p1[slot],
+                                                 tables.p2[slot],
+                                                 tables.p3[slot]);
             }
             tables.values[slot] = value;
         }
     }
 }
 
-
-__global__ void __launch_bounds__(fq::launch::kArmThreads) beta_doubles_build_kernel(const FqTileGeometry geometry,
-                                                                                   const FqTermTables terms,
-                                                                                   const FqDoublesBuildTables tables)
+__global__ void __launch_bounds__(fq::launch::kArmThreads)
+    beta_doubles_build_kernel(const FqTileGeometry geometry,
+                              const FqTermTables terms,
+                              const FqDoublesBuildTables tables)
 {
     const unsigned long long a_val = terms.alpha_strings[geometry.bra_a0];
     const int ja_slot = tables.alpha_slot[0];
@@ -95,7 +101,6 @@ __global__ void __launch_bounds__(fq::launch::kArmThreads) beta_doubles_build_ke
         }
     }
 }
-
 
 template <bool ALPHA>
 __device__ __forceinline__ void write_factor_cache(const FqTermTables& terms,
@@ -129,10 +134,10 @@ __device__ __forceinline__ void write_factor_cache(const FqTermTables& terms,
     tables.c0[edge] = c0_total;
 }
 
-
-__global__ void __launch_bounds__(fq::launch::kArmThreads) alpha_singles_build_kernel(const FqTileGeometry geometry,
-                                                                                    const FqTermTables terms,
-                                                                                    const FqSinglesBuildTables tables)
+__global__ void __launch_bounds__(fq::launch::kArmThreads)
+    alpha_singles_build_kernel(const FqTileGeometry geometry,
+                               const FqTermTables terms,
+                               const FqSinglesBuildTables tables)
 {
     const unsigned long long b_val = terms.beta_strings[geometry.bra_b0];
     const int jb_slot = tables.beta_slot[0];
@@ -145,21 +150,31 @@ __global__ void __launch_bounds__(fq::launch::kArmThreads) alpha_singles_build_k
         {
             const std::int64_t edge = first_edge + k_edge;
             const int ja = tables.columns[edge];
-            const long long group = fq::arms::pair_group(terms, tables.low[edge], tables.high[edge]);
+            const long long group =
+                fq::arms::pair_group(terms, tables.low[edge], tables.high[edge]);
             if(group >= 0 && tables.alpha_slot[ja] >= 0 && jb_slot >= 0)
             {
-                const unsigned long long col[2] = {terms.alpha_strings[geometry.src_a0 + ja], b_val};
-                write_factor_cache<true>(terms, tables, edge, a_val, b_val, col, group, tables.low[edge],
-                                         tables.high[edge], terms.num_beta);
+                const unsigned long long col[2] = {terms.alpha_strings[geometry.src_a0 + ja],
+                                                   b_val};
+                write_factor_cache<true>(terms,
+                                         tables,
+                                         edge,
+                                         a_val,
+                                         b_val,
+                                         col,
+                                         group,
+                                         tables.low[edge],
+                                         tables.high[edge],
+                                         terms.num_beta);
             }
         }
     }
 }
 
-
-__global__ void __launch_bounds__(fq::launch::kArmThreads) beta_singles_build_kernel(const FqTileGeometry geometry,
-                                                                                   const FqTermTables terms,
-                                                                                   const FqSinglesBuildTables tables)
+__global__ void __launch_bounds__(fq::launch::kArmThreads)
+    beta_singles_build_kernel(const FqTileGeometry geometry,
+                              const FqTermTables terms,
+                              const FqSinglesBuildTables tables)
 {
     const unsigned long long a_val = terms.alpha_strings[geometry.bra_a0];
     const int ja_slot = tables.alpha_slot[0];
@@ -179,12 +194,12 @@ __global__ void __launch_bounds__(fq::launch::kArmThreads) beta_singles_build_ke
             if(group >= 0 && ja_slot >= 0 && tables.beta_slot[jb] >= 0)
             {
                 const unsigned long long col[2] = {a_val, terms.beta_strings[geometry.src_b0 + jb]};
-                write_factor_cache<false>(terms, tables, edge, a_val, b_val, col, group, q0, q1, terms.num_alpha);
+                write_factor_cache<false>(
+                    terms, tables, edge, a_val, b_val, col, group, q0, q1, terms.num_alpha);
             }
         }
     }
 }
-
 
 unsigned int build_blocks(const long long rows)
 {
@@ -193,7 +208,7 @@ unsigned int build_blocks(const long long rows)
     return static_cast<unsigned int>(blocks < kMaxBuildBlocks ? blocks : kMaxBuildBlocks);
 }
 
-}
+} // namespace
 
 extern "C"
 {
@@ -207,8 +222,11 @@ extern "C"
         {
             return int(cudaSuccess);
         }
-        alpha_doubles_build_kernel<<<build_blocks(geometry->n_a_bra), fq::launch::kArmThreads, 0,
-                                     static_cast<cudaStream_t>(stream)>>>(*geometry, *terms, *tables);
+        alpha_doubles_build_kernel<<<build_blocks(geometry->n_a_bra),
+                                     fq::launch::kArmThreads,
+                                     0,
+                                     static_cast<cudaStream_t>(stream)>>>(
+            *geometry, *terms, *tables);
         return int(cudaGetLastError());
     }
 
@@ -221,8 +239,11 @@ extern "C"
         {
             return int(cudaSuccess);
         }
-        beta_doubles_build_kernel<<<build_blocks(geometry->n_b_bra), fq::launch::kArmThreads, 0,
-                                    static_cast<cudaStream_t>(stream)>>>(*geometry, *terms, *tables);
+        beta_doubles_build_kernel<<<build_blocks(geometry->n_b_bra),
+                                    fq::launch::kArmThreads,
+                                    0,
+                                    static_cast<cudaStream_t>(stream)>>>(
+            *geometry, *terms, *tables);
         return int(cudaGetLastError());
     }
 
@@ -235,8 +256,11 @@ extern "C"
         {
             return int(cudaSuccess);
         }
-        alpha_singles_build_kernel<<<build_blocks(geometry->n_a_bra), fq::launch::kArmThreads, 0,
-                                     static_cast<cudaStream_t>(stream)>>>(*geometry, *terms, *tables);
+        alpha_singles_build_kernel<<<build_blocks(geometry->n_a_bra),
+                                     fq::launch::kArmThreads,
+                                     0,
+                                     static_cast<cudaStream_t>(stream)>>>(
+            *geometry, *terms, *tables);
         return int(cudaGetLastError());
     }
 
@@ -249,8 +273,11 @@ extern "C"
         {
             return int(cudaSuccess);
         }
-        beta_singles_build_kernel<<<build_blocks(geometry->n_b_bra), fq::launch::kArmThreads, 0,
-                                    static_cast<cudaStream_t>(stream)>>>(*geometry, *terms, *tables);
+        beta_singles_build_kernel<<<build_blocks(geometry->n_b_bra),
+                                    fq::launch::kArmThreads,
+                                    0,
+                                    static_cast<cudaStream_t>(stream)>>>(
+            *geometry, *terms, *tables);
         return int(cudaGetLastError());
     }
 }

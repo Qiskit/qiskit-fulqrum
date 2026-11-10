@@ -23,8 +23,6 @@ MAX_ROWS = 65535
 
 @dataclass
 class LbgBucket:
-
-
     bucket: int
     first: int
     count: int
@@ -35,8 +33,6 @@ class LbgBucket:
 
 @dataclass
 class RslGroup:
-
-
     members_per_clique: int
     block_first: object
     block_count: object
@@ -48,8 +44,6 @@ class RslGroup:
 
 @dataclass
 class LbgPlan:
-
-
     edge_words: object
     segment_begin: object
     segment_end: object
@@ -64,7 +58,6 @@ class LbgPlan:
 
 
 def retile(edge_words, group_offsets, group_pairs, tile_group_offsets, tile_rows):
-
 
     words = edge_words.astype(np.uint64)
     goff = group_offsets.astype(np.int64)
@@ -117,7 +110,6 @@ def small_cliques(
     residual_order,
     num_alpha,
 ):
-
 
     from .aabb_parents import _residual_sell, choose_parent_plan, unpack_sell  # noqa: PLC0415
 
@@ -201,7 +193,6 @@ def build_plan(
     num_alpha,
     with_rsl=True,
 ):
-
 
     import cupy  # noqa: PLC0415
 

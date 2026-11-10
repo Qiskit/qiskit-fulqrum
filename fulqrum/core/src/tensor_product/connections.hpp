@@ -22,9 +22,9 @@
 #include "../checked_size.hpp"
 #include "../operator_tables.hpp"
 #include "../subspace.hpp"
+#include "../tier_utils.hpp"
 #include "groups.hpp"
 #include "packed_entries.hpp"
-#include "../tier_utils.hpp"
 
 /**
  * The connections of the strings of one sector to the strings of the same sector.
@@ -67,12 +67,16 @@ UpperConnections<T> upper_connections(const SectorConnections<T>& connections)
         std::uint64_t singles = 0;
         std::uint64_t doubles = 0;
 
-        for(std::uint64_t k = connections.single_offsets[string]; k < connections.single_offsets[string + 1]; k++)
+        for(std::uint64_t k = connections.single_offsets[string];
+            k < connections.single_offsets[string + 1];
+            k++)
         {
             singles += single_column(connections.single_packed_entries[k]) >= string;
         }
 
-        for(std::uint64_t k = connections.double_offsets[string]; k < connections.double_offsets[string + 1]; k++)
+        for(std::uint64_t k = connections.double_offsets[string];
+            k < connections.double_offsets[string + 1];
+            k++)
         {
             doubles += connections.double_columns[k] >= string;
         }
@@ -83,8 +87,9 @@ UpperConnections<T> upper_connections(const SectorConnections<T>& connections)
 
     const std::size_t num_singles = upper.single_offsets.back();
     const std::size_t num_doubles = upper.double_offsets.back();
-    const std::size_t bytes = checked_add(checked_multiply(num_singles, sizeof(std::uint64_t) + sizeof(T)),
-                                             checked_multiply(num_doubles, sizeof(std::uint32_t) + sizeof(T)));
+    const std::size_t bytes =
+        checked_add(checked_multiply(num_singles, sizeof(std::uint64_t) + sizeof(T)),
+                    checked_multiply(num_doubles, sizeof(std::uint32_t) + sizeof(T)));
     bytes;
     upper.single_packed_entries.reserve(num_singles);
     upper.single_values.reserve(num_singles);
@@ -93,7 +98,9 @@ UpperConnections<T> upper_connections(const SectorConnections<T>& connections)
 
     for(std::size_t string = 0; string < num_strings; string++)
     {
-        for(std::uint64_t k = connections.single_offsets[string]; k < connections.single_offsets[string + 1]; k++)
+        for(std::uint64_t k = connections.single_offsets[string];
+            k < connections.single_offsets[string + 1];
+            k++)
         {
             if(single_column(connections.single_packed_entries[k]) >= string)
             {
@@ -102,7 +109,9 @@ UpperConnections<T> upper_connections(const SectorConnections<T>& connections)
             }
         }
 
-        for(std::uint64_t k = connections.double_offsets[string]; k < connections.double_offsets[string + 1]; k++)
+        for(std::uint64_t k = connections.double_offsets[string];
+            k < connections.double_offsets[string + 1];
+            k++)
         {
             if(connections.double_columns[k] >= string)
             {
@@ -211,10 +220,11 @@ void find_string_singles(const OperatorTables& tables,
                 }
             }
 
-            found.single_packed_entries.push_back(pack_single(static_cast<std::uint32_t>(column),
-                                                       static_cast<std::uint32_t>(2 * pair + direction),
-                                                       own_sign,
-                                                       between_sign(key, low, high)));
+            found.single_packed_entries.push_back(
+                pack_single(static_cast<std::uint32_t>(column),
+                            static_cast<std::uint32_t>(2 * pair + direction),
+                            own_sign,
+                            between_sign(key, low, high)));
             found.single_values.push_back(value);
         }
     }
@@ -259,11 +269,13 @@ void find_string_doubles(const OperatorTables& tables,
             {
                 for(std::size_t fourth = third + 1; fourth < empty.size(); fourth++)
                 {
-                    std::array<std::size_t, 4> ranks = {occupied[first], occupied[second], empty[third], empty[fourth]};
+                    std::array<std::size_t, 4> ranks = {
+                        occupied[first], occupied[second], empty[third], empty[fourth]};
                     std::sort(ranks.begin(), ranks.end());
                     const std::size_t low = rank_pair_index(ranks[0], ranks[1]);
                     const std::size_t high = rank_pair_index(ranks[2], ranks[3]);
-                    const std::uint32_t group = groups.double_excitation[sector].find(low * num_pairs[sector] + high);
+                    const std::uint32_t group =
+                        groups.double_excitation[sector].find(low * num_pairs[sector] + high);
 
                     if(group == NO_GROUP)
                     {
@@ -287,7 +299,8 @@ void find_string_doubles(const OperatorTables& tables,
                         continue;
                     }
 
-                    const EntryRange range = tables.group(group).double_patterns[double_pattern_index(bits)];
+                    const EntryRange range =
+                        tables.group(group).double_patterns[double_pattern_index(bits)];
                     const T value = to_value<T>(factors.sum(range.begin, range.end, row));
 
                     if(value != T(0))
@@ -317,16 +330,17 @@ SectorConnections<T> pack_sector_connections(const std::vector<StringConnections
 
     for(std::size_t string = 0; string < num_strings; string++)
     {
-        connections.single_offsets[string + 1] =
-            checked_add(connections.single_offsets[string], found[string].single_packed_entries.size());
+        connections.single_offsets[string + 1] = checked_add(
+            connections.single_offsets[string], found[string].single_packed_entries.size());
         connections.double_offsets[string + 1] =
             checked_add(connections.double_offsets[string], found[string].double_columns.size());
     }
 
     const std::size_t num_singles = connections.single_offsets.back();
     const std::size_t num_doubles = connections.double_offsets.back();
-    const std::size_t bytes = checked_add(checked_multiply(num_singles, sizeof(std::uint64_t) + sizeof(T)),
-                                             checked_multiply(num_doubles, sizeof(std::uint32_t) + sizeof(T)));
+    const std::size_t bytes =
+        checked_add(checked_multiply(num_singles, sizeof(std::uint64_t) + sizeof(T)),
+                    checked_multiply(num_doubles, sizeof(std::uint32_t) + sizeof(T)));
     bytes;
     connections.single_packed_entries.reserve(num_singles);
     connections.single_values.reserve(num_singles);
@@ -335,14 +349,18 @@ SectorConnections<T> pack_sector_connections(const std::vector<StringConnections
 
     for(const StringConnections<T>& string : found)
     {
-        connections.single_packed_entries.insert(
-            connections.single_packed_entries.end(), string.single_packed_entries.begin(), string.single_packed_entries.end());
-        connections.single_values.insert(
-            connections.single_values.end(), string.single_values.begin(), string.single_values.end());
-        connections.double_columns.insert(
-            connections.double_columns.end(), string.double_columns.begin(), string.double_columns.end());
-        connections.double_values.insert(
-            connections.double_values.end(), string.double_values.begin(), string.double_values.end());
+        connections.single_packed_entries.insert(connections.single_packed_entries.end(),
+                                                 string.single_packed_entries.begin(),
+                                                 string.single_packed_entries.end());
+        connections.single_values.insert(connections.single_values.end(),
+                                         string.single_values.begin(),
+                                         string.single_values.end());
+        connections.double_columns.insert(connections.double_columns.end(),
+                                          string.double_columns.begin(),
+                                          string.double_columns.end());
+        connections.double_values.insert(connections.double_values.end(),
+                                         string.double_values.begin(),
+                                         string.double_values.end());
     }
 
     return connections;
@@ -366,7 +384,8 @@ SectorConnections<T> build_sector_connections(const OperatorTables& tables,
                                               const std::array<std::size_t, 2>& num_pairs)
 {
     const std::size_t num_strings = store.num_half_keys(sector);
-    const std::size_t half_width = sector == 0 ? store.split_bit() : store.width() - store.split_bit();
+    const std::size_t half_width =
+        sector == 0 ? store.split_bit() : store.width() - store.split_bit();
     std::vector<StringConnections<T>> found(num_strings);
 
 #pragma omp parallel
@@ -389,8 +408,26 @@ SectorConnections<T> build_sector_connections(const OperatorTables& tables,
                 (half_bit(key, rank) ? occupied : empty).push_back(rank);
             }
 
-            find_string_singles(tables, store, groups, sector, key, row.data(), occupied, empty, target, found[string]);
-            find_string_doubles(tables, store, groups, sector, num_pairs, key, row.data(), occupied, empty, target,
+            find_string_singles(tables,
+                                store,
+                                groups,
+                                sector,
+                                key,
+                                row.data(),
+                                occupied,
+                                empty,
+                                target,
+                                found[string]);
+            find_string_doubles(tables,
+                                store,
+                                groups,
+                                sector,
+                                num_pairs,
+                                key,
+                                row.data(),
+                                occupied,
+                                empty,
+                                target,
                                 found[string]);
         }
     }

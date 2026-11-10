@@ -24,7 +24,10 @@ from typing import Any, Callable, Mapping, Optional
 from .config import AUTO, GpuConfig
 
 FAST_MMA_ARCHS = {
-    (10, 0): "measured on GB200: DMMA: 39.6 TFLOPS; memory copy: 6.5 TB/s; ratio: 6.1 FLOP/byte."
+    (
+        10,
+        0,
+    ): "measured on GB200: DMMA: 39.6 TFLOPS; memory copy: 6.5 TB/s; ratio: 6.1 FLOP/byte."
 }
 MMA_FLOP_PER_BYTE = 3.0
 PROBE_ITERATIONS = 1024
@@ -63,8 +66,6 @@ COLLECTIVE = (
 
 @dataclass(frozen=True)
 class DeviceFacts:
-
-
     name: str
     capability: tuple
     total_bytes: int
@@ -83,8 +84,6 @@ class DeviceFacts:
 
 @dataclass(frozen=True)
 class KernelFacts:
-
-
     archs: tuple
     kernels: tuple
     source: str
@@ -100,8 +99,6 @@ class KernelFacts:
 
 @dataclass(frozen=True)
 class Choice:
-
-
     value: Any
     source: str
     reason: str
@@ -109,8 +106,6 @@ class Choice:
 
 @dataclass
 class Resolution:
-
-
     choices: dict = field(default_factory=dict)
     candidates: dict = field(default_factory=dict)
     warnings: list = field(default_factory=list)
@@ -161,7 +156,6 @@ def _text(value) -> str:
 
 def device_facts(ranks_on_device: int = 1) -> DeviceFacts:
 
-
     import cupy  # noqa: PLC0415
 
     device = cupy.cuda.Device()
@@ -191,7 +185,6 @@ def library_path() -> Path:
 
 def kernel_facts(library: Optional[Path] = None) -> KernelFacts:
 
-
     library = library_path() if library is None else Path(library)
     record_path = library.with_name("kernel_resources.json")
     if not library.is_file() or not record_path.is_file():
@@ -212,7 +205,6 @@ def kernel_facts(library: Optional[Path] = None) -> KernelFacts:
 def probe_flop_per_byte(
     library: Optional[Path] = None, iterations: int = PROBE_ITERATIONS
 ) -> tuple:
-
 
     lib = ctypes.CDLL(str(library_path() if library is None else library))
     probe = lib.fq_probe_fp64_mma
@@ -255,7 +247,6 @@ def blocks_per_sm(
     dynamic_shared: int = 0,
 ) -> int:
 
-
     warps = (threads + 31) // 32
     registers = int(entry.get("registers") or 0)
     per_warp = ((registers * 32 + 255) // 256) * 256 if registers else 0
@@ -267,7 +258,6 @@ def blocks_per_sm(
 
 
 def screen(entry: Optional[dict], device: DeviceFacts) -> tuple:
-
 
     if entry is None:
         return False, "no such instance in kernel_resources.json"
@@ -303,7 +293,6 @@ def clique_shared_bytes(members: int, edges_per_batch: int, rows: int) -> int:
 
 def aaaa_block_group(sell_bytes_per_block: float, device: DeviceFacts) -> tuple:
 
-
     l2 = device.l2_bytes / max(1, device.ranks_on_device)
     low, high = AAAA_GROUP_RANGE
     if sell_bytes_per_block <= 0:
@@ -316,8 +305,6 @@ def aaaa_block_group(sell_bytes_per_block: float, device: DeviceFacts) -> tuple:
 
 
 class _Settings:
-
-
     def __init__(self, config: GpuConfig):
 
         self.config = config
@@ -345,7 +332,6 @@ def resolve(
     can_split_diagonal: Optional[bool] = True,
     agree: Optional[Callable[[bool], list]] = None,
 ) -> Resolution:
-
 
     settings = _Settings(config)
     result = Resolution()
@@ -394,7 +380,6 @@ def resolve(
 
 def _agree_device_rules(result: Resolution, agree) -> None:
 
-
     mine = {
         name: result.choices[name].value
         for name in ("scratch_mib", "clique_rows", "aa_prefetch")
@@ -423,7 +408,6 @@ def _agree_device_rules(result: Resolution, agree) -> None:
 
 
 def _resolve_static(settings: _Settings, result: Resolution, why: str) -> None:
-
 
     def pick(key, name):
 
@@ -522,7 +506,6 @@ def _lever(
     source: str,
     needs_mma: bool,
 ) -> None:
-
 
     explicit = settings.explicit(name)
     if explicit is None:
