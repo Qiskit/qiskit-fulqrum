@@ -35,6 +35,7 @@ from ..common.wide import (
     max_electrons,
     popcount_w,
     sort_strings,
+    with_words,
 )
 from ..config import GpuConfig, warn_unknown_names
 from ..logging import format_memory
@@ -89,6 +90,7 @@ from .launch import (
     AlphaDoubleClass,
     BetaDoubleClass,
     CliqueCross,
+    DirectCross,
     SourceLaunch,
     build_source_caches,
     cross_ready,
@@ -98,6 +100,7 @@ from .launch import (
 )
 from .arm_plan import (
     CLIQUE as ARM_CLIQUE,
+    DIRECT as ARM_DIRECT,
     TRANSPOSED_CLIQUE as ARM_TRANSPOSED_CLIQUE,
     ArmSettings,
     SourceFacts,
@@ -151,7 +154,7 @@ from .tile_discovery import (
 
 logger = logging.getLogger(__name__)
 
-TILE_MAX_KEY_WORDS = 1
+TILE_MAX_KEY_WORDS = 2
 ARM_CACHES = ("aaaa", "bbbb", "aa_c0", "aa_cpb", "bb_c0", "bb_cpb")
 _HBM_FITS_SKIP_LOGGED = False
 
@@ -234,8 +237,15 @@ def _pack_term_tables(gpu_data) -> tuple:
     if real_phase.size > 0 and not np.all((real_phase == 1) | (real_phase == -1)):
         raise ValueError("term_real_phase must be +/-1 for the phase fold")
     folded = coeffs * real_phase.astype(np.float64)
-    num_ops = np.ascontiguousarray(gpu_data["term_num_ops"]).astype(np.uint8)
-    num_proj = np.ascontiguousarray(gpu_data["term_num_proj"]).astype(np.uint8)
+    num_ops = np.ascontiguousarray(gpu_data["term_num_ops"])
+    num_proj = np.ascontiguousarray(gpu_data["term_num_proj"])
+    for name, counts in (("operator", num_ops), ("projector", num_proj)):
+        if counts.size and int(counts.max()) > 255:
+            raise ValueError(
+                f"a term has {int(counts.max())} {name} indices; the GPU term "
+                "tables hold at most 255"
+            )
+    num_ops, num_proj = num_ops.astype(np.uint8), num_proj.astype(np.uint8)
     meta = (num_proj.astype(np.uint16) << 8) | num_ops.astype(np.uint16)
     pairs = (vals.astype(np.uint16) << 8) | inds.astype(np.uint16)
     n_terms, stride = pairs.shape
@@ -311,7 +321,7 @@ class TileGPUResidentHamiltonian(LinearOperator):
     work completes before return. ``supports_device_matvec`` exposes this capability.
 
     The subspace must be a half-string/tensor product with alpha in the low qubits and
-    beta in the high qubits. Each sector must have 1–64 orbitals (bits), a fixed
+    beta in the high qubits. Each sector must have 1–128 orbitals (bits), a fixed
     electron count and operator groups supported by the GPU kernels. Use at
     least two occupied orbitals per half string; lower occupations are outside
     verified GPU support and may give incorrect results. GPU execution requires
@@ -320,9 +330,10 @@ class TileGPUResidentHamiltonian(LinearOperator):
     Args:
         hsub: Real type-2 ``SubspaceHamiltonian`` on the tensor product subspace.
         alpha_strs, beta_strs: Spin-sector string collections matching ``hsub``.
-            Each sector supports 1–64 orbitals, so a string uses at most 64 bits.
-            Use one-dimensional integer NumPy arrays (``uint64`` for the full
-            64-bit range) or binary-string sequences.
+            Each sector supports 1–128 orbitals. Use binary-string sequences or
+            integer NumPy arrays: one-dimensional ``uint64`` for sectors of at
+            most 64 orbitals, shape ``(N, 2)`` ``uint64`` (lowest orbitals in
+            column 0) for wider sectors.
         gpu_ids: Exactly one CUDA device ID for this rank, as a one-element
             sequence. Defaults to ``(0,)``; choose each rank's device explicitly.
         comm: MPI communicator; defaults to ``MPI.COMM_WORLD``. ``LocalComm``
@@ -462,7 +473,14 @@ class TileGPUResidentHamiltonian(LinearOperator):
                 (num_alpha, int(spmv.width) - num_alpha),
                 "TileGPUResidentHamiltonian",
                 electrons,
+                max_words=TILE_MAX_KEY_WORDS,
             )
+            forced = int(
+                (config if config is not None else GpuConfig.from_environ()).value(
+                    "FQ_FORCE_KEY_WORDS"
+                )
+            )
+            sector_words = tuple(max(words, forced) for words in sector_words)
 
         gpu_ids = tuple(int(gid) for gid in gpu_ids)
         if len(gpu_ids) > 1:
@@ -473,6 +491,11 @@ class TileGPUResidentHamiltonian(LinearOperator):
 
         self._hsub = hsub
         self._key_words = sector_words
+        self._wide_strings = sector_words != (1, 1)
+        self._forced_words = isinstance(spmv, FulqrumSpMV) and sector_words != (
+            key_words(int(spmv.subspace.num_alpha_qubits)),
+            key_words(int(spmv.width) - int(spmv.subspace.num_alpha_qubits)),
+        )
         self._alpha_strs = alpha_strs
         self._beta_strs = beta_strs
         self._comm = comm
@@ -717,10 +740,19 @@ class TileGPUResidentHamiltonian(LinearOperator):
         self._aabb_remote_beta_plans = {}
         self._aabb_remote_beta_bytes = 0
         self._aa_pair_enabled, self._bb_pair_enabled = pair_table_options(self._config)
+        if self._wide_strings and not (self._aa_pair_enabled and self._bb_pair_enabled):
+            raise ValueError(
+                "FQ_AA_PAIR_TABLE=0 and FQ_BB_PAIR_TABLE=0 select single-excitation "
+                "kernels that read single-word strings; unset them for sectors wider "
+                "than 64 orbitals"
+            )
         self._aabb_remote_alpha_mode = remote_alpha_mode(self._config)
         self._aabb_remote_alpha_shared = None
         self._aabb_remote_alpha_plans: dict = {}
         self._aabb_remote_alpha_bytes = 0
+        self._aabb_direct: dict = {}
+        self._aabb_direct_bytes = 0
+        self._arm_plan_lines: list = []
         self._aaaa_min_blocks, self._aaaa_identity_slot = 6, True
         self._arm_pair_state: dict = {}
         self._arm_pair_rank: dict = {}
@@ -926,6 +958,7 @@ class TileGPUResidentHamiltonian(LinearOperator):
             )
         self._construction_timing["gpu_upload"] = time.perf_counter() - _t
         self._arm_plans = run_on_every_rank(self._comm, "arm plan", self._plan_arms)
+        self._construction_timing["key_words"] = list(self._key_words)
         self._construction_timing["operator_bytes"] = int(self._operator_bytes)
         if self._cupy_available:
             _wait_for_uploads()
@@ -1095,6 +1128,7 @@ class TileGPUResidentHamiltonian(LinearOperator):
             is the common number of orbitals per sector.
 
         Raises:
+            FulqrumError: A sector has more than 64 orbitals.
             ValueError: The RDM order, local vector size or sector counts are
                 invalid, or alpha and beta have different orbital counts.
         """
@@ -1157,7 +1191,11 @@ class TileGPUResidentHamiltonian(LinearOperator):
                     "diagonal_slice_product_space method to compute them."
                 )
             diag_flat = spmv.diagonal_slice_product_space(
-                self._alpha_bra, self._beta_bra, 0, self._n_a_local, num_alpha
+                self._core_strings(self._alpha_bra),
+                self._core_strings(self._beta_bra),
+                0,
+                self._n_a_local,
+                num_alpha,
             )
             diag = np.array(diag_flat, dtype=np.float64)
         else:
@@ -1280,6 +1318,7 @@ class TileGPUResidentHamiltonian(LinearOperator):
             "aabb_parent_extra": int(self._aabb_parent_bytes),
             "aabb_remote_alpha_metadata": int(self._aabb_remote_alpha_bytes),
             "aabb_remote_beta_metadata": int(self._aabb_remote_beta_bytes),
+            "aabb_direct": int(self._aabb_direct_bytes),
         }
         pending_names = set(_HBM_PENDING)
         if self._host_arms:
@@ -1411,12 +1450,16 @@ class TileGPUResidentHamiltonian(LinearOperator):
         alpha = self._alpha_strs
         beta = self._beta_strs
         if isinstance(alpha, np.ndarray) and alpha.dtype.kind in "iu":
-            return sort_strings(alpha), sort_strings(np.asarray(beta))
-        from .hash_utils import _pack_half_strs_to_uint64  # noqa: PLC0415
+            alpha_arr, beta_arr = alpha, np.asarray(beta)
+        else:
+            from .hash_utils import _pack_half_strs_to_uint64  # noqa: PLC0415
 
-        widths = tuple(64 * words for words in self._key_words)
-        alpha_arr, beta_arr = _pack_half_strs_to_uint64(alpha, beta, widths)
-        return sort_strings(alpha_arr), sort_strings(beta_arr)
+            widths = tuple(64 * words for words in self._key_words)
+            alpha_arr, beta_arr = _pack_half_strs_to_uint64(alpha, beta, widths)
+        return tuple(
+            sort_strings(with_words(strings, words))
+            for strings, words in zip((alpha_arr, beta_arr), self._key_words)
+        )
 
     @staticmethod
     def _estimate_operator_bytes(hsub) -> int:
@@ -1628,6 +1671,11 @@ class TileGPUResidentHamiltonian(LinearOperator):
     def _turn_off_factored_aabb_arms(self, need: str) -> None:
 
 
+        if self._wide_strings:
+            raise ValueError(
+                f"sectors wider than 64 orbitals need {need}; the other mixed-spin "
+                "kernels read single-word strings"
+            )
         explicit = {
             "FQ_AABB_CLIQUE_ENABLE": self._aabb_parent_enabled,
             "FQ_AABB_REMOTE_BETA_METHOD": self._aabb_remote_beta_mode != "baseline",
@@ -2009,6 +2057,11 @@ class TileGPUResidentHamiltonian(LinearOperator):
             raise ValueError(
                 f"FQ_ARM_TABLE_SOURCE=host cannot run: {self._host_arm_reason}"
             )
+        if self._wide_strings and self._host_arm_reason is not None:
+            raise ValueError(
+                "sectors wider than 64 orbitals need host-built connection values, "
+                f"which cannot run: {self._host_arm_reason}"
+            )
         self._host_arms = self._host_arm_reason is None
         self._construction_timing["host_arm_values"] = self._host_arm_reason or "on"
 
@@ -2041,7 +2094,11 @@ class TileGPUResidentHamiltonian(LinearOperator):
             )
             return
         diag_alpha, diag_beta, pieces, ok = spmv.diag_separable_pieces(
-            self._alpha_bra, self._beta_bra, 0, self._n_a_local, self._num_alpha
+            self._core_strings(self._alpha_bra),
+            self._core_strings(self._beta_bra),
+            0,
+            self._n_a_local,
+            self._num_alpha,
         )
         if not ok and self._diag_recompute_explicit:
             raise RuntimeError(
@@ -2255,6 +2312,7 @@ class TileGPUResidentHamiltonian(LinearOperator):
             parent=self._aabb_parent_enabled,
             remote_beta=self._aabb_remote_beta_mode,
             remote_alpha=self._aabb_remote_alpha_mode == "transposed_clique",
+            wide=self._wide_strings,
         )
         if self._tile_tables is None:
             return {}
@@ -2295,6 +2353,9 @@ class TileGPUResidentHamiltonian(LinearOperator):
             )
             plans[src_rank] = plan_arms(facts, settings)
             self._validate_clique_plan(src_rank, plans[src_rank])
+            if plans[src_rank].aabb_path == ARM_DIRECT:
+                self._build_direct_cross(src_rank, view)
+            self._log_arm_plan(src_rank, plans[src_rank], same_alpha, same_beta)
         if any(
             plan.aabb_path in (ARM_CLIQUE, ARM_TRANSPOSED_CLIQUE)
             for plan in plans.values()
@@ -2308,6 +2369,64 @@ class TileGPUResidentHamiltonian(LinearOperator):
                     f"rank {self._rank} cross clique arm: {error}"
                 ) from error
         return plans
+
+    def _build_direct_cross(self, src_rank, view) -> None:
+
+        import cupy
+
+        graph = sorted_beta_graph(
+            *(
+                cupy.asnumpy(view[k])
+                for k in ("d_beta2_ptr", "d_beta2_j", "d_beta2_p0", "d_beta2_p1")
+            ),
+            self._beta_bra,
+            self._num_beta,
+            self._rank_tiles[src_rank][3] - self._rank_tiles[src_rank][2],
+            source_slots=cupy.asnumpy(self._d_beta_slot_persistent),
+        )
+        if not len(graph["words"]) or not self._n_a_local:
+            return
+        _, tasks = full_source_plan(graph, self._n_a_local)
+        cross = DirectCross(
+            beta_words=_to_device(graph["words"], np.uint64),
+            tasks=_to_device(tasks, np.int32),
+            num_tasks=len(tasks),
+        )
+        self._aabb_direct[src_rank] = cross
+        self._aabb_direct_bytes += int(cross.beta_words.nbytes) + int(
+            cross.tasks.nbytes
+        )
+
+    def _log_arm_plan(self, src_rank, plan, same_alpha, same_beta) -> None:
+
+        empty_direct = (
+            plan.aabb_path == ARM_DIRECT and src_rank not in self._aabb_direct
+        )
+        aabb = "none" if plan.aabb_mode != 12 or empty_direct else plan.aabb_path
+        if not (same_alpha or same_beta):
+            singles = "none"
+        elif not self._host_arms:
+            singles = "kernel"
+        elif any(
+            self._arm_caches.get((name, src_rank)) is not None
+            for name in ("aa_cpb", "bb_cpb")
+        ):
+            singles = "delta"
+        else:
+            singles = "pair"
+        if self._wide_strings and singles in ("kernel", "delta"):
+            raise ValueError(
+                f"source {src_rank}: the single-excitation delta kernels read "
+                "single-word strings"
+            )
+        diag = "recompute" if self._diag_recompute_enabled else "stored"
+        line = (
+            f"arm plan: rank={self._rank} source={src_rank} "
+            f"key_words={self._key_words[0]},{self._key_words[1]} "
+            f"aabb={aabb} singles={singles} diag={diag}"
+        )
+        self._arm_plan_lines.append(line)
+        self._logger.debug(line)
 
     def _validate_clique_plan(self, src_rank, arm_plan) -> None:
 
@@ -2367,9 +2486,24 @@ class TileGPUResidentHamiltonian(LinearOperator):
         off = [name for name, on in needed.items() if not on]
         if off:
             return "needs " + ", ".join(off)
-        return tile_input_error(
-            spmv, self._num_alpha, self._alpha_uniq, self._beta_uniq
-        )
+        try:
+            strings = tuple(
+                self._core_strings(words)
+                for words in (self._alpha_uniq, self._beta_uniq)
+            )
+        except ValueError as error:
+            return str(error)
+        return tile_input_error(spmv, self._num_alpha, *strings)
+
+    def _core_strings(self, words):
+
+        if not self._forced_words or words.ndim != 2:
+            return words
+        if np.any(words[:, 1:]):
+            raise ValueError(
+                "FQ_FORCE_KEY_WORDS (a test-only setting) needs zero high words"
+            )
+        return np.ascontiguousarray(words[:, 0])
 
     def _build_host_arm_values(self) -> None:
 
@@ -3768,8 +3902,14 @@ class TileGPUResidentHamiltonian(LinearOperator):
         if arm_plan.aabb_mode == 12:
             cross = (
                 self._clique_cross(src_rank, arm_plan.aabb_path, arm_plan.remote_beta)
+                or self._aabb_direct.get(src_rank)
                 or "sell"
             )
+            if cross == "sell" and self._wide_strings:
+                raise ValueError(
+                    f"source {src_rank}: the mixed-spin SELL kernel reads "
+                    "single-word strings"
+                )
         built = (
             src_rank not in self._bbbb_class_state,
             src_rank not in self._aaaa_class_state,

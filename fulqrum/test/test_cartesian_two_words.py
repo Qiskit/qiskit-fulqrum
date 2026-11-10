@@ -78,8 +78,7 @@ def test_subspace_words_equal_python_integers(width):
         np.testing.assert_array_equal(a, space.to_alpha_beta_arrays()[0])
     else:
         assert a.shape == (len(alpha), 2)
-        with pytest.raises(FulqrumError, match="at most 64 qubits"):
-            space.to_alpha_beta_arrays()
+        np.testing.assert_array_equal(a, space.to_alpha_beta_arrays()[0])
 
 
 def test_subspace_words_refuse_more_than_two_words():

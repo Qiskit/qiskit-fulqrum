@@ -75,7 +75,7 @@ class GPUHamiltonian(LinearOperator):
     For multiple processes, use ``DistributedMPIGPUHamiltonian``.
 
     Supported inputs use ``fq.Subspace([alpha_strs, beta_strs])``, with alpha in
-    the low qubits and beta in the high qubits. Each spin-sector must contain 1–64
+    the low qubits and beta in the high qubits. Each spin-sector must contain 1–128
     orbitals (bits), have a fixed electron count, and pass the GPU operator checks.
     Verified GPU support requires at least two occupied orbitals in every half
     string. Smaller occupations trigger ``RuntimeWarning`` and may produce
@@ -120,6 +120,7 @@ class GPUHamiltonian(LinearOperator):
             error = width_error(
                 (num_alpha, int(spmv.width) - num_alpha),
                 _sector_electrons(spmv.subspace),
+                max_words=2,
             )
             if error:
                 raise FulqrumError(f"GPUHamiltonian failed: {error}")
@@ -293,6 +294,7 @@ class GPUHamiltonian(LinearOperator):
             is the common number of orbitals per sector.
 
         Raises:
+            FulqrumError: A sector has more than 64 orbitals.
             ValueError: The RDM order or vector length is invalid, or alpha and
                 beta have different orbital counts.
         """

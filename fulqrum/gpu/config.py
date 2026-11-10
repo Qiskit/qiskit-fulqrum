@@ -690,7 +690,7 @@ FLAGS = (
         TEST,
         "int",
         1,
-        "Test-only. With 2, `FullStrsHamiltonian` stores operators of at most 64 orbitals per sector with two words per sector, the high word zero, and runs its two-word code path.",
+        "Test-only. With 2, `FullStrsHamiltonian` and the Cartesian operators (`GPUHamiltonian`, `TileGPUResidentHamiltonian`) store strings of at most 64 orbitals per sector as two words, the high word zero, and run their two-word code paths.",
         minimum=1,
         maximum=2,
     ),

@@ -120,6 +120,7 @@ def test_predicted_hbm_bytes_shape():
         "aabb_parent_extra",
         "aabb_remote_alpha_metadata",
         "aabb_remote_beta_metadata",
+        "aabb_direct",
     }
     assert pred["v_local"] == 12 * 8
     assert pred["out_local"] == 12 * 8

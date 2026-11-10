@@ -142,6 +142,21 @@ def sort_strings(strings):
     return np.ascontiguousarray(words[order])
 
 
+def with_words(strings, words):
+
+
+    strings = np.asarray(strings, dtype=np.uint64)
+    if words == 1 or (strings.ndim == 2 and strings.shape[1] == words):
+        return strings
+    if strings.ndim == 2 and strings.shape[1] != 1:
+        raise ValueError(
+            f"strings have {strings.shape[1]} words; the sector uses {words}"
+        )
+    out = np.zeros((strings.shape[0], int(words)), dtype=np.uint64)
+    out[:, 0] = strings.reshape(-1)
+    return out
+
+
 def unpack_ints(strings):
 
 

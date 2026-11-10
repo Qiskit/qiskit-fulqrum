@@ -161,12 +161,14 @@ def _wide_hsub(num_orbitals=WIDE):
 @requires_gpu
 def test_tile_resident_rejects_wide_sector():
     from fulqrum.gpu.distributed.dist_matvec_tile_resident import (  # noqa: PLC0415
+        TILE_MAX_KEY_WORDS,
         TileGPUResidentHamiltonian,
     )
 
-    hsub = _wide_hsub()
+    wide = 64 * TILE_MAX_KEY_WORDS + 1
+    hsub = _wide_hsub(wide)
     subspace = hsub.spmv.subspace
-    with pytest.raises(FulqrumError, match=f"has {WIDE} orbitals"):
+    with pytest.raises(FulqrumError, match=f"has {wide} orbitals"):
         TileGPUResidentHamiltonian(
             hsub,
             subspace.alpha_strs,
@@ -179,9 +181,13 @@ def test_tile_resident_rejects_wide_sector():
 @requires_gpu
 def test_gpu_hamiltonian_rejects_wide_sector():
     from fulqrum.gpu import GPUHamiltonian  # noqa: PLC0415
+    from fulqrum.gpu.distributed.dist_matvec_tile_resident import (  # noqa: PLC0415
+        TILE_MAX_KEY_WORDS,
+    )
 
-    with pytest.raises(FulqrumError, match=f"GPUHamiltonian failed: .*has {WIDE}"):
-        GPUHamiltonian(_wide_hsub(), gpu_ids=(0,))
+    wide = 64 * TILE_MAX_KEY_WORDS + 1
+    with pytest.raises(FulqrumError, match=f"GPUHamiltonian failed: .*has {wide}"):
+        GPUHamiltonian(_wide_hsub(wide), gpu_ids=(0,))
 
 
 @requires_gpu

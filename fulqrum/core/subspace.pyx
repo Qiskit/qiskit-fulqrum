@@ -393,7 +393,7 @@ cdef class Subspace():
         return [self.subspace.half_string(1, i) for i in range(self.subspace.half_size(1))]
 
     def to_alpha_beta_arrays(self):
-        return self._alpha_beta_words(1)
+        return self._alpha_beta_words(2)
 
     def _alpha_beta_words(self, max_words):
         from ..gpu.common.wide import pack_strings

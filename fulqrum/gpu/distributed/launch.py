@@ -13,6 +13,8 @@
 
 from dataclasses import dataclass, field
 
+FACTOR_MAX_ORBITALS = 64
+
 
 def address(array) -> int:
 
@@ -72,6 +74,15 @@ class CliqueCross:
     lbg: object = None
     lbg_scratch: object = None
     lbg_flag: object = None
+
+
+@dataclass(frozen=True)
+class DirectCross:
+
+
+    beta_words: object
+    tasks: object
+    num_tasks: int
 
 
 @dataclass(frozen=True)
@@ -699,6 +710,25 @@ def _cross(k, launch: SourceLaunch) -> None:
     _record(launch, "source_start")
     if isinstance(launch.cross, CliqueCross):
         _cross_clique(k, launch, launch.cross)
+    elif isinstance(launch.cross, DirectCross):
+        _check(
+            lambda: k.launch_cross_direct(
+                launch.geometry,
+                launch.src_in,
+                launch.out,
+                offsets(view["d_alpha2_sell_off"]),
+                address(view["d_alpha2_sell_len"]),
+                address(view["d_alpha2_sell_pack"]),
+                address(launch.cross.beta_words),
+                address(launch.cross.tasks),
+                address(launch.coefficients),
+                launch.num_alpha * (launch.num_alpha - 1) // 2,
+                launch.cross.num_tasks,
+                launch.stream,
+            ),
+            "cross direct",
+            launch,
+        )
     else:
         _check(
             lambda: k.launch_cross_sell(
@@ -750,6 +780,16 @@ def cross_ready(launch: SourceLaunch) -> bool:
     return _cross_ready(launch)
 
 
+def check_factor_orbitals(terms: tuple) -> None:
+
+    widest = max(int(terms[-2]), int(terms[-1]))
+    if widest > FACTOR_MAX_ORBITALS:
+        raise ValueError(
+            f"the GPU cache build holds at most {FACTOR_MAX_ORBITALS} orbitals per "
+            f"sector, got {widest}"
+        )
+
+
 def build_source_caches(
     geometry: tuple,
     terms: tuple,
@@ -766,6 +806,7 @@ def build_source_caches(
 
     from . import kernel_launch  # noqa: PLC0415
 
+    check_factor_orbitals(terms)
     if (
         same_beta
         and caches.get("aaaa") is not None

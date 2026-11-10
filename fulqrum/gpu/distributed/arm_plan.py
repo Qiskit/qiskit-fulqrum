@@ -16,6 +16,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 BASELINE = "baseline"
+DIRECT = "direct"
 CLIQUE = "clique"
 TRANSPOSED_CLIQUE = "transposed_clique"
 REMOTE_BETA_CLIQUE = "clique"
@@ -31,6 +32,7 @@ class ArmSettings:
     parent: bool
     remote_beta: str
     remote_alpha: bool
+    wide: bool = False
 
 
 @dataclass(frozen=True)
@@ -69,6 +71,10 @@ def plan_arms(facts: SourceFacts, settings: ArmSettings) -> ArmPlan:
         raise ValueError(
             "a same-beta source tile has alpha double edges but no SELL form of them; "
             "its padded SELL size exceeds int32, so use more ranks"
+        )
+    if settings.wide and not settings.factored:
+        raise ValueError(
+            "sectors wider than 64 orbitals need the factored mixed-spin tables"
         )
     mode = aabb_mode(facts, settings)
     remote = _remote_beta(facts, settings, mode)
@@ -127,4 +133,6 @@ def _aabb_path(
         and mode == 12
     ):
         return TRANSPOSED_CLIQUE
+    if settings.wide and mode == 12:
+        return DIRECT
     return BASELINE

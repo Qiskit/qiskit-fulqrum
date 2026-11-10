@@ -18,6 +18,7 @@ import logging
 
 import numpy as np
 
+from ...exceptions import FulqrumError
 from .. import config
 from .local_comm import mpi_namespace
 from .rank_agreement import raise_on_every_rank, run_on_every_rank
@@ -1089,6 +1090,7 @@ def compute_rdms_cart(ham, evec_local, *, rank=1, spin_summed=False):
 
     Raises:
         ImportError: CuPy is unavailable.
+        FulqrumError: A sector has more than 64 orbitals.
         ValueError: The RDM order, local input shape, orbital counts or sector
             electron counts are invalid.
         MemoryError: RDM storage cannot fit within the available device memory
@@ -1108,9 +1110,10 @@ def compute_rdms_cart(ham, evec_local, *, rank=1, spin_summed=False):
         raise ValueError(
             f"the RDM needs equal alpha and beta orbital counts, got {m} and {int(ham._num_beta)}"
         )
-    if m > MAX_ORBITALS:
-        raise ValueError(
-            f"the RDM supports at most {MAX_ORBITALS} orbitals per sector, got {m}"
+    if m > MAX_ORBITALS or getattr(ham, "_wide_strings", False):
+        raise FulqrumError(
+            f"the RDM supports at most {MAX_ORBITALS} orbitals per sector with one "
+            f"word per string, got {m}"
         )
     a_uniq = np.asarray(ham._alpha_uniq, dtype=np.uint64)
     b_uniq = np.asarray(ham._beta_uniq, dtype=np.uint64)

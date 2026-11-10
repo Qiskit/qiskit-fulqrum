@@ -103,7 +103,7 @@ def DistributedMPIGPUHamiltonian(
 
     The subspace must be ``fq.Subspace([alpha_strs, beta_strs])``, a tensor product,
     subspace with alpha in the low qubits and beta in the high qubits. Each spin-sector
-    supports 1–64 orbitals and must have a fixed electron count. Use at least two occupied
+    supports 1–128 orbitals and must have a fixed electron count. Use at least two occupied
     orbitals per half string; smaller occupations are outside verified GPU support and may
     give incorrect results. Operator groups must pass the GPU compatibility checks.
 
