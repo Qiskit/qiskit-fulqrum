@@ -52,6 +52,18 @@ extern "C"
                             void* stream);
 
 
+    int rdm_launch_alpha_one_body_words(const RdmSlabPair* slabs, const RdmSingles* singles, const RdmWeighted* out,
+                                        void* stream);
+
+
+    int rdm_launch_beta_one_body_words(const RdmSlabPair* slabs, const RdmSingles* singles, const RdmWeighted* out,
+                                       void* stream);
+
+
+    int rdm_launch_diagonal_words(const RdmSlabPair* slabs, const RdmRows* rows, const RdmWeighted* out,
+                                  int beta_side, void* stream);
+
+
     int rdm_launch_alpha_beta(const RdmAbSlabs* slabs, const RdmAbLists* lists, const RdmTensor* out, void* stream);
 
 

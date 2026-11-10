@@ -115,8 +115,20 @@ cdef extern from "../kernels/rdm/launch.hpp":
                               void* stream) nogil
     int rdm_launch_diagonal(const RdmSlabPair* slabs, const RdmRows* rows, const RdmWeighted* out, int beta_side,
                             void* stream) nogil
+    int rdm_launch_alpha_one_body_words(const RdmSlabPair* slabs, const RdmSingles* singles,
+                                        const RdmWeighted* out, void* stream) nogil
+    int rdm_launch_beta_one_body_words(const RdmSlabPair* slabs, const RdmSingles* singles,
+                                       const RdmWeighted* out, void* stream) nogil
+    int rdm_launch_diagonal_words(const RdmSlabPair* slabs, const RdmRows* rows, const RdmWeighted* out,
+                                  int beta_side, void* stream) nogil
     size_t rdm_param_struct_size(int which)
     const char* rdm_error_name(int status)
+
+
+def _check_words(int words):
+
+    if words not in (1, 2):
+        raise ValueError(f"the RDM kernels take one or two words per string, got {words}")
 
 
 def _check_struct_sizes():
@@ -226,7 +238,7 @@ def launch_same_diagonal(uintptr_t weight, uintptr_t keys, int64_t bra_offset, i
 
 def launch_one_body(bint beta_side, tuple slabs, uintptr_t source, uintptr_t target, uintptr_t sign, uintptr_t label,
                     int64_t count, uintptr_t gamma, uintptr_t alpha_beta, uintptr_t column_keys,
-                    int64_t column_offset, int num_orbitals, uintptr_t stream=0):
+                    int64_t column_offset, int num_orbitals, uintptr_t stream=0, int words=1):
 
 
     cdef RdmSlabPair s = _slab_pair(slabs)
@@ -244,8 +256,13 @@ def launch_one_body(bint beta_side, tuple slabs, uintptr_t source, uintptr_t tar
     w.column_offset = column_offset
     w.num_orbitals = num_orbitals
     cdef int status
+    _check_words(words)
     with nogil:
-        if beta_side:
+        if words == 2 and beta_side:
+            status = rdm_launch_beta_one_body_words(&s, &x, &w, <void*>stream)
+        elif words == 2:
+            status = rdm_launch_alpha_one_body_words(&s, &x, &w, <void*>stream)
+        elif beta_side:
             status = rdm_launch_beta_one_body(&s, &x, &w, <void*>stream)
         else:
             status = rdm_launch_alpha_one_body(&s, &x, &w, <void*>stream)
@@ -254,7 +271,7 @@ def launch_one_body(bint beta_side, tuple slabs, uintptr_t source, uintptr_t tar
 
 def launch_diagonal(bint beta_side, tuple slabs, uintptr_t row_keys, int64_t row_offset, int64_t num_rows,
                     uintptr_t gamma, uintptr_t alpha_beta, uintptr_t column_keys, int64_t column_offset,
-                    int num_orbitals, uintptr_t stream=0):
+                    int num_orbitals, uintptr_t stream=0, int words=1):
 
 
     cdef RdmSlabPair s = _slab_pair(slabs)
@@ -271,8 +288,12 @@ def launch_diagonal(bint beta_side, tuple slabs, uintptr_t row_keys, int64_t row
     w.num_orbitals = num_orbitals
     cdef int status
     cdef int side = 1 if beta_side else 0
+    _check_words(words)
     with nogil:
-        status = rdm_launch_diagonal(&s, &r, &w, side, <void*>stream)
+        if words == 2:
+            status = rdm_launch_diagonal_words(&s, &r, &w, side, <void*>stream)
+        else:
+            status = rdm_launch_diagonal(&s, &r, &w, side, <void*>stream)
     _check("diagonal", status)
 
 

@@ -20,6 +20,7 @@ import numpy as np
 
 from ...exceptions import FulqrumError
 from .. import config
+from ..common.wide import WORD_BITS, between_parity_w, popcount_w
 from .local_comm import mpi_namespace
 from .rank_agreement import raise_on_every_rank, run_on_every_rank
 
@@ -27,7 +28,7 @@ logger = logging.getLogger(__name__)
 __all__ = ["compute_rdms_cart"]
 
 LANE_BYTES = 100
-MAX_ORBITALS = 64
+MAX_ORBITALS = 128
 MIN_LANES = 1 << 16
 MAX_LANES = 1 << 24
 TRANSIENT_SHARE = 0.25
@@ -51,6 +52,11 @@ _PIECE_FOR_TESTING = (
 def _fixed_ne(keys):
 
     keys = np.ascontiguousarray(keys, dtype=np.uint64)
+    if keys.ndim == 2:
+        if keys.shape[0] == 0:
+            return None
+        counts = popcount_w(keys)
+        return int(counts[0]) if counts.min() == counts.max() else None
     if keys.size == 0:
         return None
     counts = np.unpackbits(keys.view(np.uint8)).reshape(keys.size, 64).sum(axis=1)
@@ -73,23 +79,76 @@ def _popcount(cp, x):
 
 def _sorted_index(cp, keys):
 
+    if keys.ndim == 2:
+        return _WordIndex(cp, keys), None
     order = cp.argsort(keys).astype(cp.int32)
     return keys[order], order
 
 
 def _lookup(cp, sorted_keys, order, keys, n):
 
+    if isinstance(sorted_keys, _WordIndex):
+        return sorted_keys.find(keys)
     pos = cp.searchsorted(sorted_keys, keys)
     pos = cp.clip(pos, 0, n - 1)
     return sorted_keys[pos] == keys, order[pos]
 
 
+class _WordIndex:
+
+
+    def __init__(self, xp, keys):
+
+        self.xp = xp
+        self.values = [xp.unique(keys[:, w]) for w in range(keys.shape[1])]
+        scale = 1
+        for values in self.values:
+            scale *= max(1, int(values.size))
+        if scale >= 1 << 63:
+            raise OverflowError("the RDM string index does not fit int64")
+        combined, _ = self._combined(keys)
+        self.order = xp.argsort(combined).astype(xp.int32)
+        self.sorted = combined[self.order]
+
+    def _combined(self, keys):
+
+        xp = self.xp
+        combined = xp.zeros(keys.shape[0], dtype=xp.int64)
+        present = xp.ones(keys.shape[0], dtype=bool)
+        scale = 1
+        for w, values in enumerate(self.values):
+            size = max(1, int(values.size))
+            rank = xp.clip(xp.searchsorted(values, keys[:, w]), 0, size - 1)
+            present &= values[rank] == keys[:, w]
+            combined += rank.astype(xp.int64) * scale
+            scale *= size
+        return combined, present
+
+    def find(self, keys):
+
+        xp, n = self.xp, int(self.sorted.size)
+        combined, present = self._combined(keys)
+        pos = xp.clip(xp.searchsorted(self.sorted, combined), 0, n - 1)
+        return present & (self.sorted[pos] == combined), self.order[pos]
+
+
+def _occ_vir_bits(cp, keys, m):
+
+    orbitals = cp.arange(m, dtype=cp.int64)
+    words = keys[:, orbitals // WORD_BITS]
+    shifts = (orbitals % WORD_BITS).astype(cp.uint64)[None, :]
+    return ((words >> shifts) & cp.uint64(1)).astype(cp.bool_), orbitals
+
+
 def _occ_vir(cp, keys, m, ne):
 
-    bits = (
-        (keys[:, None] >> cp.arange(m, dtype=cp.uint64)[None, :]) & cp.uint64(1)
-    ).astype(cp.bool_)
-    count = int(keys.size)
+    if keys.ndim == 2:
+        bits, _ = _occ_vir_bits(cp, keys, m)
+    else:
+        bits = (
+            (keys[:, None] >> cp.arange(m, dtype=cp.uint64)[None, :]) & cp.uint64(1)
+        ).astype(cp.bool_)
+    count = int(keys.shape[0])
     occ = cp.nonzero(bits)[1].reshape(count, ne).astype(cp.int64)
     vir = cp.nonzero(~bits)[1].reshape(count, m - ne).astype(cp.int64)
     return occ, vir
@@ -97,6 +156,8 @@ def _occ_vir(cp, keys, m, ne):
 
 def _excite_sign(cp, source, created, removed):
 
+    if source.ndim == 2:
+        return between_parity_w(source, created, removed).astype(cp.float64)
     one = cp.uint64(1)
     low = cp.minimum(created, removed).astype(cp.uint64)
     high = cp.maximum(created, removed).astype(cp.uint64)
@@ -108,7 +169,7 @@ def _excite_sign(cp, source, created, removed):
 def _singles_range(cp, keys, sorted_keys, order, lo, hi, m, ne, lanes):
 
 
-    n = int(keys.size)
+    n = int(keys.shape[0])
     nv = m - ne
     one = cp.uint64(1)
     per = max(1, ne * nv)
@@ -128,10 +189,14 @@ def _singles_range(cp, keys, sorted_keys, order, lo, hi, m, ne, lanes):
         removed = cp.repeat(occ, nv, axis=1).reshape(-1)
         created = cp.tile(vir, (1, ne)).reshape(-1)
         bra = cp.repeat(rows, per)
-        source = cp.repeat(block, per)
-        target = (source & ~(one << removed.astype(cp.uint64))) | (
-            one << created.astype(cp.uint64)
-        )
+        if block.ndim == 2:
+            source = cp.repeat(block, per, axis=0)
+            target = _flip_words(cp, _flip_words(cp, source, removed), created)
+        else:
+            source = cp.repeat(block, per)
+            target = (source & ~(one << removed.astype(cp.uint64))) | (
+                one << created.astype(cp.uint64)
+            )
         found, ket = _lookup(cp, sorted_keys, order, target, n)
         sign = _excite_sign(cp, source, created, removed)
         src_l.append(bra[found].astype(cp.int32))
@@ -156,7 +221,7 @@ def _singles_range(cp, keys, sorted_keys, order, lo, hi, m, ne, lanes):
 def _pair_graph(cp, keys, sorted_keys, order, lo, hi, m, ne, lanes):
 
 
-    n = int(keys.size)
+    n = int(keys.shape[0])
     nv = m - ne
     one = cp.uint64(1)
     rows_total = hi - lo
@@ -175,25 +240,75 @@ def _pair_graph(cp, keys, sorted_keys, order, lo, hi, m, ne, lanes):
         c1 = min(hi, c0 + step)
         block = keys[cp.arange(c0, c1, dtype=cp.int64)]
         occ, vir = _occ_vir(cp, block, m, ne)
-        column = block[:, None]
-        removed = cp.repeat(occ, nv, axis=1)
-        created = cp.tile(vir, (1, ne))
-        singles = (column & ~(one << removed.astype(cp.uint64))) | (
-            one << created.astype(cp.uint64)
-        )
-        q1 = cp.repeat(occ[:, oa_d], pairs_v, axis=1).astype(cp.uint64)
-        q2 = cp.repeat(occ[:, ob_d], pairs_v, axis=1).astype(cp.uint64)
-        p1 = cp.tile(vir[:, va_d], (1, pairs_o)).astype(cp.uint64)
-        p2 = cp.tile(vir[:, vb_d], (1, pairs_o)).astype(cp.uint64)
-        doubles = (((column & ~(one << q1)) & ~(one << q2)) | (one << p1)) | (one << p2)
-        candidates = cp.concatenate([singles, doubles], axis=1).reshape(-1)
+        if block.ndim == 2:
+            candidates = _pair_candidates(cp, block, occ, vir, nv, ne, oa_d, ob_d, va_d, vb_d)
+        else:
+            column = block[:, None]
+            removed = cp.repeat(occ, nv, axis=1)
+            created = cp.tile(vir, (1, ne))
+            singles = (column & ~(one << removed.astype(cp.uint64))) | (
+                one << created.astype(cp.uint64)
+            )
+            q1 = cp.repeat(occ[:, oa_d], pairs_v, axis=1).astype(cp.uint64)
+            q2 = cp.repeat(occ[:, ob_d], pairs_v, axis=1).astype(cp.uint64)
+            p1 = cp.tile(vir[:, va_d], (1, pairs_o)).astype(cp.uint64)
+            p2 = cp.tile(vir[:, vb_d], (1, pairs_o)).astype(cp.uint64)
+            doubles = (((column & ~(one << q1)) & ~(one << q2)) | (one << p1)) | (one << p2)
+            candidates = cp.concatenate([singles, doubles], axis=1).reshape(-1)
         found, ket = _lookup(cp, sorted_keys, order, candidates, n)
         counts[c0 - lo : c1 - lo] = found.reshape(c1 - c0, per).sum(axis=1)
         cols.append(ket[found].astype(cp.int32))
-        del candidates, found, ket, singles, doubles
+        del candidates, found, ket
     ptr = cp.zeros(rows_total + 1, cp.int64)
     ptr[1:] = cp.cumsum(counts)
     return ptr, (cp.concatenate(cols) if cols else cp.zeros(0, cp.int32))
+
+
+def _pair_candidates(cp, block, occ, vir, nv, ne, oa, ob, va, vb):
+
+    rows, words = block.shape
+    pairs_o, pairs_v = int(oa.size), int(va.size)
+    removed = cp.repeat(occ, nv, axis=1).reshape(-1)
+    created = cp.tile(vir, (1, ne)).reshape(-1)
+    singles = cp.repeat(block, ne * nv, axis=0)
+    singles = _flip_words(cp, _flip_words(cp, singles, removed), created)
+    doubles = cp.repeat(block, pairs_o * pairs_v, axis=0)
+    for orbitals in (
+        cp.repeat(occ[:, oa], pairs_v, axis=1),
+        cp.repeat(occ[:, ob], pairs_v, axis=1),
+        cp.tile(vir[:, va], (1, pairs_o)),
+        cp.tile(vir[:, vb], (1, pairs_o)),
+    ):
+        doubles = _flip_words(cp, doubles, orbitals.reshape(-1))
+    return cp.concatenate(
+        [singles.reshape(rows, -1, words), doubles.reshape(rows, -1, words)], axis=1
+    ).reshape(-1, words)
+
+
+def _same_diagonal_gemm(cp, weight, keys, out, m):
+
+    occupied, _ = _occ_vir_bits(cp, keys, m)
+    occupied = occupied.astype(cp.float64)
+    pairs = (occupied.T * weight[None, : keys.shape[0]]) @ occupied
+    u, v = cp.nonzero(~cp.eye(m, dtype=bool) & (pairs != 0.0))
+    values = pairs[u, v]
+    block = out.reshape(m, m, m, m)
+    block[u, u, v, v] += values
+    block[u, v, v, u] -= values
+
+
+def _words(keys):
+
+    return 1 if keys.ndim == 1 else int(keys.shape[1])
+
+
+def _flip_words(cp, strings, orbitals):
+
+    out = strings.copy()
+    rows = cp.arange(out.shape[0])
+    word = orbitals // WORD_BITS
+    out[rows, word] ^= cp.uint64(1) << (orbitals % WORD_BITS).astype(cp.uint64)
+    return out
 
 
 def _col_sqnorm(cp, slab, lo, hi, width, budget=1 << 24):
@@ -298,6 +413,8 @@ def _sector_lists(cp, keys, bra, m, ne, two, lanes, starts):
     blocks = len(starts) - 1
     mm = m * m
     device = cp.asarray(keys)
+    if device.ndim == 2:
+        device = cp.ascontiguousarray(device)
     sorted_keys, order = _sorted_index(cp, device)
     src, tgt, sign, label = _singles_range(
         cp, device, sorted_keys, order, lo, hi, m, ne, lanes
@@ -886,6 +1003,7 @@ class _Accumulator:
                 column_offset,
                 m,
                 stream,
+                _words(other["keys"]),
             )
         if not self.two or n_bra == 0:
             return
@@ -987,6 +1105,7 @@ class _Accumulator:
             self.b0,
             m,
             stream,
+            _words(self.alpha["keys"]),
         )
         beta_own = (
             (
@@ -1013,6 +1132,7 @@ class _Accumulator:
             self.a0,
             m,
             stream,
+            _words(self.beta["keys"]),
         )
         if not self.two:
             return
@@ -1026,6 +1146,9 @@ class _Accumulator:
             (weights[0], self.alpha, self.a0, self.a1, self.blocks[0]),
             (weights[1], self.beta, self.b0, self.b1, self.blocks[2]),
         ):
+            if lists["keys"].ndim == 2:
+                _same_diagonal_gemm(cp, weight, lists["keys"][lo:hi], out, m)
+                continue
             kernel_launch.launch_same_diagonal(
                 weight.data.ptr,
                 lists["keys"].data.ptr,
@@ -1061,10 +1184,11 @@ def compute_rdms_cart(ham, evec_local, *, rank=1, spin_summed=False):
     the full result as host NumPy ``float64`` arrays after GPU work and collective
     communication complete.
 
-    The subspace must have equal alpha and beta orbital counts, at most 64 per
-    sector, and a fixed electron count within each sector. Local amplitudes use
-    the Hamiltonian's sorted half-string order, flattened with beta outermost
-    and alpha innermost: local index ``b * ham.n_a_local + a``.
+    The subspace must have equal alpha and beta orbital counts, at most 128 per
+    sector for ``rank=1`` and at most 64 for ``rank=2``, and a fixed electron
+    count within each sector. Local amplitudes use the Hamiltonian's sorted
+    half-string order, flattened with beta outermost and alpha innermost: local
+    index ``b * ham.n_a_local + a``.
 
     No normalization is applied. Scaling the full state by a real factor scales
     every RDM by its square. Normalize the full state before distributing it if
@@ -1090,7 +1214,8 @@ def compute_rdms_cart(ham, evec_local, *, rank=1, spin_summed=False):
 
     Raises:
         ImportError: CuPy is unavailable.
-        FulqrumError: A sector has more than 64 orbitals.
+        FulqrumError: A sector has more than 128 orbitals, or more than 64 with
+            ``rank=2``.
         ValueError: The RDM order, local input shape, orbital counts or sector
             electron counts are invalid.
         MemoryError: RDM storage cannot fit within the available device memory
@@ -1110,10 +1235,13 @@ def compute_rdms_cart(ham, evec_local, *, rank=1, spin_summed=False):
         raise ValueError(
             f"the RDM needs equal alpha and beta orbital counts, got {m} and {int(ham._num_beta)}"
         )
-    if m > MAX_ORBITALS or getattr(ham, "_wide_strings", False):
+    if m > MAX_ORBITALS:
         raise FulqrumError(
-            f"the RDM supports at most {MAX_ORBITALS} orbitals per sector with one "
-            f"word per string, got {m}"
+            f"the RDM supports at most {MAX_ORBITALS} orbitals per sector, got {m}"
+        )
+    if rank == 2 and (m > WORD_BITS or getattr(ham, "_wide_strings", False)):
+        raise FulqrumError(
+            f"rank=2 RDMs support at most {WORD_BITS} orbitals per sector, got {m}"
         )
     a_uniq = np.asarray(ham._alpha_uniq, dtype=np.uint64)
     b_uniq = np.asarray(ham._beta_uniq, dtype=np.uint64)
@@ -1127,8 +1255,8 @@ def compute_rdms_cart(ham, evec_local, *, rank=1, spin_summed=False):
     tiles = ham._rank_tiles
     a0, a1, b0, b1, _ca, _cb = tiles[me]
     starts = (
-        np.asarray([lo for lo, _hi in ham._alpha_ranges] + [a_uniq.size], np.int64),
-        np.asarray([lo for lo, _hi in ham._beta_ranges] + [b_uniq.size], np.int64),
+        np.asarray([lo for lo, _hi in ham._alpha_ranges] + [len(a_uniq)], np.int64),
+        np.asarray([lo for lo, _hi in ham._beta_ranges] + [len(b_uniq)], np.int64),
     )
     two = rank == 2
     log = _Log(cp, comm)

@@ -88,9 +88,18 @@ def empty_w(words):
 EMPTY_W = empty_w(1)
 
 
+def _xp(array):
+
+    if type(array).__module__.split(".")[0] == "cupy":
+        import cupy
+
+        return cupy
+    return np
+
+
 def _as_words(strings):
 
-    words = np.asarray(strings, dtype=np.uint64)
+    words = _xp(strings).asarray(strings, dtype=np.uint64)
     if words.ndim == 1:
         return words.reshape(-1, 1)
     if words.ndim != 2:
@@ -172,6 +181,9 @@ def unpack_ints(strings):
 
 def _popcount_words(x):
 
+    xp = _xp(x)
+    if hasattr(xp, "bitwise_count") and xp is not np:
+        return xp.bitwise_count(x.astype(np.uint64)).astype(np.uint64)
     x = x.astype(np.uint64, copy=True)
     x -= (x >> np.uint64(1)) & np.uint64(0x5555555555555555)
     x = (x & np.uint64(0x3333333333333333)) + (
@@ -191,34 +203,35 @@ def bit_w(strings, orbital):
 
 
     words = _as_words(strings)
-    orbital = np.asarray(orbital, dtype=np.int64)
+    xp = _xp(words)
+    orbital = xp.asarray(orbital, dtype=np.int64)
     word = orbital // WORD_BITS
     shift = (orbital % WORD_BITS).astype(np.uint64)
-    rows = np.arange(words.shape[0])
+    rows = xp.arange(words.shape[0])
     selected = words[rows, word] if word.ndim else words[:, int(word)]
     return ((selected >> shift) & np.uint64(1)).astype(np.uint8)
 
 
-def _below(count):
+def _below(count, xp=np):
 
-    count = np.asarray(count, dtype=np.int64)
-    capped = np.minimum(count, WORD_BITS - 1).astype(np.uint64)
-    return np.where(
+    count = xp.asarray(count, dtype=np.int64)
+    capped = xp.minimum(count, WORD_BITS - 1).astype(np.uint64)
+    return xp.where(
         count >= WORD_BITS,
         np.uint64(WORD_MASK),
         (np.uint64(1) << capped) - np.uint64(1),
     )
 
 
-def _between_masks(lo, hi, words):
+def _between_masks(lo, hi, words, xp=np):
 
-    lo = np.asarray(lo, dtype=np.int64)
-    hi = np.asarray(hi, dtype=np.int64)
-    low, high = np.minimum(lo, hi), np.maximum(lo, hi)
-    base = np.arange(words, dtype=np.int64) * WORD_BITS
-    upper = np.clip(high[..., None] - base, 0, WORD_BITS)
-    lower = np.clip(low[..., None] + 1 - base, 0, WORD_BITS)
-    return _below(upper) ^ _below(lower)
+    lo = xp.asarray(lo, dtype=np.int64)
+    hi = xp.asarray(hi, dtype=np.int64)
+    low, high = xp.minimum(lo, hi), xp.maximum(lo, hi)
+    base = xp.arange(words, dtype=np.int64) * WORD_BITS
+    upper = xp.clip(high[..., None] - base, 0, WORD_BITS)
+    lower = xp.clip(low[..., None] + 1 - base, 0, WORD_BITS)
+    return _below(upper, xp) ^ _below(lower, xp)
 
 
 def between_mask_w(lo, hi, words):
@@ -231,9 +244,10 @@ def between_parity_w(strings, lo, hi):
 
 
     words = _as_words(strings)
-    masks = _between_masks(lo, hi, words.shape[1])
+    xp = _xp(words)
+    masks = _between_masks(lo, hi, words.shape[1], xp)
     odd = (_popcount_words(words & masks).sum(axis=-1) & 1).astype(bool)
-    return np.where(odd, -1, 1).astype(np.int8)
+    return xp.where(odd, -1, 1).astype(np.int8)
 
 
 def below_parity_w(strings, orbital):

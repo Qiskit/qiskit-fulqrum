@@ -294,7 +294,8 @@ class GPUHamiltonian(LinearOperator):
             is the common number of orbitals per sector.
 
         Raises:
-            FulqrumError: A sector has more than 64 orbitals.
+            FulqrumError: A sector has more than 128 orbitals, or more than 64
+                with ``rank=2``.
             ValueError: The RDM order or vector length is invalid, or alpha and
                 beta have different orbital counts.
         """

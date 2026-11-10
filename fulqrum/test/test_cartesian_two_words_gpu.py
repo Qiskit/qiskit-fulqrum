@@ -151,15 +151,6 @@ def test_clique_settings_route_to_the_direct_kernel(pair, monkeypatch, name, val
     assert np.abs(large @ x - expected).max() <= 1e-13 * np.abs(expected).max()
 
 
-def test_two_word_rdms_raise_before_any_work(pair):
-    from fulqrum.gpu import GPUHamiltonian
-
-    _, wide = pair
-    op = GPUHamiltonian(wide, gpu_ids=(0, 0))
-    with pytest.raises(FulqrumError, match="at most 64 orbitals"):
-        op.compute_rdms(vector(op), rank=1)
-
-
 def test_term_counts_widen_past_255_orbitals():
     import fulqrum as fq
     from fulqrum.gpu.common.operator_arrays import to_gpu_arrays
