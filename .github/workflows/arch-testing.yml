@@ -32,6 +32,7 @@ jobs:
     - name: Install dependencies
       run: |
         conda info
+        conda config --add channels conda-forge
         conda install libblas libblas-dev liblapack-dev
         pip install -U -r requirements.txt
         pip install -U -r requirements-dev.txt
