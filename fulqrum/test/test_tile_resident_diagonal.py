@@ -223,7 +223,7 @@ def test_diagonal_kernel_full_v_matches_dense_Hv():
 
 
 @pytest.mark.skipif(not _has_cupy(), reason="cupy required")
-def test_diagonal_construction_4rank_resolves_self_source():
+def test_diagonal_construction_4rank_resolves_self_source(monkeypatch):
     pytest.importorskip("mpi4py")
     from mpi4py import MPI
 
@@ -238,6 +238,7 @@ def test_diagonal_construction_4rank_resolves_self_source():
     if nranks != 4:
         pytest.skip(f"test requires 4 ranks, got {nranks}")
 
+    monkeypatch.setenv("FQ_DIAG_RECOMPUTE", "0")
     col.reset_for_testing()
     hsub, alpha_strs, beta_strs, _qop = _make_h2_hsub()
 
