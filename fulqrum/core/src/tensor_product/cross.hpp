@@ -275,6 +275,71 @@ void set_cross_arm_columns(SectorConnections<T>& alpha)
     }
 }
 
+template <typename T>
+void remap_cross_arm_columns(const std::vector<std::uint32_t>& column_of_slot,
+                             SectorConnections<T>& alpha)
+{
+    for(std::uint64_t& index : alpha.single_cross_index)
+    {
+        const std::uint64_t signed_slot = index >> 32;
+        const std::uint64_t signed_column =
+            2 * std::uint64_t(column_of_slot[signed_slot / 2]) + (signed_slot & 1u);
+        index = (index & 0xffffffffu) | (signed_column << 32);
+    }
+}
+
+template <typename T>
+struct CrossSectorTable
+{
+    std::vector<T> values;
+    std::vector<std::uint32_t> row_of_slot;
+    std::vector<std::uint32_t> column_of_slot;
+    std::size_t num_columns = 0;
+};
+
+inline bool cross_directions_agree(const OperatorTables& tables)
+{
+    for(std::size_t group = 0; group < tables.num_groups(); group++)
+    {
+        const GroupData& plan = tables.group(group);
+
+        if(plan.tier != GroupTier::cross_sector_double)
+        {
+            continue;
+        }
+
+        for(std::size_t pattern = 1; pattern < 4; pattern++)
+        {
+            if(plan.cross_values[pattern] != plan.cross_values[0])
+            {
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
+inline std::vector<std::uint32_t> cross_slot_ids(const std::vector<std::uint32_t>& slot_pair,
+                                                 const bool merge_directions,
+                                                 std::size_t& count)
+{
+    std::vector<std::uint32_t> ids(slot_pair.size());
+    count = 0;
+
+    for(std::size_t slot = 0; slot < slot_pair.size(); slot++)
+    {
+        if(slot == 0 || !merge_directions || slot_pair[slot] / 2 != slot_pair[slot - 1] / 2)
+        {
+            count++;
+        }
+
+        ids[slot] = static_cast<std::uint32_t>(count - 1);
+    }
+
+    return ids;
+}
+
 /**
  * Builds cross-sector coefficients for the alpha and beta excitation slots in use.
  *
@@ -283,14 +348,19 @@ void set_cross_arm_columns(SectorConnections<T>& alpha)
  * @param beta The beta connections, with slots.
  */
 template <typename T>
-std::vector<T> build_slot_cross_sector_table(const OperatorTables& tables,
-                                             const SectorConnections<T>& alpha,
-                                             const SectorConnections<T>& beta)
+CrossSectorTable<T> build_slot_cross_sector_table(const OperatorTables& tables,
+                                                  const SectorConnections<T>& alpha,
+                                                  const SectorConnections<T>& beta)
 {
-    const std::size_t alpha_columns = checked_multiply(2, alpha.slot_pair.size());
-    const std::size_t cells = checked_multiply(beta.slot_pair.size(), alpha_columns);
+    CrossSectorTable<T> table;
+    const bool merge_directions = cross_directions_agree(tables);
+    std::size_t num_rows = 0;
+    table.row_of_slot = cross_slot_ids(beta.slot_pair, merge_directions, num_rows);
+    table.column_of_slot = cross_slot_ids(alpha.slot_pair, merge_directions, table.num_columns);
+    table.num_columns = checked_multiply(2, table.num_columns);
+    const std::size_t cells = checked_multiply(num_rows, table.num_columns);
     checked_multiply(cells, sizeof(T));
-    std::vector<T> table(cells, T(0));
+    table.values.assign(cells, T(0));
     const std::vector<width_t>& rank = tables.layout().rank_in_sector;
     const std::vector<std::uint8_t>& sector_of = tables.layout().sector_of;
 
@@ -324,9 +394,9 @@ std::vector<T> build_slot_cross_sector_table(const OperatorTables& tables,
             }
 
             const T value = to_value<T>(plan.cross_values[pattern]);
-            T* row = table.data() + beta_slot * alpha_columns;
-            row[2 * alpha_slot] = value;
-            row[2 * alpha_slot + 1] = -value;
+            T* row = table.values.data() + table.row_of_slot[beta_slot] * table.num_columns;
+            row[2 * table.column_of_slot[alpha_slot]] = value;
+            row[2 * table.column_of_slot[alpha_slot] + 1] = -value;
         }
     }
 

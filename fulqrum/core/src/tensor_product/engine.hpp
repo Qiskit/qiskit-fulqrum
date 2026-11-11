@@ -384,7 +384,7 @@ add_cross_slot_batches(const TensorProductEngine<double>& tier, const double* x,
 {
     constexpr int L = CROSS_BATCH_LANES;
     const std::size_t num_alpha = tier.num_strings[0];
-    const std::size_t alpha_columns = 2 * tier.sectors[0].slot_pair.size();
+    const CrossSectorTable<double>& table = tier.cross_sector_table;
     const std::uint64_t* __restrict offsets = tier.sectors[0].single_offsets.data();
     const std::uint64_t* __restrict index = tier.sectors[0].single_cross_index.data();
     const CrossSlotBatches& batches = tier.cross_batches;
@@ -407,8 +407,8 @@ add_cross_slot_batches(const TensorProductEngine<double>& tier, const double* x,
                 const int count = static_cast<int>(batches.batch_count[batch]);
                 const std::uint64_t first = batches.batch_first[batch];
                 const double* __restrict coefficients =
-                    tier.cross_sector_table.data() +
-                    std::size_t(batches.batch_slot[batch]) * alpha_columns;
+                    table.values.data() +
+                    std::size_t(table.row_of_slot[batches.batch_slot[batch]]) * table.num_columns;
                 const double* source[L];
                 double* target[L];
                 double sign[L];
@@ -529,7 +529,7 @@ void add_cross_sector_arm(const TensorProductEngine<T>& tier, const T* x, T* y)
     const std::size_t num_beta = tier.num_strings[1];
     const SectorConnections<T>& alpha = tier.sectors[0];
     const SectorConnections<T>& beta = tier.sectors[1];
-    const std::size_t alpha_columns = 2 * alpha.slot_pair.size();
+    const CrossSectorTable<T>& table = tier.cross_sector_table;
     const std::uint64_t* __restrict index = alpha.single_cross_index.data();
 
     if(!tier.sparse_cross.offsets.empty())
@@ -557,8 +557,9 @@ void add_cross_sector_arm(const TensorProductEngine<T>& tier, const T* x, T* y)
             const std::uint64_t packed_entry = beta.single_packed_entries[kb];
             const T* __restrict x_row = x + std::size_t(single_column(packed_entry)) * num_alpha;
             const T* __restrict coefficients =
-                tier.cross_sector_table.data() +
-                beta.pair_slot[single_directed_pair(packed_entry)] * alpha_columns;
+                table.values.data() +
+                std::size_t(table.row_of_slot[beta.pair_slot[single_directed_pair(packed_entry)]]) *
+                    table.num_columns;
             const double beta_sign = single_jw_sign(packed_entry);
 
             for(std::size_t a = 0; a < num_alpha; a++)
@@ -653,7 +654,7 @@ void tensor_product_row_elements(const TensorProductEngine<T>& tier,
         emit_nonzero(std::size_t(beta.double_columns[k]) * num_alpha + a, beta.double_values[k]);
     }
 
-    const std::size_t alpha_columns = 2 * alpha.slot_pair.size();
+    const CrossSectorTable<T>& table = tier.cross_sector_table;
 
     for(std::uint64_t kb = beta.single_offsets[b]; kb < beta.single_offsets[b + 1]; kb++)
     {
@@ -661,7 +662,9 @@ void tensor_product_row_elements(const TensorProductEngine<T>& tier,
         const std::uint32_t beta_slot = beta.pair_slot[single_directed_pair(packed_entry)];
         const bool sparse = !tier.sparse_cross.offsets.empty();
         const T* coefficients =
-            sparse ? nullptr : tier.cross_sector_table.data() + beta_slot * alpha_columns;
+            sparse ? nullptr
+                   : table.values.data() +
+                         std::size_t(table.row_of_slot[beta_slot]) * table.num_columns;
         const std::size_t target_row = std::size_t(single_column(packed_entry)) * num_alpha;
         const double beta_sign = single_jw_sign(packed_entry);
 

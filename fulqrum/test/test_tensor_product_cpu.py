@@ -137,6 +137,65 @@ def test_variable_particle_counts_and_packing_limit_use_residuals():
 
 
 @pytest.mark.parametrize("complex_values", [False, True])
+@pytest.mark.parametrize("second", [0.4, 0.9])
+def test_cross_sector_values_by_direction(complex_values, second):
+    first = 0.4 + 0.3j if complex_values else 0.4
+    second = second - 0.2j if complex_values else second
+    inds = [0, 1, 2, 3]
+    op = fq.QubitOperator(
+        4,
+        [
+            ("+-+-", inds, first),
+            ("-+-+", inds, np.conj(first)),
+            ("+--+", inds, second),
+            ("-++-", inds, np.conj(second)),
+            ("11", [0, 2], 0.5),
+        ],
+    )
+    op.set_type(2)
+    check_routes(op, [["01", "10"], ["01", "10"]])
+
+
+def test_diagonal_with_a_three_orbital_cross_term():
+    terms = [("111", [0, 4, 5], 0.7), ("11", [1, 5], 0.3), ("1", [2], -0.4)]
+    for inds in ([0, 1], [2, 3], [4, 5], [6, 7]):
+        terms.extend([("+-", inds, 0.25), ("-+", inds, 0.25)])
+    op = fq.QubitOperator(8, terms)
+    op.set_type(2)
+    halves = [half_strings(4, range(4), 2), half_strings(4, range(4), 2)]
+    check_routes(op, halves)
+
+
+@pytest.mark.parametrize("count", [300, 3432])
+def test_connection_lists_match_the_retained_route(count):
+    from fulqrum.convert import integrals_to_fq_fermionic_op
+
+    norb = 14
+    rng = np.random.default_rng(count)
+    h = rng.normal(size=(norb, norb))
+    h = 0.5 * (h + h.T)
+    v = 0.1 * rng.normal(size=(norb, norb, norb, norb))
+    v = v + v.transpose(1, 0, 2, 3)
+    v = v + v.transpose(0, 1, 3, 2)
+    v = v + v.transpose(2, 3, 0, 1)
+    op = integrals_to_fq_fermionic_op(h, v, constant=0.5).extended_jw_transformation()
+    alpha = half_strings(norb, range(norb), 7)[:count]
+    beta = half_strings(norb, range(norb), 7)[:3]
+    strings = sorted(b + a for b in beta for a in alpha)
+    product = fq.SubspaceHamiltonian(op, fq.Subspace([alpha, beta]))
+    retained = fq.SubspaceHamiltonian(op, fq.Subspace([strings]))
+    diagnostic = product.spmv._cpu_diagnostics()
+    assert diagnostic["tp_ready"] and diagnostic["residual_groups"] == 0
+    x = np.random.default_rng(7).normal(size=len(strings))
+    expected = retained.matvec(x)
+    assert np.abs(expected).max() > 0
+    np.testing.assert_allclose(product.matvec(x), expected, atol=1e-10, rtol=1e-10)
+    np.testing.assert_allclose(
+        product.diagonal_vector(), retained.diagonal_vector(), atol=1e-10, rtol=1e-10
+    )
+
+
+@pytest.mark.parametrize("complex_values", [False, True])
 def test_unequal_multiword_product_routes(complex_values):
     c = 0.3 + 0.2j if complex_values else 0.3
     f = fq.FermionicOperator(

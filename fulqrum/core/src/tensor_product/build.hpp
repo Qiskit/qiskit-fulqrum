@@ -29,7 +29,7 @@
  * The tensor-product engine: connection lists of both sectors, the cross-sector
  * coefficient table, and the groups that the generic tier must still evaluate.
  *
- * The cross-sector table has one row per beta slot and two columns per alpha slot.
+ * The cross-sector table has one row per beta row id and two columns per alpha column id.
  * In formed mode the engine keeps a copy of the half strings of both sectors.
  */
 template <typename T>
@@ -45,7 +45,7 @@ struct TensorProductEngine
     std::array<UpperConnections<T>, 2> upper;
     std::array<SectorCrossValues<T>, 2> cross;
     std::array<std::vector<KeyWord>, 2> half_keys;
-    std::vector<T> cross_sector_table;
+    CrossSectorTable<T> cross_sector_table;
     CrossSlotBatches cross_batches;
     SparseCrossTable<T> sparse_cross;
     std::vector<std::uint8_t> generic_groups;
@@ -109,7 +109,9 @@ std::size_t tensor_product_engine_bytes(const TensorProductEngine<T>& tier)
     const auto add = [&bytes](const auto& values) {
         bytes = checked_add(bytes, vector_bytes(values));
     };
-    add(tier.cross_sector_table);
+    add(tier.cross_sector_table.values);
+    add(tier.cross_sector_table.row_of_slot);
+    add(tier.cross_sector_table.column_of_slot);
     add(tier.generic_groups);
     const CrossSlotBatches& batches = tier.cross_batches;
     add(batches.block_first_batch);
@@ -250,6 +252,7 @@ TensorProductEngine<T> build_tensor_product_engine(const OperatorTables& tables,
             tier.sparse_cross = SparseCrossTable<T>();
             tier.cross_sector_table =
                 build_slot_cross_sector_table<T>(tables, tier.sectors[0], tier.sectors[1]);
+            remap_cross_arm_columns(tier.cross_sector_table.column_of_slot, tier.sectors[0]);
             tier.cross_batches =
                 build_cross_slot_batches(tier.sectors[0], tier.sectors[1], max_threads());
         }
@@ -262,6 +265,7 @@ TensorProductEngine<T> build_tensor_product_engine(const OperatorTables& tables,
     {
         tier.cross_sector_table =
             build_slot_cross_sector_table<T>(tables, tier.sectors[0], tier.sectors[1]);
+        remap_cross_arm_columns(tier.cross_sector_table.column_of_slot, tier.sectors[0]);
     }
 
     tier.generic_groups.assign(tables.num_groups(), 0);

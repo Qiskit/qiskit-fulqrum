@@ -65,7 +65,7 @@ def _check_gpu_preconditions(hsub, classname: str) -> None:
 
 
 class GPUHamiltonian(LinearOperator):
-    """GPU-accelerated real type-2 Hamiltonian for tensor-product subspace.
+    """GPU-accelerated real type-2 Hamiltonian for tensor-product subspace (non-MPI).
 
     It performs matrix-free ``matrix @ vector`` (matvec) product and can used
     with SciPy LinearOperator-compatible eigensolvers such as

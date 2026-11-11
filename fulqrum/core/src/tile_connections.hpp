@@ -446,3 +446,94 @@ std::vector<T> build_cross_sector_table(const OperatorTables& tables,
 
     return table;
 }
+
+inline void tile_edge_values(const OperatorTables& tables,
+                             const HalfKeyView& store,
+                             const SectorGroupIndex& groups,
+                             const int sector,
+                             const std::array<std::size_t, 2>& num_pairs,
+                             const std::size_t bra_begin,
+                             const std::size_t num_bra,
+                             const std::int64_t* single_offsets,
+                             const std::uint8_t* single_positions,
+                             const std::int64_t* double_offsets,
+                             const std::uint8_t* double_positions,
+                             double* single_values,
+                             std::int8_t* own_signs,
+                             std::int8_t* jw_signs,
+                             double* double_values)
+{
+    if(sector < 0 || sector > 1 || checked_add(bra_begin, num_bra) > store.num_half_keys(sector))
+    {
+        throw std::invalid_argument("Invalid tile sector or bra range.");
+    }
+
+#pragma omp parallel
+    {
+        std::vector<KeyWord> row(store.num_words());
+
+#pragma omp for schedule(dynamic, 64)
+        for(std::size_t string = 0; string < num_bra; string++)
+        {
+            const KeyWord* key = store.half_key(sector, bra_begin + string);
+            embed_half_string(store, sector, bra_begin + string, row.data());
+
+            for(std::int64_t edge = single_offsets[string]; edge < single_offsets[string + 1];
+                edge++)
+            {
+                const std::size_t low =
+                    std::min(single_positions[2 * edge], single_positions[2 * edge + 1]);
+                const std::size_t high =
+                    std::max(single_positions[2 * edge], single_positions[2 * edge + 1]);
+                single_values[edge] = 0.0;
+                own_signs[edge] = 0;
+                jw_signs[edge] = static_cast<std::int8_t>(between_sign(key, low, high));
+
+                if(half_bit(key, low) == half_bit(key, high))
+                {
+                    continue;
+                }
+
+                const SingleConnection<double> connection =
+                    single_connection<double>(tables,
+                                              groups,
+                                              sector,
+                                              row.data(),
+                                              rank_pair_index(low, high),
+                                              half_bit(key, low) ? 0 : 1);
+                single_values[edge] = connection.value;
+                own_signs[edge] = static_cast<std::int8_t>(connection.own_sign);
+            }
+
+            for(std::int64_t edge = double_offsets[string]; edge < double_offsets[string + 1];
+                edge++)
+            {
+                std::array<std::size_t, 4> ranks;
+                int occupied = 0;
+
+                for(std::size_t flip = 0; flip < 4; flip++)
+                {
+                    ranks[flip] = double_positions[4 * edge + flip];
+                    occupied += half_bit(key, ranks[flip]);
+                }
+
+                std::sort(ranks.begin(), ranks.end());
+                double_values[edge] = 0.0;
+
+                if(occupied != 2)
+                {
+                    continue;
+                }
+
+                const std::uint32_t group =
+                    double_connection_group(groups, sector, num_pairs, ranks);
+
+                if(group != NO_GROUP)
+                {
+                    double_values[edge] =
+                        double_connection_value<double>(tables, group, key, row.data(), ranks);
+                }
+            }
+        }
+    }
+}

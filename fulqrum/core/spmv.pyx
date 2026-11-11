@@ -288,16 +288,12 @@ cdef class FulqrumSpMV():
             return 0
         diag_start = time.perf_counter()
         width_check(self.width, self.subspace.width)    
-        cdef np.uint64_t[::1] alpha_uint
-        cdef np.uint64_t[::1] beta_uint
         cdef bool fast_diag = self.fast_diag
         if self._prepare_tensor_product_cpu():
             checked_multiply(self.subspace_dim, 8 if self.is_real else 16)
-            if self.is_real and not self._disable_fast_diag and self.subspace.num_alpha_qubits <= 64 and self.subspace.width - self.subspace.num_alpha_qubits <= 64:
-                alpha_arr, beta_arr = self.subspace.to_alpha_beta_arrays()
-                alpha_uint = alpha_arr
-                beta_uint = beta_arr
-                self.real_diag_vec = self._compute_diag_via_blas(alpha_uint, beta_uint, 0, alpha_uint.shape[0], self.subspace.num_alpha_qubits)
+            if self.is_real and not self._disable_fast_diag and self.subspace.num_alpha_qubits <= 128 and self.subspace.width - self.subspace.num_alpha_qubits <= 128:
+                alpha_arr, beta_arr = self.subspace._alpha_beta_words(2)
+                self.real_diag_vec = self._diagonal_slice(alpha_arr, beta_arr, 0, alpha_arr.shape[0], self.subspace.num_alpha_qubits)
                 if self.const_energy:
                     np.asarray(self.real_diag_vec)[:] += self.const_energy
             elif self.is_real:
@@ -904,8 +900,26 @@ cdef class FulqrumSpMV():
         checked_multiply(checked_multiply(na_local, n_b), sizeof(double))
         if not self.has_nonzero_diag:
             return np.zeros(checked_multiply(na_local, n_b), dtype=np.float64)
-        return self._compute_diag_via_blas(
-            alpha_uint, beta_uint, a0, a1, num_alpha_qubits)
+        return self._diagonal_slice(alpha_uint, beta_uint, a0, a1, num_alpha_qubits)
+
+    def _diagonal_slice(self, alpha_strings, beta_strings, size_t a0, size_t a1,
+                        unsigned int num_alpha_qubits):
+        diag_alpha, diag_beta, pieces, ok = self.diag_separable_pieces(
+            alpha_strings, beta_strings, a0, a1, num_alpha_qubits)
+        if not ok:
+            return self._compute_diag_via_blas(
+                alpha_strings, beta_strings, a0, a1, num_alpha_qubits)
+        alpha_words, beta_words, words = _diag_strings(
+            alpha_strings, beta_strings, num_alpha_qubits, self.width)
+        z_alpha = 1.0 - 2.0 * _occupation_bits(
+            alpha_words.reshape(-1, words[0])[a0:a1], num_alpha_qubits)
+        z_beta = 1.0 - 2.0 * _occupation_bits(
+            beta_words.reshape(-1, words[1]), self.width - num_alpha_qubits)
+        out = np.zeros((z_beta.shape[0], z_alpha.shape[0]), dtype=np.float64)
+        np.matmul(z_beta, pieces.T @ z_alpha.T, out=out)
+        out += diag_beta[:, None]
+        out += diag_alpha[None, :]
+        return out.ravel()
 
     def diag_separable_pieces(self,
             alpha_strings,

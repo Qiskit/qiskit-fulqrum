@@ -126,10 +126,9 @@ from .tables import (
     chunked_pair_table,
     hbm_fit_error,
     pair_table_rows,
-    values_on_edges,
 )
 from .wide_sign_check import beta_word_sign_error, check_enabled, double_sign_error
-from .tile_tables import cross_sector_table, cross_table, sector_tiles, tile_input_error
+from .tile_tables import cross_sector_table, cross_table, edge_values, tile_input_error
 from .term_tables import (
     _assert_aa_bb_factor_cache_invariance,
     _assert_aaaa_bbbb_proj_invariance,
@@ -2522,12 +2521,6 @@ class TileGPUResidentHamiltonian(LinearOperator):
 
         spmv = self._hsub.spmv
         threads = self._build_threads
-        alpha_bounds = [int(a0) for a0, _ in self._alpha_ranges] + [
-            int(self._alpha_ranges[-1][1])
-        ]
-        beta_bounds = [int(b0) for b0, _ in self._beta_ranges] + [
-            int(self._beta_ranges[-1][1])
-        ]
         sub = {}
         clock = [time.perf_counter()]
 
@@ -2537,10 +2530,6 @@ class TileGPUResidentHamiltonian(LinearOperator):
             sub[name] = sub.get(name, 0.0) + now - clock[0]
             clock[0] = now
 
-        alpha_tiles = sector_tiles(spmv, 0, self._a0, self._a1, alpha_bounds, threads)
-        step("alpha_sector_tiles")
-        beta_tiles = sector_tiles(spmv, 1, self._b0, self._b1, beta_bounds, threads)
-        step("beta_sector_tiles")
         aa_t = cupy.asarray(
             chunked_pair_table(
                 lambda start, stop: cross_table(
@@ -2573,12 +2562,10 @@ class TileGPUResidentHamiltonian(LinearOperator):
             view = self._tile_tables.sources[src_rank].launch_view
             payload, keep = ArmPairTablesPayload(), []
             if same_beta:
-                tile = alpha_tiles[self._rank_tiles[src_rank][4]]
-                self._fill_alpha_arms(src_rank, view, tile, aa_t, payload, keep)
+                self._fill_alpha_arms(src_rank, view, aa_t, payload, keep)
                 step("fill_alpha_arms")
             if same_alpha:
-                tile = beta_tiles[self._rank_tiles[src_rank][5]]
-                self._fill_beta_arms(src_rank, view, tile, bb_t, payload, keep)
+                self._fill_beta_arms(src_rank, view, bb_t, payload, keep)
                 step("fill_beta_arms")
             if same_beta and (self._aaaa_min_blocks or self._aaaa_identity_slot):
                 payload.aaaa_min_blocks = int(self._aaaa_min_blocks)
@@ -2604,14 +2591,36 @@ class TileGPUResidentHamiltonian(LinearOperator):
             " ".join(f"{name}={seconds:.3f}s" for name, seconds in sub.items()),
         )
 
-    def _fill_alpha_arms(self, src_rank, view, tile, aa_t, payload, keep) -> None:
+    def _edge_values(self, sector, view, name) -> tuple:
 
         import cupy  # noqa: PLC0415
 
-        ptr, columns = (
-            cupy.asnumpy(view["d_alpha2_ptr"]),
-            cupy.asnumpy(view["d_alpha2_j"]),
+        offsets, positions = [], []
+        for size in (2, 4):
+            ptr = cupy.asnumpy(view[f"d_{name}{size}_ptr"])
+            flips = [
+                cupy.asnumpy(view[f"d_{name}{size}_p{k}"])[: int(ptr[-1])]
+                for k in range(size)
+            ]
+            offsets.append(ptr)
+            positions.append(np.stack(flips, axis=1))
+        values = edge_values(
+            self._hsub.spmv,
+            sector,
+            self._b0 if sector else self._a0,
+            offsets[0],
+            positions[0],
+            offsets[1],
+            positions[1],
+            self._build_threads,
         )
+        return offsets[0], offsets[1], values
+
+    def _fill_alpha_arms(self, src_rank, view, aa_t, payload, keep) -> None:
+
+        import cupy  # noqa: PLC0415
+
+        ptr, ptr4, edges = self._edge_values(0, view, "alpha")
         if int(ptr[-1]) > 0:
             sell = [
                 view[k]
@@ -2626,17 +2635,13 @@ class TileGPUResidentHamiltonian(LinearOperator):
                     f"source {src_rank} has alpha single connections but no packed SELL tables"
                 )
             signs = cupy.asnumpy(view["d_alpha2_asign"])[: int(ptr[-1])]
-            self._check_host_signs(src_rank, ptr, columns, tile, signs)
-            c0 = values_on_edges(
-                ptr,
-                columns,
-                tile["single_offsets"],
-                tile["columns"],
-                tile["single_values"],
-            )
+            self._check_host_signs(src_rank, edges, signs)
             c0_sell = cupy.asarray(
                 csr_to_sell_values(
-                    c0, ptr, cupy.asnumpy(sell[0]), cupy.asnumpy(sell[1])
+                    edges["single_values"],
+                    ptr,
+                    cupy.asnumpy(sell[0]),
+                    cupy.asnumpy(sell[1]),
                 )
             )
             keep.append(c0_sell)
@@ -2650,17 +2655,7 @@ class TileGPUResidentHamiltonian(LinearOperator):
                 int(aa_t.shape[1]),
                 int(aa_t.shape[0]),
             )
-        ptr4, columns4 = (
-            cupy.asnumpy(view["d_alpha4_ptr"]),
-            cupy.asnumpy(view["d_alpha4_j"]),
-        )
-        values = values_on_edges(
-            ptr4,
-            columns4,
-            tile["double_offsets"],
-            tile["double_columns"],
-            tile["double_values"],
-        )
+        values = edges["double_values"]
         if self._wide_sign_check:
             self._raise_on_sign_error(
                 double_sign_error(
@@ -2682,14 +2677,12 @@ class TileGPUResidentHamiltonian(LinearOperator):
         if values.size:
             self._arm_caches[("aaaa", src_rank)] = cupy.asarray(values)
 
-    def _fill_beta_arms(self, src_rank, view, tile, bb_t, payload, keep) -> None:
+    def _fill_beta_arms(self, src_rank, view, bb_t, payload, keep) -> None:
 
         import cupy  # noqa: PLC0415
 
-        ptr, columns = (
-            cupy.asnumpy(view["d_beta2_ptr"]),
-            cupy.asnumpy(view["d_beta2_j"]),
-        )
+        ptr, ptr4, edges = self._edge_values(1, view, "beta")
+        columns = cupy.asnumpy(view["d_beta2_j"])
         if int(ptr[-1]) > 0:
             words, _pairs, signs = bb_words(
                 ptr,
@@ -2698,7 +2691,7 @@ class TileGPUResidentHamiltonian(LinearOperator):
                 self._beta_bra,
                 self._num_beta,
             )
-            self._check_host_signs(src_rank, ptr, columns, tile, signs)
+            self._check_host_signs(src_rank, edges, signs)
             if self._wide_sign_check:
                 self._raise_on_sign_error(
                     beta_word_sign_error(
@@ -2717,14 +2710,7 @@ class TileGPUResidentHamiltonian(LinearOperator):
                         seed=src_rank,
                     )
                 )
-            c0 = values_on_edges(
-                ptr,
-                columns,
-                tile["single_offsets"],
-                tile["columns"],
-                tile["single_values"],
-            )
-            self._arm_caches[("bb_c0", src_rank)] = cupy.asarray(c0)
+            self._arm_caches[("bb_c0", src_rank)] = cupy.asarray(edges["single_values"])
             d_words = cupy.asarray(words)
             keep.append(d_words)
             payload.bb_word = int(d_words.data.ptr)
@@ -2734,17 +2720,7 @@ class TileGPUResidentHamiltonian(LinearOperator):
                 int(bb_t.shape[0]),
                 int(bb_t.shape[1]),
             )
-        ptr4, columns4 = (
-            cupy.asnumpy(view["d_beta4_ptr"]),
-            cupy.asnumpy(view["d_beta4_j"]),
-        )
-        values = values_on_edges(
-            ptr4,
-            columns4,
-            tile["double_offsets"],
-            tile["double_columns"],
-            tile["double_values"],
-        )
+        values = edges["double_values"]
         if self._wide_sign_check:
             self._raise_on_sign_error(
                 double_sign_error(
@@ -2766,17 +2742,14 @@ class TileGPUResidentHamiltonian(LinearOperator):
             raise ValueError(error)
 
     @staticmethod
-    def _check_host_signs(src_rank, ptr, columns, tile, gpu_signs) -> None:
+    def _check_host_signs(src_rank, edges, gpu_signs) -> None:
 
-        own, jw = tile["own_signs"], tile["jw_signs"]
+        own, jw = edges["own_signs"], edges["jw_signs"]
         if not np.all((own == 0) | (own == jw)):
             raise ValueError(
                 f"source {src_rank}: an own-sector sign differs from the JW sign"
             )
-        host = values_on_edges(
-            ptr, columns, tile["single_offsets"], tile["columns"], jw.astype(np.float64)
-        )
-        if not np.array_equal(host, np.asarray(gpu_signs, dtype=np.float64)):
+        if not np.array_equal(jw, np.asarray(gpu_signs, dtype=np.int8)):
             raise ValueError(
                 f"source {src_rank}: the host JW signs differ from the GPU signs"
             )

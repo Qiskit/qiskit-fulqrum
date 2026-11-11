@@ -17,6 +17,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <utility>
 #include <vector>
 
 #include "../checked_size.hpp"
@@ -158,6 +159,114 @@ struct StringConnections
     std::vector<T> double_values;
 };
 
+inline constexpr std::size_t SCAN_STRINGS_PER_CANDIDATE = 4;
+
+template <typename T>
+struct SingleConnection
+{
+    T value = T(0);
+    int own_sign = 0;
+};
+
+template <typename T>
+SingleConnection<T> single_connection(const OperatorTables& tables,
+                                      const SectorGroupIndex& groups,
+                                      const int sector,
+                                      const KeyWord* row,
+                                      const std::size_t pair,
+                                      const int direction)
+{
+    SingleConnection<T> connection;
+    const std::uint32_t group = groups.single[sector][pair];
+
+    if(group != NO_GROUP)
+    {
+        const FactorList& factors = tables.factors();
+        const SingleDirectionData& single = tables.group(group).single[direction];
+        connection.value = to_value<T>(factors.sum(single.own.begin, single.own.end, row));
+
+        if(single.cross.end > single.cross.begin)
+        {
+            connection.own_sign = factors.factor(single.shared_own_entry, row);
+        }
+    }
+
+    return connection;
+}
+
+inline std::uint32_t double_connection_group(const SectorGroupIndex& groups,
+                                             const int sector,
+                                             const std::array<std::size_t, 2>& num_pairs,
+                                             const std::array<std::size_t, 4>& ranks)
+{
+    const std::size_t low = rank_pair_index(ranks[0], ranks[1]);
+    const std::size_t high = rank_pair_index(ranks[2], ranks[3]);
+
+    return groups.double_excitation[sector].find(low * num_pairs[sector] + high);
+}
+
+template <typename T>
+T double_connection_value(const OperatorTables& tables,
+                          const std::uint32_t group,
+                          const KeyWord* key,
+                          const KeyWord* row,
+                          const std::array<std::size_t, 4>& ranks)
+{
+    unsigned int bits = 0;
+
+    for(std::size_t flip = 0; flip < 4; flip++)
+    {
+        bits |= static_cast<unsigned int>(half_bit(key, ranks[flip])) << flip;
+    }
+
+    const EntryRange range = tables.group(group).double_patterns[double_pattern_index(bits)];
+
+    return to_value<T>(tables.factors().sum(range.begin, range.end, row));
+}
+
+template <typename T>
+void add_single_connection(const OperatorTables& tables,
+                           const SectorGroupIndex& groups,
+                           const int sector,
+                           const KeyWord* key,
+                           const KeyWord* row,
+                           const std::size_t column,
+                           const std::size_t from,
+                           const std::size_t to,
+                           StringConnections<T>& found)
+{
+    const std::size_t low = std::min(from, to);
+    const std::size_t high = std::max(from, to);
+    const std::size_t pair = rank_pair_index(low, high);
+    const int direction = from == low ? 0 : 1;
+    const SingleConnection<T> connection =
+        single_connection<T>(tables, groups, sector, row, pair, direction);
+    found.single_packed_entries.push_back(
+        pack_single(static_cast<std::uint32_t>(column),
+                    static_cast<std::uint32_t>(2 * pair + direction),
+                    connection.own_sign,
+                    between_sign(key, low, high)));
+    found.single_values.push_back(connection.value);
+}
+
+template <typename T>
+void add_double_connection(const OperatorTables& tables,
+                           const std::uint32_t group,
+                           const KeyWord* key,
+                           const KeyWord* row,
+                           const std::size_t column,
+                           const std::array<std::size_t, 4>& ranks,
+                           StringConnections<T>& found)
+{
+    const T value = double_connection_value<T>(tables, group, key, row, ranks);
+
+    if(value != T(0))
+    {
+        found.double_columns.push_back(static_cast<std::uint32_t>(column));
+        found.double_values.push_back(value);
+    }
+}
+
 /**
  * Adds the single excitations of one sector string that stay in the store.
  *
@@ -184,7 +293,6 @@ void find_string_singles(const OperatorTables& tables,
                          std::vector<KeyWord>& target,
                          StringConnections<T>& found)
 {
-    const FactorList& factors = tables.factors();
     const std::size_t half_words = store.half_words(sector);
 
     for(const std::size_t from : occupied)
@@ -201,31 +309,7 @@ void find_string_singles(const OperatorTables& tables,
                 continue;
             }
 
-            const std::size_t low = std::min(from, to);
-            const std::size_t high = std::max(from, to);
-            const std::size_t pair = rank_pair_index(low, high);
-            const int direction = from == low ? 0 : 1;
-            T value = 0;
-            int own_sign = 0;
-            const std::uint32_t group = groups.single[sector][pair];
-
-            if(group != NO_GROUP)
-            {
-                const SingleDirectionData& single = tables.group(group).single[direction];
-                value = to_value<T>(factors.sum(single.own.begin, single.own.end, row));
-
-                if(single.cross.end > single.cross.begin)
-                {
-                    own_sign = factors.factor(single.shared_own_entry, row);
-                }
-            }
-
-            found.single_packed_entries.push_back(
-                pack_single(static_cast<std::uint32_t>(column),
-                            static_cast<std::uint32_t>(2 * pair + direction),
-                            own_sign,
-                            between_sign(key, low, high)));
-            found.single_values.push_back(value);
+            add_single_connection(tables, groups, sector, key, row, column, from, to, found);
         }
     }
 }
@@ -258,7 +342,6 @@ void find_string_doubles(const OperatorTables& tables,
                          std::vector<KeyWord>& target,
                          StringConnections<T>& found)
 {
-    const FactorList& factors = tables.factors();
     const std::size_t half_words = store.half_words(sector);
 
     for(std::size_t first = 0; first < occupied.size(); first++)
@@ -272,10 +355,8 @@ void find_string_doubles(const OperatorTables& tables,
                     std::array<std::size_t, 4> ranks = {
                         occupied[first], occupied[second], empty[third], empty[fourth]};
                     std::sort(ranks.begin(), ranks.end());
-                    const std::size_t low = rank_pair_index(ranks[0], ranks[1]);
-                    const std::size_t high = rank_pair_index(ranks[2], ranks[3]);
                     const std::uint32_t group =
-                        groups.double_excitation[sector].find(low * num_pairs[sector] + high);
+                        double_connection_group(groups, sector, num_pairs, ranks);
 
                     if(group == NO_GROUP)
                     {
@@ -283,13 +364,10 @@ void find_string_doubles(const OperatorTables& tables,
                     }
 
                     std::copy_n(key, half_words, target.data());
-                    unsigned int bits = 0;
 
-                    for(std::size_t flip = 0; flip < 4; flip++)
+                    for(const std::size_t rank : ranks)
                     {
-                        const std::size_t rank = ranks[flip];
                         target[rank / KEY_WORD_BITS] ^= KeyWord(1) << (rank % KEY_WORD_BITS);
-                        bits |= static_cast<unsigned int>(half_bit(key, rank)) << flip;
                     }
 
                     const std::size_t column = store.find_half_key(sector, target.data());
@@ -299,17 +377,103 @@ void find_string_doubles(const OperatorTables& tables,
                         continue;
                     }
 
-                    const EntryRange range =
-                        tables.group(group).double_patterns[double_pattern_index(bits)];
-                    const T value = to_value<T>(factors.sum(range.begin, range.end, row));
-
-                    if(value != T(0))
-                    {
-                        found.double_columns.push_back(static_cast<std::uint32_t>(column));
-                        found.double_values.push_back(value);
-                    }
+                    add_double_connection(tables, group, key, row, column, ranks, found);
                 }
             }
+        }
+    }
+}
+
+template <typename T>
+void scan_string_connections(const OperatorTables& tables,
+                             const HalfKeyView& store,
+                             const SectorGroupIndex& groups,
+                             const int sector,
+                             const std::array<std::size_t, 2>& num_pairs,
+                             const KeyWord* key,
+                             const KeyWord* row,
+                             std::vector<std::pair<std::uint32_t, std::uint32_t>>& singles,
+                             std::vector<std::pair<std::uint32_t, std::uint32_t>>& doubles,
+                             StringConnections<T>& found)
+{
+    const std::size_t half_words = store.half_words(sector);
+    const std::size_t num_strings = store.num_half_keys(sector);
+    const KeyWord* keys = store.half_key(sector, 0);
+    singles.clear();
+    doubles.clear();
+
+    for(std::size_t column = 0; column < num_strings; column++)
+    {
+        const KeyWord* source = keys + column * half_words;
+        int distance = 0;
+
+        for(std::size_t word = 0; word < half_words; word++)
+        {
+            distance += __builtin_popcountll(key[word] ^ source[word]);
+        }
+
+        if(distance != 2 && distance != 4)
+        {
+            continue;
+        }
+
+        std::uint32_t from = 0;
+        std::uint32_t to = 0;
+        int num_from = 0;
+
+        for(std::size_t word = 0; word < half_words; word++)
+        {
+            for(KeyWord flips = key[word] ^ source[word]; flips != 0; flips &= flips - 1)
+            {
+                const std::uint32_t rank = static_cast<std::uint32_t>(
+                    word * KEY_WORD_BITS + static_cast<std::size_t>(__builtin_ctzll(flips)));
+
+                if(half_bit(key, rank))
+                {
+                    from = (from << 8) | rank;
+                    num_from++;
+                }
+                else
+                {
+                    to = (to << 8) | rank;
+                }
+            }
+        }
+
+        if(2 * num_from != distance)
+        {
+            continue;
+        }
+
+        if(distance == 2)
+        {
+            singles.push_back({(from << 8) | to, static_cast<std::uint32_t>(column)});
+        }
+        else
+        {
+            doubles.push_back({(from << 16) | to, static_cast<std::uint32_t>(column)});
+        }
+    }
+
+    std::sort(singles.begin(), singles.end());
+    std::sort(doubles.begin(), doubles.end());
+
+    for(const auto& [order, column] : singles)
+    {
+        add_single_connection(
+            tables, groups, sector, key, row, column, order >> 8, order & 0xffu, found);
+    }
+
+    for(const auto& [order, column] : doubles)
+    {
+        std::array<std::size_t, 4> ranks = {
+            order >> 24, (order >> 16) & 0xffu, (order >> 8) & 0xffu, order & 0xffu};
+        std::sort(ranks.begin(), ranks.end());
+        const std::uint32_t group = double_connection_group(groups, sector, num_pairs, ranks);
+
+        if(group != NO_GROUP)
+        {
+            add_double_connection(tables, group, key, row, column, ranks, found);
         }
     }
 }
@@ -377,11 +541,13 @@ SectorConnections<T> pack_sector_connections(const std::vector<StringConnections
  * @return The connections with slots, without cross values.
  */
 template <typename T>
-SectorConnections<T> build_sector_connections(const OperatorTables& tables,
-                                              const HalfKeyView& store,
-                                              const SectorGroupIndex& groups,
-                                              const int sector,
-                                              const std::array<std::size_t, 2>& num_pairs)
+SectorConnections<T>
+build_sector_connections(const OperatorTables& tables,
+                         const HalfKeyView& store,
+                         const SectorGroupIndex& groups,
+                         const int sector,
+                         const std::array<std::size_t, 2>& num_pairs,
+                         const std::size_t scan_ratio = SCAN_STRINGS_PER_CANDIDATE)
 {
     const std::size_t num_strings = store.num_half_keys(sector);
     const std::size_t half_width =
@@ -394,6 +560,8 @@ SectorConnections<T> build_sector_connections(const OperatorTables& tables,
         std::vector<KeyWord> target(store.half_words(sector));
         std::vector<std::size_t> occupied;
         std::vector<std::size_t> empty;
+        std::vector<std::pair<std::uint32_t, std::uint32_t>> singles;
+        std::vector<std::pair<std::uint32_t, std::uint32_t>> doubles;
 
 #pragma omp for schedule(dynamic, 16)
         for(std::size_t string = 0; string < num_strings; string++)
@@ -406,6 +574,25 @@ SectorConnections<T> build_sector_connections(const OperatorTables& tables,
             for(std::size_t rank = 0; rank < half_width; rank++)
             {
                 (half_bit(key, rank) ? occupied : empty).push_back(rank);
+            }
+
+            const double pairs = double(occupied.size()) * double(empty.size());
+            const double candidates =
+                pairs + pairs * double(occupied.size() - 1) * double(empty.size() - 1) / 4;
+
+            if(double(num_strings) <= double(scan_ratio) * candidates)
+            {
+                scan_string_connections(tables,
+                                        store,
+                                        groups,
+                                        sector,
+                                        num_pairs,
+                                        key,
+                                        row.data(),
+                                        singles,
+                                        doubles,
+                                        found[string]);
+                continue;
             }
 
             find_string_singles(tables,
