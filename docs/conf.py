@@ -78,11 +78,20 @@ jupyter_execute_kwargs = dict(allow_errors=False)
 # -----------------------------------------------------------------------------
 autosummary_generate = True
 
+autodoc_mock_imports = [
+    "cupy",
+    "cupyx",
+    "fulqrum.gpu.full_strs.kernel_launch",
+]
+
 # -----------------------------------------------------------------------------
 # Autodoc
 # -----------------------------------------------------------------------------
 
 autoclass_content = "init"
+# Classes whose __init__ has no docstring would otherwise show the base
+# class's __init__ text (e.g. SciPy's LinearOperator) instead of their own.
+autodoc_inherit_docstrings = False
 
 # If true, figures, tables and code-blocks are automatically numbered if they
 # have a caption.
