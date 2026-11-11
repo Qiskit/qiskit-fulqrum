@@ -28,7 +28,7 @@ jobs:
         run: |
           conda info
           sudo apt-get update
-          sudo apt-get install libblas-dev liblapack-dev --fix-missing
+          sudo apt-get install libblas libblas-dev liblapack-dev --fix-missing
           pip install -U -r requirements.txt
           pip install -U -r requirements-dev.txt
       - name: Build docs
