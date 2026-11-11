@@ -17,6 +17,10 @@
 from libc.string cimport memset
 from libc.stdint cimport int8_t, int32_t, int64_t, uint8_t, uint32_t, uint64_t, uintptr_t
 
+from ..cuda_runtime import check_cuda_runtime
+
+check_cuda_runtime()
+
 
 cdef extern from "../kernels/formats/params.hpp":
     cdef struct FqTileGeometry:

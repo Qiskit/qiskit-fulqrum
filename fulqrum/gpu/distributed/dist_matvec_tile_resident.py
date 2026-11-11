@@ -38,6 +38,7 @@ from ..common.wide import (
     with_words,
 )
 from ..config import GpuConfig, warn_unknown_names
+from ..cuda_runtime import check_cuda_runtime
 from ..logging import format_memory
 from . import _collective
 from .exchange import ExchangeExecutor
@@ -476,6 +477,7 @@ class TileGPUResidentHamiltonian(LinearOperator):
         config,
     ) -> None:
 
+        check_cuda_runtime()
         self._config = config if config is not None else GpuConfig.from_environ()
 
         if not hsub.spmv.is_real:

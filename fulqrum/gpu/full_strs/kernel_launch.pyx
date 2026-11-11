@@ -17,6 +17,10 @@
 from libc.stdint cimport int32_t, int64_t, uint16_t, uint32_t, uint64_t, uintptr_t
 from libc.string cimport memset
 
+from ..cuda_runtime import check_cuda_runtime
+
+check_cuda_runtime()
+
 
 cdef extern from "../kernels/full_strs/params.hpp":
     cdef struct FsKeys:
