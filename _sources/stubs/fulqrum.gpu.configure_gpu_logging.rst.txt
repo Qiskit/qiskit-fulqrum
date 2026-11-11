@@ -1,0 +1,6 @@
+﻿fulqrum.gpu.configure\_gpu\_logging
+===================================
+
+.. currentmodule:: fulqrum.gpu
+
+.. autofunction:: configure_gpu_logging

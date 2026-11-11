@@ -1,0 +1,6 @@
+﻿fulqrum.gpu.DistributedMPIGPUHamiltonian
+========================================
+
+.. currentmodule:: fulqrum.gpu
+
+.. autofunction:: DistributedMPIGPUHamiltonian

@@ -1,0 +1,55 @@
+﻿fulqrum.core.Subspace
+=====================
+
+.. currentmodule:: fulqrum.core
+
+.. autoclass:: Subspace
+   :members:
+   
+
+   
+   .. rubric:: Methods
+
+   .. autosummary::
+   
+            ~Subspace.copy
+         
+      
+            ~Subspace.get_bitset_index
+         
+      
+            ~Subspace.get_bitstring_index
+         
+      
+            ~Subspace.get_n_th_bitstring
+         
+      
+            ~Subspace.get_orbital_occupancies
+         
+      
+            ~Subspace.size
+         
+      
+            ~Subspace.to_alpha_beta_arrays
+         
+      
+            ~Subspace.to_dict
+         
+      
+   
+   
+
+   
+   
+   .. rubric:: Attributes
+
+   .. autosummary::
+   
+      ~Subspace.alpha_strs
+      ~Subspace.beta_strs
+      ~Subspace.half_strs_mode
+      ~Subspace.interpret_vector
+      ~Subspace.num_alpha_qubits
+      ~Subspace.width
+   
+   

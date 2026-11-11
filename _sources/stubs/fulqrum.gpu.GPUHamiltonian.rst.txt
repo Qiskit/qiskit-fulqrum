@@ -1,0 +1,40 @@
+﻿fulqrum.gpu.GPUHamiltonian
+==========================
+
+.. currentmodule:: fulqrum.gpu
+
+.. autoclass:: GPUHamiltonian
+   :members:
+   
+
+   
+   .. rubric:: Methods
+
+   .. autosummary::
+   
+      
+            ~GPUHamiltonian.compute_rdms
+         
+      
+            ~GPUHamiltonian.dump_profile_summary
+         
+      
+            ~GPUHamiltonian.reset_cache
+         
+      
+   
+   
+
+   
+   
+   .. rubric:: Attributes
+
+   .. autosummary::
+   
+      ~GPUHamiltonian.H
+      ~GPUHamiltonian.T
+      ~GPUHamiltonian.gpu_ids
+      ~GPUHamiltonian.last_timing
+      ~GPUHamiltonian.ndim
+   
+   

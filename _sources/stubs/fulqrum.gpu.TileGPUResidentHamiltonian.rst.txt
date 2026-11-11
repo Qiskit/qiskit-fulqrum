@@ -1,0 +1,70 @@
+﻿fulqrum.gpu.TileGPUResidentHamiltonian
+======================================
+
+.. currentmodule:: fulqrum.gpu
+
+.. autoclass:: TileGPUResidentHamiltonian
+   :members:
+   
+
+   
+   .. rubric:: Methods
+
+   .. autosummary::
+   
+      
+            ~TileGPUResidentHamiltonian.compute_rdms
+         
+      
+            ~TileGPUResidentHamiltonian.partition_diagnostic
+         
+      
+            ~TileGPUResidentHamiltonian.predicted_hbm_split
+         
+      
+            ~TileGPUResidentHamiltonian.rdm_scratch
+         
+      
+            ~TileGPUResidentHamiltonian.reset_cache
+         
+      
+            ~TileGPUResidentHamiltonian.run_workers
+         
+      
+            ~TileGPUResidentHamiltonian.stop_workers
+         
+      
+            ~TileGPUResidentHamiltonian.verify_hbm_fits
+         
+      
+   
+   
+
+   
+   
+   .. rubric:: Attributes
+
+   .. autosummary::
+   
+      ~TileGPUResidentHamiltonian.H
+      ~TileGPUResidentHamiltonian.T
+      ~TileGPUResidentHamiltonian.assigned_source_ranks
+      ~TileGPUResidentHamiltonian.backend_name
+      ~TileGPUResidentHamiltonian.comm
+      ~TileGPUResidentHamiltonian.construction_timing
+      ~TileGPUResidentHamiltonian.coord_alpha
+      ~TileGPUResidentHamiltonian.coord_beta
+      ~TileGPUResidentHamiltonian.diag_local
+      ~TileGPUResidentHamiltonian.last_timing
+      ~TileGPUResidentHamiltonian.min_free_hbm_bytes
+      ~TileGPUResidentHamiltonian.n_a_local
+      ~TileGPUResidentHamiltonian.n_b_local
+      ~TileGPUResidentHamiltonian.n_local
+      ~TileGPUResidentHamiltonian.predicted_hbm_bytes
+      ~TileGPUResidentHamiltonian.process_grid
+      ~TileGPUResidentHamiltonian.run_record
+      ~TileGPUResidentHamiltonian.source_ranks
+      ~TileGPUResidentHamiltonian.supports_device_matvec
+      ~TileGPUResidentHamiltonian.ndim
+   
+   

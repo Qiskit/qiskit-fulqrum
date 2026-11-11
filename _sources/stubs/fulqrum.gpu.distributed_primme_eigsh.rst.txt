@@ -1,0 +1,6 @@
+﻿fulqrum.gpu.distributed\_primme\_eigsh
+======================================
+
+.. currentmodule:: fulqrum.gpu
+
+.. autofunction:: distributed_primme_eigsh

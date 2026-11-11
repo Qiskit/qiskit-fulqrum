@@ -1,0 +1,33 @@
+﻿fulqrum.gpu.config.GpuConfig
+============================
+
+.. currentmodule:: fulqrum.gpu.config
+
+.. autoclass:: GpuConfig
+   :members:
+   
+
+   
+   .. rubric:: Methods
+
+   .. autosummary::
+   
+      
+            ~GpuConfig.digest
+         
+      
+            ~GpuConfig.from_environ
+         
+      
+            ~GpuConfig.record
+         
+      
+            ~GpuConfig.value
+         
+      
+   
+   
+
+   
+   
+   

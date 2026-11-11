@@ -1,0 +1,37 @@
+﻿fulqrum.gpu.full\_strs.FullStrsGPUHamiltonian
+=============================================
+
+.. currentmodule:: fulqrum.gpu.full_strs
+
+.. autoclass:: FullStrsGPUHamiltonian
+   :members:
+   
+
+   
+   .. rubric:: Methods
+
+   .. autosummary::
+   
+      
+            ~FullStrsGPUHamiltonian.compute_rdms
+         
+      
+            ~FullStrsGPUHamiltonian.matvec
+         
+      
+   
+   
+
+   
+   
+   .. rubric:: Attributes
+
+   .. autosummary::
+   
+      ~FullStrsGPUHamiltonian.device_bytes
+      ~FullStrsGPUHamiltonian.keys
+      ~FullStrsGPUHamiltonian.num_halo
+      ~FullStrsGPUHamiltonian.num_orbitals
+      ~FullStrsGPUHamiltonian.num_streamed_slices
+   
+   

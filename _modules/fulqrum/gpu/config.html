@@ -1,0 +1,1305 @@
+<!doctype html>
+<html class="no-js" lang="en" data-content_root="../../../">
+  <head><meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="color-scheme" content="light dark"><link rel="index" title="Index" href="../../../genindex.html"><link rel="search" title="Search" href="../../../search.html">
+
+    <!-- Generated with Sphinx 9.2.0 and Furo 2025.12.19 -->
+        <title>fulqrum.gpu.config - Fulqrum 1.0.0rc1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/styles/furo.css?v=7bdb33bb" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=d111a655" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/styles/qiskit-sphinx-theme.css?v=fc6d6d93" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/jupyter-sphinx.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/thebelab.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/styles/furo-extensions.css?v=8dab3a3b" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/custom.css?v=14156800" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/gallery.css?v=6e7c130a" />
+    
+    
+
+
+<style>
+  body {
+    --color-code-background: #f2f2f2;
+  --color-code-foreground: #1e1e1e;
+  
+  }
+  @media not print {
+    body[data-theme="dark"] {
+      --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+    }
+    @media (prefers-color-scheme: dark) {
+      body:not([data-theme="light"]) {
+        --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+      }
+    }
+  }
+</style><link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:ital,wght@0,400;0,600;1,400;1,600&display=swap" rel="stylesheet"></head>
+  <body>
+    
+    <script>
+      document.body.dataset.theme = localStorage.getItem("theme") || "auto";
+    </script>
+    
+<svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+  <symbol id="svg-toc" viewBox="0 0 24 24">
+    <title>Contents</title>
+    <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M14 2H2C1.73478 2 1.48043 2.10536 1.29289 2.29289C1.10536 2.48043 1 2.73478 1 3V13C1 13.2652 1.10536 13.5196 1.29289 13.7071C1.48043 13.8946 1.73478 14 2 14H14C14.2652 14 14.5196 13.8946 14.7071 13.7071C14.8946 13.5196 15 13.2652 15 13V3C15 2.73478 14.8946 2.48043 14.7071 2.29289C14.5196 2.10536 14.2652 2 14 2V2ZM2 3H10V13H2V3ZM14 13H11V3H14V13Z" fill="currentColor"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-menu" viewBox="0 0 24 24">
+    <title>Menu</title>
+    <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M14 3H2V4H14V3Z" fill="currentColor"/>
+      <path d="M14 12H2V13H14V12Z" fill="currentColor"/>
+      <path d="M14 6H2V7H14V6Z" fill="currentColor"/>
+      <path d="M14 9H2V10H14V9Z" fill="currentColor"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-arrow-right" viewBox="0 0 24 24">
+    <title>Expand</title>
+    <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M11 8L6.00005 13L5.30005 12.3L9.60005 8L5.30005 3.7L6.00005 3L11 8Z" fill="currentColor"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-sun" viewBox="0 0 24 24">
+    <title>Light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
+      <circle cx="12" cy="12" r="5"></circle>
+      <line x1="12" y1="1" x2="12" y2="3"></line>
+      <line x1="12" y1="21" x2="12" y2="23"></line>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+      <line x1="1" y1="12" x2="3" y2="12"></line>
+      <line x1="21" y1="12" x2="23" y2="12"></line>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon" viewBox="0 0 24 24">
+    <title>Dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" />
+    </svg>
+  </symbol>
+  <symbol id="svg-sun-with-moon" viewBox="0 0 24 24">
+    <title>Auto light/dark, in light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path style="opacity: 50%" d="M 5.411 14.504 C 5.471 14.504 5.532 14.504 5.591 14.504 C 3.639 16.319 4.383 19.569 6.931 20.352 C 7.693 20.586 8.512 20.551 9.25 20.252 C 8.023 23.207 4.056 23.725 2.11 21.184 C 0.166 18.642 1.702 14.949 4.874 14.536 C 5.051 14.512 5.231 14.5 5.411 14.5 L 5.411 14.504 Z"/>
+      <line x1="14.5" y1="3.25" x2="14.5" y2="1.25"/>
+      <line x1="14.5" y1="15.85" x2="14.5" y2="17.85"/>
+      <line x1="10.044" y1="5.094" x2="8.63" y2="3.68"/>
+      <line x1="19" y1="14.05" x2="20.414" y2="15.464"/>
+      <line x1="8.2" y1="9.55" x2="6.2" y2="9.55"/>
+      <line x1="20.8" y1="9.55" x2="22.8" y2="9.55"/>
+      <line x1="10.044" y1="14.006" x2="8.63" y2="15.42"/>
+      <line x1="19" y1="5.05" x2="20.414" y2="3.636"/>
+      <circle cx="14.5" cy="9.55" r="3.6"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon-with-sun" viewBox="0 0 24 24">
+    <title>Auto light/dark, in dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path d="M 8.282 7.007 C 8.385 7.007 8.494 7.007 8.595 7.007 C 5.18 10.184 6.481 15.869 10.942 17.24 C 12.275 17.648 13.706 17.589 15 17.066 C 12.851 22.236 5.91 23.143 2.505 18.696 C -0.897 14.249 1.791 7.786 7.342 7.063 C 7.652 7.021 7.965 7 8.282 7 L 8.282 7.007 Z"/>
+      <line style="opacity: 50%" x1="18" y1="3.705" x2="18" y2="2.5"/>
+      <line style="opacity: 50%" x1="18" y1="11.295" x2="18" y2="12.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="4.816" x2="14.464" y2="3.964"/>
+      <line style="opacity: 50%" x1="20.711" y1="10.212" x2="21.563" y2="11.063"/>
+      <line style="opacity: 50%" x1="14.205" y1="7.5" x2="13.001" y2="7.5"/>
+      <line style="opacity: 50%" x1="21.795" y1="7.5" x2="23" y2="7.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="10.184" x2="14.464" y2="11.036"/>
+      <line style="opacity: 50%" x1="20.711" y1="4.789" x2="21.563" y2="3.937"/>
+      <circle style="opacity: 50%" cx="18" cy="7.5" r="2.169"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-pencil" viewBox="0 0 24 24">
+    <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M15 13H1V14H15V13Z" fill="currentColor"/>
+      <path d="M12.7 4.5C13.1 4.1 13.1 3.5 12.7 3.1L10.9 1.3C10.5 0.9 9.9 0.9 9.5 1.3L2 8.8V12H5.2L12.7 4.5ZM10.2 2L12 3.8L10.5 5.3L8.7 3.5L10.2 2ZM3 11V9.2L8 4.2L9.8 6L4.8 11H3Z" fill="currentColor"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-eye" viewBox="0 0 24 24">
+    <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M11 13.0002C11.5523 13.0002 12 12.5525 12 12.0002C12 11.4479 11.5523 11.0002 11 11.0002C10.4477 11.0002 10 11.4479 10 12.0002C10 12.5525 10.4477 13.0002 11 13.0002Z" fill="currentColor"/>
+      <path d="M14.8884 11.7394C14.5795 10.9524 14.0464 10.2734 13.3552 9.78646C12.664 9.29954 11.8451 9.02615 11 9.00017C10.1549 9.02615 9.33604 9.29954 8.64484 9.78646C7.95365 10.2734 7.42052 10.9524 7.11155 11.7394L7 12.0002L7.11155 12.2609C7.42052 13.0479 7.95365 13.727 8.64484 14.2139C9.33604 14.7008 10.1549 14.9742 11 15.0002C11.8451 14.9742 12.664 14.7008 13.3552 14.2139C14.0464 13.727 14.5795 13.0479 14.8884 12.2609L15 12.0002L14.8884 11.7394ZM11 14.0002C10.6044 14.0002 10.2178 13.8829 9.88886 13.6631C9.55996 13.4433 9.30362 13.131 9.15224 12.7655C9.00087 12.4001 8.96126 11.998 9.03843 11.61C9.1156 11.222 9.30608 10.8657 9.58579 10.586C9.86549 10.3063 10.2219 10.1158 10.6098 10.0386C10.9978 9.96143 11.3999 10.001 11.7654 10.1524C12.1308 10.3038 12.4432 10.5601 12.6629 10.889C12.8827 11.2179 13 11.6046 13 12.0002C12.9994 12.5304 12.7885 13.0388 12.4136 13.4137C12.0386 13.7887 11.5303 13.9996 11 14.0002Z" fill="currentColor"/>
+      <path d="M6 14.0002H4V2.00017H8V5.00017C8.00077 5.26515 8.10637 5.51906 8.29374 5.70643C8.48111 5.8938 8.73502 5.99941 9 6.00017H12V8.00017H13V5.00017C13.0018 4.93446 12.9893 4.86913 12.9634 4.80871C12.9375 4.74828 12.8988 4.6942 12.85 4.65017L9.35 1.15017C9.30599 1.10134 9.2519 1.06263 9.19147 1.03674C9.13104 1.01084 9.06572 0.998364 9 1.00017H4C3.73502 1.00094 3.48111 1.10654 3.29374 1.29391C3.10637 1.48128 3.00077 1.73519 3 2.00017V14.0002C3.00077 14.2652 3.10637 14.5191 3.29374 14.7064C3.48111 14.8938 3.73502 14.9994 4 15.0002H6V14.0002ZM9 2.20017L11.8 5.00017H9V2.20017Z" fill="currentColor"/>
+    </svg>
+  </symbol>
+</svg>
+
+<input type="checkbox" class="sidebar-toggle" name="__navigation" id="__navigation" aria-label="Toggle site navigation sidebar">
+<input type="checkbox" class="sidebar-toggle" name="__toc" id="__toc" aria-label="Toggle table of contents sidebar">
+<label class="overlay sidebar-overlay" for="__navigation"></label>
+<label class="overlay toc-overlay" for="__toc"></label>
+
+<a class="skip-to-content muted-link" href="#furo-main-content">Skip to content</a>
+
+
+
+<div class="page">
+  <header class="mobile-header">
+    <div class="header-left">
+      <label class="nav-overlay-icon" for="__navigation">
+        <span class="icon"><svg><use href="#svg-menu"></use></svg></span>
+      </label>
+    </div>
+    <div class="header-center">
+      <a href="../../../index.html"><div class="brand">Fulqrum 1.0.0rc1  documentation</div></a>
+    </div>
+    <div class="header-right">
+      <div class="theme-toggle-container theme-toggle-header">
+        <button class="theme-toggle" aria-label="Toggle Light / Dark / Auto color theme">
+          <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+          <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
+          <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+          <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+        </button>
+      </div>
+      <label class="toc-overlay-icon toc-header-icon no-toc" for="__toc">
+        <span class="icon"><svg><use href="#svg-toc"></use></svg></span>
+      </label>
+    </div>
+  </header>
+  <aside class="sidebar-drawer">
+    <div class="sidebar-container">
+      
+      <div class="sidebar-sticky"><a class="sidebar-brand" href="../../../index.html">
+  
+  
+  <span class="sidebar-brand-text">Fulqrum 1.0.0rc1  documentation</span>
+  
+</a>
+<form class="sidebar-search-container" method="get" action="../../../search.html" role="search">
+  <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
+  <input type="hidden" name="check_keywords" value="yes">
+  <input type="hidden" name="area" value="default">
+</form>
+<div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
+  <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../index.html">Fulqrum</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../install.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../citing.html">Citing</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">User guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../started.html">Getting started</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../qubit_operators.html">Using QubitOperators</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../fermi_operators.html">Using FermionicOperators</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../subspaces.html">Defining Subspaces</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../operator_io.html">Operator IO</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../subspace_hamiltonians.html">Subspace Hamiltonians</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../molecule_loading.html">Loading Molecular data</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Tools</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../logging.html">Logging</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../tutorials/heisenberg_spin_model.html">Heisenberg spin model</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../tutorials/n2_full_sqd_loop.html">Sample-based quantum diagonalization with Fulqrum</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">API Docs</span></p>
+<ul>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../apidocs/core.html">Core</a><input aria-label="Toggle navigation of Core" class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../stubs/fulqrum.core.QubitOperator.html">fulqrum.core.QubitOperator</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../stubs/fulqrum.core.FermionicOperator.html">fulqrum.core.FermionicOperator</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../stubs/fulqrum.core.Subspace.html">fulqrum.core.Subspace</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../stubs/fulqrum.core.Bitset.html">fulqrum.core.Bitset</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../stubs/fulqrum.core.SubspaceHamiltonian.html">fulqrum.core.SubspaceHamiltonian</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../stubs/fulqrum.core.CSRLinearOperator.html">fulqrum.core.CSRLinearOperator</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../apidocs/utils.html">Utilities</a><input aria-label="Toggle navigation of Utilities" class="toctree-checkbox" id="toctree-checkbox-2" name="toctree-checkbox-2" role="switch" type="checkbox"/><label for="toctree-checkbox-2"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../stubs/fulqrum.utils.dict_to_json.html">fulqrum.utils.dict_to_json</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../stubs/fulqrum.utils.json_to_dict.html">fulqrum.utils.json_to_dict</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../apidocs/ramps.html">RAMPS</a><input aria-label="Toggle navigation of RAMPS" class="toctree-checkbox" id="toctree-checkbox-3" name="toctree-checkbox-3" role="switch" type="checkbox"/><label for="toctree-checkbox-3"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../stubs/fulqrum.ramps.ramps_open.html">fulqrum.ramps.ramps_open</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../stubs/fulqrum.ramps.ramps_restricted_simple.html">fulqrum.ramps.ramps_restricted_simple</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../apidocs/gpu.html">GPU</a><input aria-label="Toggle navigation of GPU" class="toctree-checkbox" id="toctree-checkbox-4" name="toctree-checkbox-4" role="switch" type="checkbox"/><label for="toctree-checkbox-4"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../stubs/fulqrum.gpu.GPUHamiltonian.html">fulqrum.gpu.GPUHamiltonian</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../stubs/fulqrum.gpu.DistributedMPIGPUHamiltonian.html">fulqrum.gpu.DistributedMPIGPUHamiltonian</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../stubs/fulqrum.gpu.TileGPUResidentHamiltonian.html">fulqrum.gpu.TileGPUResidentHamiltonian</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../stubs/fulqrum.gpu.full_strs.FullStrsGPUHamiltonian.html">fulqrum.gpu.full_strs.FullStrsGPUHamiltonian</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../stubs/fulqrum.gpu.distributed_primme_eigsh.html">fulqrum.gpu.distributed_primme_eigsh</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../stubs/fulqrum.gpu.config.GpuConfig.html">fulqrum.gpu.config.GpuConfig</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../stubs/fulqrum.gpu.configure_gpu_logging.html">fulqrum.gpu.configure_gpu_logging</a></li>
+</ul>
+</li>
+</ul>
+
+</div></div>
+      </div>
+      
+    </div>
+  </aside>
+  <div class="main">
+    <div class="content">
+      <div class="article-container">
+        <a href="#" class="back-to-top muted-link">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8v12z"></path>
+          </svg>
+          <span>Back to top</span>
+        </a>
+        <div class="content-icon-container">
+          <div class="theme-toggle-container theme-toggle-content">
+            <button class="theme-toggle" aria-label="Toggle Light / Dark / Auto color theme">
+              <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+              <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
+              <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+              <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+            </button>
+          </div>
+          <label class="toc-overlay-icon toc-content-icon no-toc" for="__toc">
+            <span class="icon"><svg><use href="#svg-toc"></use></svg></span>
+          </label>
+        </div>
+        <article role="main" id="furo-main-content">
+          <h1>Source code for fulqrum.gpu.config</h1><div class="highlight"><pre>
+<span></span><span class="c1"># This code is a part of Fulqrum.</span>
+<span class="c1">#</span>
+<span class="c1"># (C) Copyright IBM 2026.</span>
+<span class="c1">#</span>
+<span class="c1"># This code is licensed under the Apache License, Version 2.0. You may</span>
+<span class="c1"># obtain a copy of this license in the LICENSE.txt file in the root directory</span>
+<span class="c1"># of this source tree or at http://www.apache.org/licenses/LICENSE-2.0.</span>
+<span class="c1">#</span>
+<span class="c1"># Any modifications or derivative works of this code must retain this</span>
+<span class="c1"># copyright notice, and modified files need to carry a notice indicating</span>
+<span class="c1"># that they have been altered from the originals.</span>
+
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">hashlib</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">warnings</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Mapping</span> <span class="k">as</span> <span class="n">MappingABC</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Iterator</span><span class="p">,</span> <span class="n">Mapping</span><span class="p">,</span> <span class="n">Optional</span>
+
+<span class="n">TUNABLE</span> <span class="o">=</span> <span class="s2">"tunable"</span>
+<span class="n">DIAGNOSTIC</span> <span class="o">=</span> <span class="s2">"diagnostic"</span>
+<span class="n">FIXED</span> <span class="o">=</span> <span class="s2">"fixed"</span>
+<span class="n">TEST</span> <span class="o">=</span> <span class="s2">"test"</span>
+<span class="n">BUILD</span> <span class="o">=</span> <span class="s2">"build"</span>
+
+
+<span class="n">AUTO</span> <span class="o">=</span> <span class="s2">"auto"</span>
+<span class="n">HBM_CLASSES</span> <span class="o">=</span> <span class="p">(</span><span class="s2">"none"</span><span class="p">,</span> <span class="s2">"tiny"</span><span class="p">,</span> <span class="s2">"scratch"</span><span class="p">,</span> <span class="s2">"proportional"</span><span class="p">,</span> <span class="s2">"vector"</span><span class="p">)</span>
+
+<span class="n">TRUE_TEXTS</span> <span class="o">=</span> <span class="p">(</span><span class="s2">"1"</span><span class="p">,</span> <span class="s2">"true"</span><span class="p">,</span> <span class="s2">"yes"</span><span class="p">,</span> <span class="s2">"on"</span><span class="p">)</span>
+<span class="n">FALSE_TEXTS</span> <span class="o">=</span> <span class="p">(</span><span class="s2">"0"</span><span class="p">,</span> <span class="s2">"false"</span><span class="p">,</span> <span class="s2">"no"</span><span class="p">,</span> <span class="s2">"off"</span><span class="p">)</span>
+
+<span class="n">SECTIONS</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="s2">"Distributed matvec: transport and exchange"</span><span class="p">,</span>
+    <span class="s2">"Distributed matvec: memory, partitioning, construction"</span><span class="p">,</span>
+    <span class="s2">"Distributed matvec: same-sector single and double excitations"</span><span class="p">,</span>
+    <span class="s2">"Distributed matvec: mixed-spin double excitations"</span><span class="p">,</span>
+    <span class="s2">"Distributed matvec: automatic settings"</span><span class="p">,</span>
+    <span class="s2">"Distributed PRIMME eigensolver"</span><span class="p">,</span>
+    <span class="s2">"RDM"</span><span class="p">,</span>
+    <span class="s2">"Test hooks"</span><span class="p">,</span>
+    <span class="s2">"Build time"</span><span class="p">,</span>
+<span class="p">)</span>
+
+
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Flag</span><span class="p">:</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">section</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">group</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">kind</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">default</span><span class="p">:</span> <span class="n">Any</span>
+    <span class="n">description</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">choices</span><span class="p">:</span> <span class="nb">tuple</span> <span class="o">=</span> <span class="p">()</span>
+    <span class="n">minimum</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">maximum</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">default_text</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span>
+    <span class="n">auto</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">auto_text</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span>
+    <span class="n">hbm_class</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"none"</span>
+    <span class="n">expert</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_flag</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">section</span><span class="p">,</span> <span class="n">group</span><span class="p">,</span> <span class="n">kind</span><span class="p">,</span> <span class="n">default</span><span class="p">,</span> <span class="n">description</span><span class="p">,</span> <span class="o">**</span><span class="n">options</span><span class="p">):</span>
+
+    <span class="k">return</span> <span class="n">Flag</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">SECTIONS</span><span class="p">[</span><span class="n">section</span><span class="p">],</span> <span class="n">group</span><span class="p">,</span> <span class="n">kind</span><span class="p">,</span> <span class="n">default</span><span class="p">,</span> <span class="n">description</span><span class="p">,</span> <span class="o">**</span><span class="n">options</span><span class="p">)</span>
+
+
+<span class="n">FLAGS</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">_flag</span><span class="p">(</span>
+        <span class="s2">"FQ_DIST_BACKEND"</span><span class="p">,</span>
+        <span class="mi">0</span><span class="p">,</span>
+        <span class="n">TUNABLE</span><span class="p">,</span>
+        <span class="s2">"choice"</span><span class="p">,</span>
+        <span class="s2">"auto"</span><span class="p">,</span>
+        <span class="s2">"Transport for distributed GPU vector exchanges. `host_mpi` stages transfers through host memory by default; `cuda_mpi` requires CUDA-aware MPI; `nccl` uses NCCL. `auto` selects NCCL when all ranks support it and have distinct GPUs, otherwise host MPI. Automatic selection does not choose `cuda_mpi`."</span><span class="p">,</span>
+        <span class="n">choices</span><span class="o">=</span><span class="p">(</span><span class="s2">"auto"</span><span class="p">,</span> <span class="s2">"host_mpi"</span><span class="p">,</span> <span class="s2">"cuda_mpi"</span><span class="p">,</span> <span class="s2">"nccl"</span><span class="p">),</span>
+    <span class="p">),</span>
+    <span class="n">_flag</span><span class="p">(</span>
+        <span class="s2">"FQ_EXCHANGE"</span><span class="p">,</span>
+        <span class="mi">0</span><span class="p">,</span>
+        <span class="n">TUNABLE</span><span class="p">,</span>
+        <span class="s2">"choice"</span><span class="p">,</span>
+        <span class="s2">"auto"</span><span class="p">,</span>
+        <span class="s2">"Schedule for exchanging vector tiles. `ring` exchanges tiles in rounds; `two_level` groups communication within and between node domains. `auto` selects two-level only with NCCL, at least two domains and at least one multi-rank domain; otherwise ring. Memory tier 3 selects ring automatically. An explicitly requested unsupported schedule raises."</span><span class="p">,</span>
+        <span class="n">choices</span><span class="o">=</span><span class="p">(</span><span class="s2">"auto"</span><span class="p">,</span> <span class="s2">"ring"</span><span class="p">,</span> <span class="s2">"two_level"</span><span class="p">),</span>
+    <span class="p">),</span>
+    <span class="n">_flag</span><span class="p">(</span>
+        <span class="s2">"FQ_EXCHANGE_DOUBLE_BUFFER"</span><span class="p">,</span>
+        <span class="mi">0</span><span class="p">,</span>
+        <span class="n">TUNABLE</span><span class="p">,</span>
+        <span class="s2">"bool"</span><span class="p">,</span>
+        <span class="kc">True</span><span class="p">,</span>
+        <span class="s2">"Overlap ring transfers and computation using two receive buffers. `0` uses one buffer and reduces GPU memory at the cost of overlap. Applies only to ring exchange; two-level exchange retains its own two-buffer schedule."</span><span class="p">,</span>
+        <span class="n">auto</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">hbm_class</span><span class="o">=</span><span class="s2">"vector"</span><span class="p">,</span>
+        <span class="n">auto_text</span><span class="o">=</span><span class="s2">"`1` at tiers 0 and 1; `0` at tier 3. Only ring schedules use this setting"</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">_flag</span><span class="p">(</span>
+        <span class="s2">"FQ_EXCHANGE_SYNC"</span><span class="p">,</span>
+        <span class="mi">0</span><span class="p">,</span>
+        <span class="n">DIAGNOSTIC</span><span class="p">,</span>
+        <span class="s2">"bool"</span><span class="p">,</span>
+        <span class="kc">False</span><span class="p">,</span>
+        <span class="s2">"Synchronize the CUDA device around NCCL exchanges for diagnostics. Read when the NCCL backend module is imported."</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">_flag</span><span class="p">(</span>
+        <span class="s2">"FQ_HOST_MPI_CHUNK_MiB"</span><span class="p">,</span>
+        <span class="mi">0</span><span class="p">,</span>
+        <span class="n">TUNABLE</span><span class="p">,</span>
+        <span class="s2">"float"</span><span class="p">,</span>
+        <span class="mf">256.0</span><span class="p">,</span>
+        <span class="s2">"Maximum host-staged MPI transfer chunk size, in MiB. All ranks must use the same value."</span><span class="p">,</span>
+        <span class="n">minimum</span><span class="o">=</span><span class="mf">0.001</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">_flag</span><span class="p">(</span>
+        <span class="s2">"FQ_HOST_MPI_TIMEOUT"</span><span class="p">,</span>
+        <span class="mi">0</span><span class="p">,</span>
+        <span class="n">TUNABLE</span><span class="p">,</span>
+        <span class="s2">"float"</span><span class="p">,</span>
+        <span class="mf">900.0</span><span class="p">,</span>
+        <span class="s2">"Maximum seconds without progress before a host-MPI transfer raises an error. `0` waits indefinitely. Errors identify the rank, peer and transfer state."</span><span class="p">,</span>
+        <span class="n">minimum</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">_flag</span><span class="p">(</span>
+        <span class="s2">"FQ_HOST_MPI_USE_CUDA_IPC"</span><span class="p">,</span>
+        <span class="mi">0</span><span class="p">,</span>
+        <span class="n">TUNABLE</span><span class="p">,</span>
+        <span class="s2">"bool"</span><span class="p">,</span>
+        <span class="kc">False</span><span class="p">,</span>
+        <span class="s2">"Use CUDA inter-process communication for direct GPU-to-GPU copies within a node on the host-MPI backend. Requires all participating GPUs to be visible to each rank. A startup capability check disables this optimization collectively when unavailable and records the reason."</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">_flag</span><span class="p">(</span>
+        <span class="s2">"FQ_COMM_TIMING"</span><span class="p">,</span>
+        <span class="mi">0</span><span class="p">,</span>
+        <span class="n">DIAGNOSTIC</span><span class="p">,</span>
+        <span class="s2">"bool"</span><span class="p">,</span>
+        <span class="kc">False</span><span class="p">,</span>
+        <span class="s2">"Measure GPU communication with CUDA events and include the measurements in matvec timing records."</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">_flag</span><span class="p">(</span>
+        <span class="s2">"FQ_HBM_FREE_FRACTION"</span><span class="p">,</span>
+        <span class="mi">1</span><span class="p">,</span>
+        <span class="n">TUNABLE</span><span class="p">,</span>
+        <span class="s2">"float"</span><span class="p">,</span>
+        <span class="mf">1.0</span><span class="p">,</span>
+        <span class="s2">"Maximum ratio of predicted allocation to currently free GPU memory. `1` requires the prediction to fit; values below `1` reserve headroom and values above `1` relax the prediction check."</span><span class="p">,</span>
+        <span class="n">minimum</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span>
+        <span class="n">auto</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">auto_text</span><span class="o">=</span><span class="s2">"`1.20`, relaxing the check for conservative allocation predictions"</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">_flag</span><span class="p">(</span>
+        <span class="s2">"FQ_HBM_LOG"</span><span class="p">,</span>
+        <span class="mi">1</span><span class="p">,</span>
+        <span class="n">DIAGNOSTIC</span><span class="p">,</span>
+        <span class="s2">"bool"</span><span class="p">,</span>
+        <span class="kc">False</span><span class="p">,</span>
+        <span class="s2">"Log rank-0 GPU and host-memory reports at DEBUG level. Use Detailed or Trace logging to display them."</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">_flag</span><span class="p">(</span>
+        <span class="s2">"FQ_DIAG_RECOMPUTE"</span><span class="p">,</span>
+        <span class="mi">1</span><span class="p">,</span>
+        <span class="n">TUNABLE</span><span class="p">,</span>
+        <span class="s2">"bool"</span><span class="p">,</span>
+        <span class="kc">False</span><span class="p">,</span>
+        <span class="s2">"Recompute diagonal contributions during matvec instead of storing a full diagonal vector on the GPU. Explicit `1` raises if the diagonal cannot be represented in the required factored form."</span><span class="p">,</span>
+        <span class="n">auto</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">hbm_class</span><span class="o">=</span><span class="s2">"vector"</span><span class="p">,</span>
+        <span class="n">auto_text</span><span class="o">=</span><span class="s2">"`0` at tier 0; `1` at tiers 1 and 3 when the diagonal can be factored, otherwise stored"</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">_flag</span><span class="p">(</span>
+        <span class="s2">"FQ_ARM_TABLE_SOURCE"</span><span class="p">,</span>
+        <span class="mi">1</span><span class="p">,</span>
+        <span class="n">TUNABLE</span><span class="p">,</span>
+        <span class="s2">"choice"</span><span class="p">,</span>
+        <span class="s2">"auto"</span><span class="p">,</span>
+        <span class="s2">"Where same-sector connection values are built. `host` computes them on the CPU during construction; `kernel` computes them on the GPU during the first matvec. `auto` uses host construction when supported, otherwise kernel construction. An unsupported explicit `host` request raises."</span><span class="p">,</span>
+        <span class="n">choices</span><span class="o">=</span><span class="p">(</span><span class="s2">"auto"</span><span class="p">,</span> <span class="s2">"host"</span><span class="p">,</span> <span class="s2">"kernel"</span><span class="p">),</span>
+    <span class="p">),</span>
+    <span class="n">_flag</span><span class="p">(</span>
+        <span class="s2">"FQ_BUILD_THREADS"</span><span class="p">,</span>
+        <span class="mi">1</span><span class="p">,</span>
+        <span class="n">TUNABLE</span><span class="p">,</span>
+        <span class="s2">"int"</span><span class="p">,</span>
+        <span class="mi">0</span><span class="p">,</span>
+        <span class="s2">"CPU threads used to construct GPU tile data. `0` uses the constructor's `build_threads` argument, then `OMP_NUM_THREADS`."</span><span class="p">,</span>
+        <span class="n">minimum</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">_flag</span><span class="p">(</span>
+        <span class="s2">"FQ_TILE_RESIDENT_ARM_TIMING"</span><span class="p">,</span>
+        <span class="mi">1</span><span class="p">,</span>
+        <span class="n">DIAGNOSTIC</span><span class="p">,</span>
+        <span class="s2">"bool"</span><span class="p">,</span>
+        <span class="kc">False</span><span class="p">,</span>
+        <span class="s2">"Collect GPU device-clock timings for individual matvec contributions inside the kernels."</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">_flag</span><span class="p">(</span>
+        <span class="s2">"FQ_AA_PAIR_TABLE"</span><span class="p">,</span>
+        <span class="mi">2</span><span class="p">,</span>
+        <span class="n">FIXED</span><span class="p">,</span>
+        <span class="s2">"bool"</span><span class="p">,</span>
+        <span class="kc">None</span><span class="p">,</span>
+        <span class="s2">"Use the alpha single-excitation pair table when the required coefficient caches are available. Each source is checked for exact agreement with the standard representation; failed checks use the fallback kernel."</span><span class="p">,</span>
+        <span class="n">default_text</span><span class="o">=</span><span class="s2">"enabled when the required caches are available"</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">_flag</span><span class="p">(</span>
+        <span class="s2">"FQ_BB_PAIR_TABLE"</span><span class="p">,</span>
+        <span class="mi">2</span><span class="p">,</span>
+        <span class="n">FIXED</span><span class="p">,</span>
+        <span class="s2">"bool"</span><span class="p">,</span>
+        <span class="kc">None</span><span class="p">,</span>
+        <span class="s2">"Use the corresponding pair-table representation for beta single excitations when its required caches are available."</span><span class="p">,</span>
+        <span class="n">default_text</span><span class="o">=</span><span class="s2">"enabled when the required caches are available"</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">_flag</span><span class="p">(</span>
+        <span class="s2">"FQ_AAAA_ALPHA_BLOCKS_PER_GROUP"</span><span class="p">,</span>
+        <span class="mi">2</span><span class="p">,</span>
+        <span class="n">TUNABLE</span><span class="p">,</span>
+        <span class="s2">"int"</span><span class="p">,</span>
+        <span class="mi">8</span><span class="p">,</span>
+        <span class="s2">"Number of alpha blocks processed together by the alpha double-excitation kernel to reuse sparse tables in the GPU L2 cache. `0` uses the standard two-dimensional block order."</span><span class="p">,</span>
+        <span class="n">minimum</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+        <span class="n">auto</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">auto_text</span><span class="o">=</span><span class="s2">"15</span><span class="si">% o</span><span class="s2">f GPU L2 capacity divided by sparse-table bytes per alpha block, rounded down and limited to 2–8 blocks"</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">_flag</span><span class="p">(</span>
+        <span class="s2">"FQ_BBBB_ALPHA_BLOCKS_PER_GROUP"</span><span class="p">,</span>
+        <span class="mi">2</span><span class="p">,</span>
+        <span class="n">TUNABLE</span><span class="p">,</span>
+        <span class="s2">"int"</span><span class="p">,</span>
+        <span class="mi">1</span><span class="p">,</span>
+        <span class="s2">"Number of alpha blocks processed together by the beta double-excitation kernel to reuse source data in the GPU L2 cache. `0` uses the standard two-dimensional block order."</span><span class="p">,</span>
+        <span class="n">minimum</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+        <span class="n">expert</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">_flag</span><span class="p">(</span>
+        <span class="s2">"FQ_BBBB_CLASS_USE_FP64_GEMM"</span><span class="p">,</span>
+        <span class="mi">2</span><span class="p">,</span>
+        <span class="n">TUNABLE</span><span class="p">,</span>
+        <span class="s2">"bool"</span><span class="p">,</span>
+        <span class="kc">False</span><span class="p">,</span>
+        <span class="s2">"Apply grouped beta double-excitation connections as dense FP64 matrix multiplications. Smaller groups retain the sparse kernel. Requires additional GPU storage for class edges and can change floating-point accumulation order. Non-finite inputs use the scalar fallback."</span><span class="p">,</span>
+        <span class="n">auto</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">hbm_class</span><span class="o">=</span><span class="s2">"proportional"</span><span class="p">,</span>
+        <span class="n">auto_text</span><span class="o">=</span><span class="s2">"enabled by the FP64 matrix-multiply rule, disabled automatically at tier 3"</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">_flag</span><span class="p">(</span>
+        <span class="s2">"FQ_BBBB_CLASS_MIN_SIZE"</span><span class="p">,</span>
+        <span class="mi">2</span><span class="p">,</span>
+        <span class="n">TUNABLE</span><span class="p">,</span>
+        <span class="s2">"int"</span><span class="p">,</span>
+        <span class="mi">24</span><span class="p">,</span>
+        <span class="s2">"Minimum class size, in rows and columns, for the beta double-excitation matrix-multiply kernel. Smaller classes use the sparse kernel."</span><span class="p">,</span>
+        <span class="n">minimum</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+        <span class="n">expert</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">_flag</span><span class="p">(</span>
+        <span class="s2">"FQ_BBBB_CLASS_ALPHA_CHUNKS_PER_GROUP"</span><span class="p">,</span>
+        <span class="mi">2</span><span class="p">,</span>
+        <span class="n">TUNABLE</span><span class="p">,</span>
+        <span class="s2">"int"</span><span class="p">,</span>
+        <span class="mi">4</span><span class="p">,</span>
+        <span class="s2">"Number of 64-alpha-string chunks processed together by the beta class kernel to reuse source and output data in the GPU L2 cache."</span><span class="p">,</span>
+        <span class="n">minimum</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+        <span class="n">expert</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">_flag</span><span class="p">(</span>
+        <span class="s2">"FQ_AAAA_CLASS_USE_FP64_GEMM"</span><span class="p">,</span>
+        <span class="mi">2</span><span class="p">,</span>
+        <span class="n">TUNABLE</span><span class="p">,</span>
+        <span class="s2">"bool"</span><span class="p">,</span>
+        <span class="kc">False</span><span class="p">,</span>
+        <span class="s2">"Apply grouped alpha double-excitation connections as dense FP64 matrix multiplications over batches of beta rows. Smaller classes retain the sparse kernel. Uses additional class metadata and batch scratch memory, and can change floating-point accumulation order."</span><span class="p">,</span>
+        <span class="n">auto</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">hbm_class</span><span class="o">=</span><span class="s2">"proportional"</span><span class="p">,</span>
+        <span class="n">auto_text</span><span class="o">=</span><span class="s2">"enabled by the FP64 matrix-multiply rule, disabled automatically at tier 3"</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">_flag</span><span class="p">(</span>
+        <span class="s2">"FQ_AAAA_CLASS_MIN_SIZE"</span><span class="p">,</span>
+        <span class="mi">2</span><span class="p">,</span>
+        <span class="n">TUNABLE</span><span class="p">,</span>
+        <span class="s2">"int"</span><span class="p">,</span>
+        <span class="mi">24</span><span class="p">,</span>
+        <span class="s2">"Minimum class size, in rows and columns, for the alpha double-excitation matrix-multiply kernel."</span><span class="p">,</span>
+        <span class="n">minimum</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+        <span class="n">expert</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">_flag</span><span class="p">(</span>
+        <span class="s2">"FQ_AAAA_CLASS_TRANSPOSE_RESIDUAL"</span><span class="p">,</span>
+        <span class="mi">2</span><span class="p">,</span>
+        <span class="n">TUNABLE</span><span class="p">,</span>
+        <span class="s2">"bool"</span><span class="p">,</span>
+        <span class="kc">True</span><span class="p">,</span>
+        <span class="s2">"With alpha class matrix multiplication enabled, process connections outside the classes in the transposed beta-row batches. `0` processes them with the standard alpha sparse kernel afterwards. May change floating-point accumulation order."</span><span class="p">,</span>
+        <span class="n">expert</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">_flag</span><span class="p">(</span>
+        <span class="s2">"FQ_AAAA_CLASS_BETA_ROWS_PER_BATCH"</span><span class="p">,</span>
+        <span class="mi">2</span><span class="p">,</span>
+        <span class="n">TUNABLE</span><span class="p">,</span>
+        <span class="s2">"int"</span><span class="p">,</span>
+        <span class="mi">2048</span><span class="p">,</span>
+        <span class="s2">"Beta rows per alpha class-multiply batch. Scratch storage contains this many rows times the total source and output alpha-string counts, in float64 elements."</span><span class="p">,</span>
+        <span class="n">minimum</span><span class="o">=</span><span class="mi">64</span><span class="p">,</span>
+        <span class="n">hbm_class</span><span class="o">=</span><span class="s2">"scratch"</span><span class="p">,</span>
+        <span class="n">expert</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">_flag</span><span class="p">(</span>
+        <span class="s2">"FQ_BB_PAIR_ALPHA_BLOCKS_PER_GROUP"</span><span class="p">,</span>
+        <span class="mi">2</span><span class="p">,</span>
+        <span class="n">TUNABLE</span><span class="p">,</span>
+        <span class="s2">"int"</span><span class="p">,</span>
+        <span class="mi">1</span><span class="p">,</span>
+        <span class="s2">"Number of alpha blocks processed together by the beta pair-table kernel for cache reuse. `0` keeps the standard two-dimensional block order."</span><span class="p">,</span>
+        <span class="n">minimum</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+        <span class="n">expert</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">_flag</span><span class="p">(</span>
+        <span class="s2">"FQ_BB_PAIR_ALPHAS_PER_THREAD"</span><span class="p">,</span>
+        <span class="mi">2</span><span class="p">,</span>
+        <span class="n">TUNABLE</span><span class="p">,</span>
+        <span class="s2">"int"</span><span class="p">,</span>
+        <span class="mi">2</span><span class="p">,</span>
+        <span class="s2">"Alpha strings processed by each beta pair-table thread. `0` selects four; the delta representation also uses four. Automatic selection considers this value together with beta prefetching."</span><span class="p">,</span>
+        <span class="n">minimum</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+        <span class="n">maximum</span><span class="o">=</span><span class="mi">8</span><span class="p">,</span>
+        <span class="n">auto</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">auto_text</span><span class="o">=</span><span class="s2">"selected together with beta prefetching from compiled-kernel resource information"</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">_flag</span><span class="p">(</span>
+        <span class="s2">"FQ_AA_PAIR_PREFETCH_BEFORE_SCREEN"</span><span class="p">,</span>
+        <span class="mi">2</span><span class="p">,</span>
+        <span class="n">TUNABLE</span><span class="p">,</span>
+        <span class="s2">"bool"</span><span class="p">,</span>
+        <span class="kc">True</span><span class="p">,</span>
+        <span class="s2">"Load alpha pair-table coefficients and source amplitudes before testing whether a connection contributes. `0` tests the connection first. Automatic selection uses kernel resource information."</span><span class="p">,</span>
+        <span class="n">auto</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">auto_text</span><span class="o">=</span><span class="s2">"enabled when the kernel has no register spills and permits at least four blocks per GPU multiprocessor"</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">_flag</span><span class="p">(</span>
+        <span class="s2">"FQ_BB_PAIR_PREFETCH_BEFORE_SCREEN"</span><span class="p">,</span>
+        <span class="mi">2</span><span class="p">,</span>
+        <span class="n">TUNABLE</span><span class="p">,</span>
+        <span class="s2">"bool"</span><span class="p">,</span>
+        <span class="kc">False</span><span class="p">,</span>
+        <span class="s2">"Load beta pair-table connection data and source amplitudes before testing whether they contribute. `0` tests first. Automatic selection also chooses the alpha strings processed per thread."</span><span class="p">,</span>
+        <span class="n">auto</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">auto_text</span><span class="o">=</span><span class="s2">"first viable (prefetch, alphas/thread) candidate: (1,4), (1,2), (1,1), (0,2); requires no register spills and four blocks per GPU multiprocessor"</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">_flag</span><span class="p">(</span>
+        <span class="s2">"FQ_AABB_CLIQUE_ENABLE"</span><span class="p">,</span>
+        <span class="mi">3</span><span class="p">,</span>
+        <span class="n">FIXED</span><span class="p">,</span>
+        <span class="s2">"bool"</span><span class="p">,</span>
+        <span class="kc">None</span><span class="p">,</span>
+        <span class="s2">"Use grouped mixed-spin connections that share source loads, with a sparse residual for remaining connections. Enabled when the supported packed sparse-table configuration is available."</span><span class="p">,</span>
+        <span class="n">default_text</span><span class="o">=</span><span class="s2">"enabled for the supported default packed sparse-table configuration"</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">_flag</span><span class="p">(</span>
+        <span class="s2">"FQ_AABB_CLIQUE_MIN_MEMBERS"</span><span class="p">,</span>
+        <span class="mi">3</span><span class="p">,</span>
+        <span class="n">TUNABLE</span><span class="p">,</span>
+        <span class="s2">"int"</span><span class="p">,</span>
+        <span class="mi">6</span><span class="p">,</span>
+        <span class="s2">"Minimum number of half strings in a clique for the grouped kernel. Smaller groups remain on the residual path."</span><span class="p">,</span>
+        <span class="n">minimum</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>
+        <span class="n">maximum</span><span class="o">=</span><span class="mi">32</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">_flag</span><span class="p">(</span>
+        <span class="s2">"FQ_AABB_TIME_CLIQUE_KERNELS"</span><span class="p">,</span>
+        <span class="mi">3</span><span class="p">,</span>
+        <span class="n">DIAGNOSTIC</span><span class="p">,</span>
+        <span class="s2">"bool"</span><span class="p">,</span>
+        <span class="kc">False</span><span class="p">,</span>
+        <span class="s2">"Measure mixed-spin clique kernel durations with CUDA events."</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">_flag</span><span class="p">(</span>
+        <span class="s2">"FQ_AABB_CLIQUE_GROUPING_KIND"</span><span class="p">,</span>
+        <span class="mi">3</span><span class="p">,</span>
+        <span class="n">TUNABLE</span><span class="p">,</span>
+        <span class="s2">"choice"</span><span class="p">,</span>
+        <span class="s2">"auto"</span><span class="p">,</span>
+        <span class="s2">"Build cliques from shared occupied-orbital sets: `union` uses an N+1-electron parent, `intersection` an N-1-electron parent. N is the sector electron count. `auto` chooses the grouping with greater connection coverage."</span><span class="p">,</span>
+        <span class="n">choices</span><span class="o">=</span><span class="p">(</span><span class="s2">"auto"</span><span class="p">,</span> <span class="s2">"union"</span><span class="p">,</span> <span class="s2">"intersection"</span><span class="p">),</span>
+        <span class="n">expert</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">_flag</span><span class="p">(</span>
+        <span class="s2">"FQ_AABB_CLIQUE_OUTPUT_ROWS_PER_TILE"</span><span class="p">,</span>
+        <span class="mi">3</span><span class="p">,</span>
+        <span class="n">TUNABLE</span><span class="p">,</span>
+        <span class="s2">"int"</span><span class="p">,</span>
+        <span class="mi">64</span><span class="p">,</span>
+        <span class="s2">"Output rows processed by each clique tile: beta rows for local and remote-beta sources, alpha rows for transposed remote-alpha sources."</span><span class="p">,</span>
+        <span class="n">minimum</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+        <span class="n">maximum</span><span class="o">=</span><span class="mi">1024</span><span class="p">,</span>
+        <span class="n">auto</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">auto_text</span><span class="o">=</span><span class="s2">"64 rows, reduced to 32 when shared-memory capacity cannot support two blocks for the 32-member group at 64 rows"</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">_flag</span><span class="p">(</span>
+        <span class="s2">"FQ_AABB_CLIQUE_EDGES_PER_BATCH"</span><span class="p">,</span>
+        <span class="mi">3</span><span class="p">,</span>
+        <span class="n">TUNABLE</span><span class="p">,</span>
+        <span class="s2">"choice"</span><span class="p">,</span>
+        <span class="s2">"4"</span><span class="p">,</span>
+        <span class="s2">"Connections processed together in each clique-kernel batch; choose four or eight."</span><span class="p">,</span>
+        <span class="n">choices</span><span class="o">=</span><span class="p">(</span><span class="s2">"4"</span><span class="p">,</span> <span class="s2">"8"</span><span class="p">),</span>
+        <span class="n">expert</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">_flag</span><span class="p">(</span>
+        <span class="s2">"FQ_AABB_OWN_CLIQUES_PER_GROUP"</span><span class="p">,</span>
+        <span class="mi">3</span><span class="p">,</span>
+        <span class="n">TUNABLE</span><span class="p">,</span>
+        <span class="s2">"int"</span><span class="p">,</span>
+        <span class="mi">0</span><span class="p">,</span>
+        <span class="s2">"Number of parent cliques whose output-row tiles are processed together for local-source work. `0` uses the standard parent-first order. Changes scheduling and atomic accumulation order."</span><span class="p">,</span>
+        <span class="n">minimum</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+        <span class="n">expert</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">_flag</span><span class="p">(</span>
+        <span class="s2">"FQ_AABB_CLIQUE_USE_FP64_MMA"</span><span class="p">,</span>
+        <span class="mi">3</span><span class="p">,</span>
+        <span class="n">TUNABLE</span><span class="p">,</span>
+        <span class="s2">"bool"</span><span class="p">,</span>
+        <span class="kc">False</span><span class="p">,</span>
+        <span class="s2">"Use FP64 tensor-core matrix multiplication for mixed-spin clique contributions. May change accumulation order. Non-finite input chunks use the scalar fallback."</span><span class="p">,</span>
+        <span class="n">auto</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">auto_text</span><span class="o">=</span><span class="s2">"selected by the FP64 matrix-multiply rule at every memory tier"</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">_flag</span><span class="p">(</span>
+        <span class="s2">"FQ_AABB_OWN_CLIQUE_USE_SOURCE_PANEL"</span><span class="p">,</span>
+        <span class="mi">3</span><span class="p">,</span>
+        <span class="n">TUNABLE</span><span class="p">,</span>
+        <span class="s2">"bool"</span><span class="p">,</span>
+        <span class="kc">False</span><span class="p">,</span>
+        <span class="s2">"With clique matrix multiplication enabled, pack local source amplitudes into a reusable GPU panel. Uses temporary device memory controlled by the clique scratch limit. Non-finite panels use the standard matrix-multiply path; remote sources retain that path."</span><span class="p">,</span>
+        <span class="n">auto</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">hbm_class</span><span class="o">=</span><span class="s2">"scratch"</span><span class="p">,</span>
+        <span class="n">auto_text</span><span class="o">=</span><span class="s2">"enabled with clique matrix multiplication, disabled automatically at tier 3"</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">_flag</span><span class="p">(</span>
+        <span class="s2">"FQ_AABB_CLIQUE_USE_LABEL_BATCHING"</span><span class="p">,</span>
+        <span class="mi">3</span><span class="p">,</span>
+        <span class="n">TUNABLE</span><span class="p">,</span>
+        <span class="s2">"bool"</span><span class="p">,</span>
+        <span class="kc">False</span><span class="p">,</span>
+        <span class="s2">"With clique matrix multiplication enabled, batch connections sharing a beta pair across output rows and combine their results through temporary panels. Applies to local and remote-beta sources with at most 65,536 output rows. Larger ranges, remote-alpha sources and non-finite inputs use the standard kernels. Shares the clique scratch budget."</span><span class="p">,</span>
+        <span class="n">auto</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">hbm_class</span><span class="o">=</span><span class="s2">"scratch"</span><span class="p">,</span>
+        <span class="n">auto_text</span><span class="o">=</span><span class="s2">"enabled by the FP64 matrix-multiply rule, disabled automatically at tier 3"</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">_flag</span><span class="p">(</span>
+        <span class="s2">"FQ_AABB_CLIQUE_SCRATCH_LIMIT_MB"</span><span class="p">,</span>
+        <span class="mi">3</span><span class="p">,</span>
+        <span class="n">TUNABLE</span><span class="p">,</span>
+        <span class="s2">"int"</span><span class="p">,</span>
+        <span class="mi">0</span><span class="p">,</span>
+        <span class="s2">"Maximum mixed-spin panel scratch size per rank, in MiB. Batches are sized to fit this buffer. Explicit `0` allows the largest full panel; with tuning off, label batching interprets `0` as 512 MiB. Smaller limits reduce memory use but can require more launches."</span><span class="p">,</span>
+        <span class="n">minimum</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+        <span class="n">auto</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">hbm_class</span><span class="o">=</span><span class="s2">"scratch"</span><span class="p">,</span>
+        <span class="n">auto_text</span><span class="o">=</span><span class="s2">"512 MiB at tiers 0 and 1, limited to 1</span><span class="si">% o</span><span class="s2">f total GPU memory; zero scratch at tier 3"</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">_flag</span><span class="p">(</span>
+        <span class="s2">"FQ_AABB_CLIQUE_RESIDUAL_DEGREE_SORT"</span><span class="p">,</span>
+        <span class="mi">3</span><span class="p">,</span>
+        <span class="n">TUNABLE</span><span class="p">,</span>
+        <span class="s2">"bool"</span><span class="p">,</span>
+        <span class="kc">True</span><span class="p">,</span>
+        <span class="s2">"Sort residual sparse rows by connection count and omit empty rows so nearby GPU threads process similar lengths. Uses row-index metadata and, for remote-alpha sources, a sorted sparse-table copy."</span><span class="p">,</span>
+        <span class="n">expert</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">_flag</span><span class="p">(</span>
+        <span class="s2">"FQ_AABB_REMOTE_BETA_METHOD"</span><span class="p">,</span>
+        <span class="mi">3</span><span class="p">,</span>
+        <span class="n">FIXED</span><span class="p">,</span>
+        <span class="s2">"choice"</span><span class="p">,</span>
+        <span class="kc">None</span><span class="p">,</span>
+        <span class="s2">"Kernel family for mixed-spin connections from remote-beta sources: grouped cliques when enabled, otherwise the standard kernel."</span><span class="p">,</span>
+        <span class="n">choices</span><span class="o">=</span><span class="p">(</span><span class="s2">"baseline"</span><span class="p">,</span> <span class="s2">"clique"</span><span class="p">),</span>
+        <span class="n">default_text</span><span class="o">=</span><span class="s2">"`clique` when clique processing is enabled, otherwise `baseline`"</span><span class="p">,</span>
+        <span class="n">expert</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">_flag</span><span class="p">(</span>
+        <span class="s2">"FQ_AABB_REMOTE_ALPHA_METHOD"</span><span class="p">,</span>
+        <span class="mi">3</span><span class="p">,</span>
+        <span class="n">FIXED</span><span class="p">,</span>
+        <span class="s2">"choice"</span><span class="p">,</span>
+        <span class="kc">None</span><span class="p">,</span>
+        <span class="s2">"Kernel family for mixed-spin connections from remote-alpha sources: transposed beta cliques when enabled, otherwise the standard sparse kernel."</span><span class="p">,</span>
+        <span class="n">choices</span><span class="o">=</span><span class="p">(</span><span class="s2">"baseline"</span><span class="p">,</span> <span class="s2">"transposed_clique"</span><span class="p">),</span>
+        <span class="n">default_text</span><span class="o">=</span><span class="s2">"`transposed_clique` when clique processing is enabled, otherwise `baseline`"</span><span class="p">,</span>
+        <span class="n">expert</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">_flag</span><span class="p">(</span>
+        <span class="s2">"FQ_AABB_TIME_EACH_SOURCE"</span><span class="p">,</span>
+        <span class="mi">3</span><span class="p">,</span>
+        <span class="n">DIAGNOSTIC</span><span class="p">,</span>
+        <span class="s2">"bool"</span><span class="p">,</span>
+        <span class="kc">False</span><span class="p">,</span>
+        <span class="s2">"Collect separate mixed-spin timing measurements for each source tile."</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">_flag</span><span class="p">(</span>
+        <span class="s2">"FQ_TUNE"</span><span class="p">,</span>
+        <span class="mi">4</span><span class="p">,</span>
+        <span class="n">TUNABLE</span><span class="p">,</span>
+        <span class="s2">"choice"</span><span class="p">,</span>
+        <span class="s2">"profile"</span><span class="p">,</span>
+        <span class="s2">"Resolve automatic settings during Hamiltonian construction. `profile` uses GPU architecture rules, startup probes and the memory-saving tier; `off` uses static defaults. This setting does not enable profiling output."</span><span class="p">,</span>
+        <span class="n">choices</span><span class="o">=</span><span class="p">(</span><span class="s2">"profile"</span><span class="p">,</span> <span class="s2">"off"</span><span class="p">),</span>
+    <span class="p">),</span>
+    <span class="n">_flag</span><span class="p">(</span>
+        <span class="s2">"FQ_HBM_SAVE_TIER"</span><span class="p">,</span>
+        <span class="mi">4</span><span class="p">,</span>
+        <span class="n">TUNABLE</span><span class="p">,</span>
+        <span class="s2">"choice"</span><span class="p">,</span>
+        <span class="s2">"1"</span><span class="p">,</span>
+        <span class="s2">"Memory-saving level for tensor-product GPU matvecs. `0` permits all automatic optimizations and stores the diagonal. `1` recomputes eligible diagonals. `3` also selects a single-buffer ring and disables automatic label batching, source panels, class matrix multiplies and cross-term scratch. Explicit feature settings take precedence. Does not apply to FullStrsGPUHamiltonian."</span><span class="p">,</span>
+        <span class="n">choices</span><span class="o">=</span><span class="p">(</span><span class="s2">"0"</span><span class="p">,</span> <span class="s2">"1"</span><span class="p">,</span> <span class="s2">"3"</span><span class="p">),</span>
+    <span class="p">),</span>
+    <span class="n">_flag</span><span class="p">(</span>
+        <span class="s2">"FQ_FP64_MMA"</span><span class="p">,</span>
+        <span class="mi">4</span><span class="p">,</span>
+        <span class="n">TUNABLE</span><span class="p">,</span>
+        <span class="s2">"choice"</span><span class="p">,</span>
+        <span class="s2">"auto"</span><span class="p">,</span>
+        <span class="s2">"Default preference for FP64 matrix-multiply optimizations. `auto` uses a known-architecture preset or a startup probe with a minimum ratio of 3 FLOP per byte. `0` and `1` set the default preference explicitly. Memory-saving tiers and explicit per-feature settings still apply."</span><span class="p">,</span>
+        <span class="n">choices</span><span class="o">=</span><span class="p">(</span><span class="s2">"auto"</span><span class="p">,</span> <span class="s2">"0"</span><span class="p">,</span> <span class="s2">"1"</span><span class="p">),</span>
+    <span class="p">),</span>
+    <span class="n">_flag</span><span class="p">(</span>
+        <span class="s2">"FQ_PRIMME_MPI_SO"</span><span class="p">,</span>
+        <span class="mi">5</span><span class="p">,</span>
+        <span class="n">TEST</span><span class="p">,</span>
+        <span class="s2">"text"</span><span class="p">,</span>
+        <span class="s2">""</span><span class="p">,</span>
+        <span class="s2">"Test-only path to an alternative compiled PRIMME MPI extension."</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">_flag</span><span class="p">(</span>
+        <span class="s2">"FQ_PRIMME_GPU_DENSE_ASSUME_NONCOHERENT"</span><span class="p">,</span>
+        <span class="mi">5</span><span class="p">,</span>
+        <span class="n">TEST</span><span class="p">,</span>
+        <span class="s2">"bool"</span><span class="p">,</span>
+        <span class="kc">False</span><span class="p">,</span>
+        <span class="s2">"Test-only: treat the GPU as unable to read pageable host memory, so FQ_PRIMME_GPU_DENSE declines to the host dense update."</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">_flag</span><span class="p">(</span>
+        <span class="s2">"FQ_PRIMME_GPU_PRECOND"</span><span class="p">,</span>
+        <span class="mi">5</span><span class="p">,</span>
+        <span class="n">TUNABLE</span><span class="p">,</span>
+        <span class="s2">"bool"</span><span class="p">,</span>
+        <span class="kc">False</span><span class="p">,</span>
+        <span class="s2">"Apply the shifted Jacobi preconditioner on the GPU while using the host PRIMME backend. Requires a supplied local diagonal."</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">_flag</span><span class="p">(</span>
+        <span class="s2">"FQ_PRIMME_GPU_PRECOND_TILE"</span><span class="p">,</span>
+        <span class="mi">5</span><span class="p">,</span>
+        <span class="n">TUNABLE</span><span class="p">,</span>
+        <span class="s2">"int"</span><span class="p">,</span>
+        <span class="mi">1</span> <span class="o">&lt;&lt;</span> <span class="mi">24</span><span class="p">,</span>
+        <span class="s2">"Local vector elements processed per GPU Jacobi-preconditioner chunk on the host PRIMME backend."</span><span class="p">,</span>
+        <span class="n">minimum</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">_flag</span><span class="p">(</span>
+        <span class="s2">"FQ_PRIMME_MANAGED_BASIS"</span><span class="p">,</span>
+        <span class="mi">5</span><span class="p">,</span>
+        <span class="n">TUNABLE</span><span class="p">,</span>
+        <span class="s2">"bool"</span><span class="p">,</span>
+        <span class="kc">False</span><span class="p">,</span>
+        <span class="s2">"Use CUDA unified memory for GPU PRIMME basis vectors and their Hamiltonian products, allowing storage in both GPU and host memory. Skips the usual device-only basis memory precheck."</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">_flag</span><span class="p">(</span>
+        <span class="s2">"FQ_PRIMME_MANAGED_BASIS_LOG"</span><span class="p">,</span>
+        <span class="mi">5</span><span class="p">,</span>
+        <span class="n">DIAGNOSTIC</span><span class="p">,</span>
+        <span class="s2">"bool"</span><span class="p">,</span>
+        <span class="kc">False</span><span class="p">,</span>
+        <span class="s2">"Write native managed-basis budget and allocation reports to stderr on each rank. Independent of Python logging; CUDA failure warnings remain enabled without this setting."</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">_flag</span><span class="p">(</span>
+        <span class="s2">"FQ_PRIMME_HBM_BUDGET_GB"</span><span class="p">,</span>
+        <span class="mi">5</span><span class="p">,</span>
+        <span class="n">TUNABLE</span><span class="p">,</span>
+        <span class="s2">"float"</span><span class="p">,</span>
+        <span class="kc">None</span><span class="p">,</span>
+        <span class="s2">"GPU-preferred storage budget for managed PRIMME basis arrays, in GiB. Remaining managed storage is assigned a host-memory preference."</span><span class="p">,</span>
+        <span class="n">minimum</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span>
+        <span class="n">default_text</span><span class="o">=</span><span class="s2">"free GPU memory at first allocation minus the reserve"</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">_flag</span><span class="p">(</span>
+        <span class="s2">"FQ_PRIMME_HBM_RESERVE_GB"</span><span class="p">,</span>
+        <span class="mi">5</span><span class="p">,</span>
+        <span class="n">TUNABLE</span><span class="p">,</span>
+        <span class="s2">"float"</span><span class="p">,</span>
+        <span class="kc">None</span><span class="p">,</span>
+        <span class="s2">"GPU memory excluded from the automatically computed managed-basis budget, in GiB."</span><span class="p">,</span>
+        <span class="n">minimum</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span>
+        <span class="n">default_text</span><span class="o">=</span><span class="s2">"4 GiB plus three local float64 vectors"</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">_flag</span><span class="p">(</span>
+        <span class="s2">"FQ_PRIMME_GPU_DENSE"</span><span class="p">,</span>
+        <span class="mi">5</span><span class="p">,</span>
+        <span class="n">TUNABLE</span><span class="p">,</span>
+        <span class="s2">"bool"</span><span class="p">,</span>
+        <span class="kc">False</span><span class="p">,</span>
+        <span class="s2">"Offload large dense basis updates from the host PRIMME backend to the GPU when local vector length is at least 1,048,576. Eligible operations that decline offload use the host update; GPU execution failures raise."</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">_flag</span><span class="p">(</span>
+        <span class="s2">"FQ_PRIMME_GPU_DENSE_TILE"</span><span class="p">,</span>
+        <span class="mi">5</span><span class="p">,</span>
+        <span class="n">TUNABLE</span><span class="p">,</span>
+        <span class="s2">"int"</span><span class="p">,</span>
+        <span class="mi">0</span><span class="p">,</span>
+        <span class="s2">"Rows per GPU dense-update chunk on the host PRIMME backend. `0` derives the chunk size from the workspace budget."</span><span class="p">,</span>
+        <span class="n">minimum</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">_flag</span><span class="p">(</span>
+        <span class="s2">"FQ_PRIMME_GPU_DENSE_WS_MB"</span><span class="p">,</span>
+        <span class="mi">5</span><span class="p">,</span>
+        <span class="n">TUNABLE</span><span class="p">,</span>
+        <span class="s2">"int"</span><span class="p">,</span>
+        <span class="mi">1024</span><span class="p">,</span>
+        <span class="s2">"GPU workspace budget for dense updates from the host PRIMME backend, in MiB."</span><span class="p">,</span>
+        <span class="n">minimum</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">_flag</span><span class="p">(</span>
+        <span class="s2">"FQ_PRIMME_GPU_ORTHO"</span><span class="p">,</span>
+        <span class="mi">5</span><span class="p">,</span>
+        <span class="n">TUNABLE</span><span class="p">,</span>
+        <span class="s2">"bool"</span><span class="p">,</span>
+        <span class="kc">False</span><span class="p">,</span>
+        <span class="s2">"Offload block orthogonalization from the host PRIMME backend to the GPU for blocks containing more than one vector."</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">_flag</span><span class="p">(</span>
+        <span class="s2">"FQ_PRIMME_PINNED_BASIS"</span><span class="p">,</span>
+        <span class="mi">5</span><span class="p">,</span>
+        <span class="n">TUNABLE</span><span class="p">,</span>
+        <span class="s2">"bool"</span><span class="p">,</span>
+        <span class="kc">True</span><span class="p">,</span>
+        <span class="s2">"Store the host PRIMME basis and its Hamiltonian products in page-locked host memory for direct GPU transfers."</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">_flag</span><span class="p">(</span>
+        <span class="s2">"FQ_PRIMME_OVERLAP_MATVEC"</span><span class="p">,</span>
+        <span class="mi">5</span><span class="p">,</span>
+        <span class="n">TUNABLE</span><span class="p">,</span>
+        <span class="s2">"bool"</span><span class="p">,</span>
+        <span class="kc">True</span><span class="p">,</span>
+        <span class="s2">"Overlap a GPU matvec for a new basis vector with CPU orthogonalization on the host PRIMME backend. Requires block size one. With multiple ranks, requires NCCL or MPI_THREAD_MULTIPLE support."</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">_flag</span><span class="p">(</span>
+        <span class="s2">"FQ_PRIMME_CLOSE_TIMEOUT_S"</span><span class="p">,</span>
+        <span class="mi">5</span><span class="p">,</span>
+        <span class="n">TUNABLE</span><span class="p">,</span>
+        <span class="s2">"float"</span><span class="p">,</span>
+        <span class="mf">300.0</span><span class="p">,</span>
+        <span class="s2">"Seconds a multi-rank host PRIMME solve waits, after the solver stops, for an overlapped matvec still running on this rank. If it has not finished, the rank aborts the MPI job so that peers in a collective matvec are not left waiting. Successful solves join the matvec before this wait."</span><span class="p">,</span>
+        <span class="n">minimum</span><span class="o">=</span><span class="mf">0.001</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">_flag</span><span class="p">(</span>
+        <span class="s2">"FQ_PRIMME_SPEC_MATVEC"</span><span class="p">,</span>
+        <span class="mi">5</span><span class="p">,</span>
+        <span class="n">TUNABLE</span><span class="p">,</span>
+        <span class="s2">"bool"</span><span class="p">,</span>
+        <span class="kc">True</span><span class="p">,</span>
+        <span class="s2">"With host-backend matvec overlap enabled, start the next correction matvec early while the CPU performs subsequent solver work. Applies to supported GD+k and GD+Olsen configurations with one eigenpair and either clamped Jacobi or no preconditioner."</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">_flag</span><span class="p">(</span>
+        <span class="s2">"FQ_RDM_VERBOSE"</span><span class="p">,</span>
+        <span class="mi">6</span><span class="p">,</span>
+        <span class="n">DIAGNOSTIC</span><span class="p">,</span>
+        <span class="s2">"bool"</span><span class="p">,</span>
+        <span class="kc">False</span><span class="p">,</span>
+        <span class="s2">"Log rank-0 RDM stage timings at DEBUG level. Use Detailed or Trace logging to display them. Stage measurements synchronize the GPU."</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">_flag</span><span class="p">(</span>
+        <span class="s2">"FQ_WIDE_SIGN_CHECK"</span><span class="p">,</span>
+        <span class="mi">7</span><span class="p">,</span>
+        <span class="n">TEST</span><span class="p">,</span>
+        <span class="s2">"bool"</span><span class="p">,</span>
+        <span class="s2">"auto"</span><span class="p">,</span>
+        <span class="s2">"Test-only. Check a random sample of the host same-sector double and mixed-spin connection signs against the occupation strings during construction; raises on every rank on a mismatch."</span><span class="p">,</span>
+        <span class="n">auto</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">auto_text</span><span class="o">=</span><span class="s2">"on when a sector uses two words per string, otherwise off"</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">_flag</span><span class="p">(</span>
+        <span class="s2">"FQ_FORCE_KEY_WORDS"</span><span class="p">,</span>
+        <span class="mi">7</span><span class="p">,</span>
+        <span class="n">TEST</span><span class="p">,</span>
+        <span class="s2">"int"</span><span class="p">,</span>
+        <span class="mi">1</span><span class="p">,</span>
+        <span class="s2">"Test-only. With 2, `FullStrsGPUHamiltonian` and the Cartesian operators (`GPUHamiltonian`, `TileGPUResidentHamiltonian`) store strings of at most 64 orbitals per sector as two words, the high word zero, and run their two-word code paths."</span><span class="p">,</span>
+        <span class="n">minimum</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+        <span class="n">maximum</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">_flag</span><span class="p">(</span>
+        <span class="s2">"_FULQRUM_DEBUG_MATVEC"</span><span class="p">,</span>
+        <span class="mi">7</span><span class="p">,</span>
+        <span class="n">TEST</span><span class="p">,</span>
+        <span class="s2">"text"</span><span class="p">,</span>
+        <span class="s2">""</span><span class="p">,</span>
+        <span class="s2">"Test-only per-rank vector fingerprints and debug output. Accepts a true value, `tail` or `per_source`."</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">_flag</span><span class="p">(</span>
+        <span class="s2">"_FULQRUM_NO_OVERLAP"</span><span class="p">,</span>
+        <span class="mi">7</span><span class="p">,</span>
+        <span class="n">TEST</span><span class="p">,</span>
+        <span class="s2">"bool"</span><span class="p">,</span>
+        <span class="kc">False</span><span class="p">,</span>
+        <span class="s2">"Test-only synchronous host-MPI transfers without CUDA stream overlap."</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">_flag</span><span class="p">(</span>
+        <span class="s2">"_FULQRUM_TWO_LEVEL_ANY_BACKEND"</span><span class="p">,</span>
+        <span class="mi">7</span><span class="p">,</span>
+        <span class="n">TEST</span><span class="p">,</span>
+        <span class="s2">"bool"</span><span class="p">,</span>
+        <span class="kc">False</span><span class="p">,</span>
+        <span class="s2">"Test-only permission to run two-level exchange with other backends, including ranks sharing one GPU."</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">_flag</span><span class="p">(</span>
+        <span class="s2">"FQ_BUILD_GPU"</span><span class="p">,</span>
+        <span class="mi">8</span><span class="p">,</span>
+        <span class="n">BUILD</span><span class="p">,</span>
+        <span class="s2">"bool"</span><span class="p">,</span>
+        <span class="kc">False</span><span class="p">,</span>
+        <span class="s2">"Build the complete CUDA execution stack and distributed PRIMME extension. `0` keeps the CPU build configuration."</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">_flag</span><span class="p">(</span>
+        <span class="s2">"FQ_CUDA_ARCH"</span><span class="p">,</span>
+        <span class="mi">8</span><span class="p">,</span>
+        <span class="n">BUILD</span><span class="p">,</span>
+        <span class="s2">"text"</span><span class="p">,</span>
+        <span class="s2">""</span><span class="p">,</span>
+        <span class="s2">"Explicit CUDA architecture target for nvcc, such as `sm_90`. Unset selects visible GPU architectures or toolkit-supported fallback targets."</span><span class="p">,</span>
+        <span class="n">default_text</span><span class="o">=</span><span class="s2">"visible GPU architectures, otherwise supported fallback targets"</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">_flag</span><span class="p">(</span>
+        <span class="s2">"FQ_ENABLE_PRIMME_MPI"</span><span class="p">,</span>
+        <span class="mi">8</span><span class="p">,</span>
+        <span class="n">BUILD</span><span class="p">,</span>
+        <span class="s2">"bool"</span><span class="p">,</span>
+        <span class="kc">False</span><span class="p">,</span>
+        <span class="s2">"Build distributed host PRIMME support without enabling CUDA kernels. GPU builds include this extension automatically."</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">_flag</span><span class="p">(</span>
+        <span class="s2">"FQ_BUILD_PARALLEL"</span><span class="p">,</span>
+        <span class="mi">8</span><span class="p">,</span>
+        <span class="n">BUILD</span><span class="p">,</span>
+        <span class="s2">"int"</span><span class="p">,</span>
+        <span class="mi">1</span><span class="p">,</span>
+        <span class="s2">"Positive number of parallel build jobs; defaults to one."</span><span class="p">,</span>
+        <span class="n">minimum</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">_flag</span><span class="p">(</span>
+        <span class="s2">"FQ_CUDA_HOST_COMPILER"</span><span class="p">,</span>
+        <span class="mi">8</span><span class="p">,</span>
+        <span class="n">BUILD</span><span class="p">,</span>
+        <span class="s2">"text"</span><span class="p">,</span>
+        <span class="s2">""</span><span class="p">,</span>
+        <span class="s2">"Host C++ compiler executable used by nvcc. Defaults to CXX when set, otherwise nvcc selects its compiler."</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">_flag</span><span class="p">(</span>
+        <span class="s2">"FQ_DISABLE_DIST_BUILD"</span><span class="p">,</span>
+        <span class="mi">8</span><span class="p">,</span>
+        <span class="n">BUILD</span><span class="p">,</span>
+        <span class="s2">"bool"</span><span class="p">,</span>
+        <span class="kc">False</span><span class="p">,</span>
+        <span class="s2">"GPU builds always include the distributed CUDA library. Explicit `1` is rejected when FQ_BUILD_GPU is enabled; use `0` or leave unset."</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">_flag</span><span class="p">(</span>
+        <span class="s2">"FQ_CUDA_MATH_DIR"</span><span class="p">,</span>
+        <span class="mi">8</span><span class="p">,</span>
+        <span class="n">BUILD</span><span class="p">,</span>
+        <span class="s2">"text"</span><span class="p">,</span>
+        <span class="s2">""</span><span class="p">,</span>
+        <span class="s2">"CUDA math-library root containing cuBLAS/cuSPARSE headers and libraries, for split toolkit installations such as the NVIDIA HPC SDK."</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">_flag</span><span class="p">(</span>
+        <span class="s2">"FQ_CUDA_LIBDIR"</span><span class="p">,</span>
+        <span class="mi">8</span><span class="p">,</span>
+        <span class="n">BUILD</span><span class="p">,</span>
+        <span class="s2">"text"</span><span class="p">,</span>
+        <span class="s2">""</span><span class="p">,</span>
+        <span class="s2">"Override CUDA shared-library search directories. Separate multiple paths with colons on Linux; the list must provide cudart, cuBLAS and cuSPARSE."</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">_flag</span><span class="p">(</span>
+        <span class="s2">"FQ_PRIMME_BLASINT64"</span><span class="p">,</span>
+        <span class="mi">8</span><span class="p">,</span>
+        <span class="n">BUILD</span><span class="p">,</span>
+        <span class="s2">"bool"</span><span class="p">,</span>
+        <span class="kc">True</span><span class="p">,</span>
+        <span class="s2">"Distributed PRIMME always uses 64-bit BLAS integers (ILP64). Omit this setting or use `1`; explicit `0` is rejected when PRIMME support is enabled."</span><span class="p">,</span>
+    <span class="p">),</span>
+    <span class="n">_flag</span><span class="p">(</span>
+        <span class="s2">"FQ_BLAS_LIB"</span><span class="p">,</span>
+        <span class="mi">8</span><span class="p">,</span>
+        <span class="n">BUILD</span><span class="p">,</span>
+        <span class="s2">"text"</span><span class="p">,</span>
+        <span class="s2">""</span><span class="p">,</span>
+        <span class="s2">"Path to the compatible OpenBLAS ILP64 shared library used by PRIMME. Requires 64-bit integers and the `_64_` BLAS/LAPACK symbol suffix."</span><span class="p">,</span>
+    <span class="p">),</span>
+<span class="p">)</span>
+
+<span class="n">REGISTRY</span> <span class="o">=</span> <span class="p">{</span><span class="n">flag</span><span class="o">.</span><span class="n">name</span><span class="p">:</span> <span class="n">flag</span> <span class="k">for</span> <span class="n">flag</span> <span class="ow">in</span> <span class="n">FLAGS</span><span class="p">}</span>
+
+<span class="n">NOT_VARIABLES</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="s2">"These `FQ_*` names in `fulqrum/gpu/` are compile-time macros or constants, so the environment does not "</span>
+    <span class="s2">"change them: `FQ_GPU_DENSE_ABI`, and `FQ_PRIMME_GPU`, a C define "</span>
+    <span class="s2">"that the build sets with `FQ_BUILD_GPU=1`."</span>
+<span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">parse_bool</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">text</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+
+    <span class="n">value</span> <span class="o">=</span> <span class="n">text</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">TRUE_TEXTS</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">True</span>
+    <span class="k">if</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">FALSE_TEXTS</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">False</span>
+    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">=</span><span class="si">{</span><span class="n">text</span><span class="si">!r}</span><span class="s2">: use one of </span><span class="si">{</span><span class="n">TRUE_TEXTS</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">FALSE_TEXTS</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">parse</span><span class="p">(</span><span class="n">flag</span><span class="p">:</span> <span class="n">Flag</span><span class="p">,</span> <span class="n">text</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+
+    <span class="k">if</span> <span class="n">flag</span><span class="o">.</span><span class="n">auto</span> <span class="ow">and</span> <span class="n">text</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="o">==</span> <span class="n">AUTO</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">AUTO</span>
+    <span class="k">if</span> <span class="n">flag</span><span class="o">.</span><span class="n">kind</span> <span class="o">==</span> <span class="s2">"bool"</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">parse_bool</span><span class="p">(</span><span class="n">flag</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">text</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">flag</span><span class="o">.</span><span class="n">kind</span> <span class="o">==</span> <span class="s2">"text"</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">text</span>
+    <span class="k">if</span> <span class="n">flag</span><span class="o">.</span><span class="n">kind</span> <span class="o">==</span> <span class="s2">"choice"</span><span class="p">:</span>
+        <span class="n">value</span> <span class="o">=</span> <span class="n">text</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">value</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">flag</span><span class="o">.</span><span class="n">choices</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">flag</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">=</span><span class="si">{</span><span class="n">text</span><span class="si">!r}</span><span class="s2">: use one of </span><span class="si">{</span><span class="n">flag</span><span class="o">.</span><span class="n">choices</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">value</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">value</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">text</span><span class="p">)</span> <span class="k">if</span> <span class="n">flag</span><span class="o">.</span><span class="n">kind</span> <span class="o">==</span> <span class="s2">"int"</span> <span class="k">else</span> <span class="nb">float</span><span class="p">(</span><span class="n">text</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">ValueError</span> <span class="k">as</span> <span class="n">error</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">flag</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">=</span><span class="si">{</span><span class="n">text</span><span class="si">!r}</span><span class="s2">: not a</span><span class="si">{</span><span class="s1">'n int'</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">flag</span><span class="o">.</span><span class="n">kind</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="s1">'int'</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="s1">' number'</span><span class="si">}</span><span class="s2">"</span>
+        <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">error</span>
+    <span class="k">if</span> <span class="n">flag</span><span class="o">.</span><span class="n">minimum</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">value</span> <span class="o">&lt;</span> <span class="n">flag</span><span class="o">.</span><span class="n">minimum</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">flag</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">=</span><span class="si">{</span><span class="n">text</span><span class="si">!r}</span><span class="s2">: smaller than </span><span class="si">{</span><span class="n">flag</span><span class="o">.</span><span class="n">minimum</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">flag</span><span class="o">.</span><span class="n">maximum</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">value</span> <span class="o">&gt;</span> <span class="n">flag</span><span class="o">.</span><span class="n">maximum</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">flag</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">=</span><span class="si">{</span><span class="n">text</span><span class="si">!r}</span><span class="s2">: larger than </span><span class="si">{</span><span class="n">flag</span><span class="o">.</span><span class="n">maximum</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">value</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">read</span><span class="p">(</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">environ</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+
+    <span class="n">flag</span> <span class="o">=</span> <span class="n">REGISTRY</span><span class="p">[</span><span class="n">name</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">value</span>
+    <span class="n">environ</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span> <span class="k">if</span> <span class="n">environ</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">environ</span>
+    <span class="n">text</span> <span class="o">=</span> <span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">text</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">text</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="o">==</span> <span class="s2">""</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">flag</span><span class="o">.</span><span class="n">default</span>
+    <span class="k">return</span> <span class="n">parse</span><span class="p">(</span><span class="n">flag</span><span class="p">,</span> <span class="n">text</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">normalize</span><span class="p">(</span><span class="n">flag</span><span class="p">:</span> <span class="n">Flag</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">bool</span><span class="p">):</span>
+        <span class="n">value</span> <span class="o">=</span> <span class="s2">"1"</span> <span class="k">if</span> <span class="n">value</span> <span class="k">else</span> <span class="s2">"0"</span>
+    <span class="n">text</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+    <span class="n">parsed</span> <span class="o">=</span> <span class="n">parse</span><span class="p">(</span><span class="n">flag</span><span class="p">,</span> <span class="n">text</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">parsed</span> <span class="o">==</span> <span class="n">AUTO</span> <span class="ow">and</span> <span class="n">flag</span><span class="o">.</span><span class="n">auto</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">AUTO</span>
+    <span class="k">if</span> <span class="n">flag</span><span class="o">.</span><span class="n">kind</span> <span class="o">==</span> <span class="s2">"bool"</span><span class="p">:</span>
+        <span class="k">return</span> <span class="s2">"1"</span> <span class="k">if</span> <span class="n">parsed</span> <span class="k">else</span> <span class="s2">"0"</span>
+    <span class="k">if</span> <span class="n">flag</span><span class="o">.</span><span class="n">kind</span> <span class="o">==</span> <span class="s2">"choice"</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">parsed</span>
+    <span class="k">return</span> <span class="n">text</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="k">if</span> <span class="n">flag</span><span class="o">.</span><span class="n">kind</span> <span class="o">!=</span> <span class="s2">"text"</span> <span class="k">else</span> <span class="n">text</span>
+
+
+<div class="viewcode-block" id="GpuConfig">
+<a class="viewcode-back" href="../../../stubs/fulqrum.gpu.config.GpuConfig.html#fulqrum.gpu.config.GpuConfig">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">GpuConfig</span><span class="p">(</span><span class="n">MappingABC</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Stores user-supplied GPU settings.</span>
+
+<span class="sd">    Create with ``from_environ()`` to validate values. ``cfg[name]`` returns</span>
+<span class="sd">    the supplied value as text; ``cfg.value(name)`` returns its parsed value</span>
+<span class="sd">    or the default if omitted.</span>
+
+<span class="sd">    Automatic GPU tuning happens when the Hamiltonian is constructed.</span>
+<span class="sd">    Its final settings are available in ``run_record``.</span>
+<span class="sd">    """</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">settings</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]):</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_settings</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">settings</span><span class="p">)</span>
+
+<div class="viewcode-block" id="GpuConfig.from_environ">
+<a class="viewcode-back" href="../../../stubs/fulqrum.gpu.config.GpuConfig.html#fulqrum.gpu.config.GpuConfig.from_environ">[docs]</a>
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">from_environ</span><span class="p">(</span>
+        <span class="bp">cls</span><span class="p">,</span>
+        <span class="n">environ</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">overrides</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">"GpuConfig"</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Build a validated snapshot from runtime environment settings and overrides.</span>
+
+<span class="sd">        ``environ`` defaults to ``os.environ``. Only registered runtime settings</span>
+<span class="sd">        are captured; build-time environment settings are handled by the build</span>
+<span class="sd">        system. Explicit overrides take precedence, and None overrides are ignored.</span>
+<span class="sd">        Unknown override names raise KeyError; invalid values raise ValueError.</span>
+<span class="sd">        """</span>
+        <span class="n">environ</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span> <span class="k">if</span> <span class="n">environ</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">environ</span>
+        <span class="n">settings</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">flag</span> <span class="ow">in</span> <span class="n">FLAGS</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">flag</span><span class="o">.</span><span class="n">group</span> <span class="o">==</span> <span class="n">BUILD</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="n">text</span> <span class="o">=</span> <span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">flag</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">text</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">text</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="o">!=</span> <span class="s2">""</span><span class="p">:</span>
+                <span class="n">settings</span><span class="p">[</span><span class="n">flag</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">normalize</span><span class="p">(</span><span class="n">flag</span><span class="p">,</span> <span class="n">text</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="p">(</span><span class="n">overrides</span> <span class="ow">or</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">settings</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">normalize</span><span class="p">(</span><span class="n">REGISTRY</span><span class="p">[</span><span class="n">name</span><span class="p">],</span> <span class="n">value</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span><span class="n">settings</span><span class="p">)</span></div>
+
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_settings</span><span class="p">[</span><span class="n">name</span><span class="p">]</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__iter__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Iterator</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+
+        <span class="k">return</span> <span class="nb">iter</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_settings</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__len__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+
+        <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_settings</span><span class="p">)</span>
+
+<div class="viewcode-block" id="GpuConfig.value">
+<a class="viewcode-back" href="../../../stubs/fulqrum.gpu.config.GpuConfig.html#fulqrum.gpu.config.GpuConfig.value">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">value</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Return a typed configured value, or its registry default when unspecified.</span>
+
+<span class="sd">        Does not apply hardware-dependent automatic tuning; resolved execution</span>
+<span class="sd">        choices are available in the Hamiltonian's ``run_record``.</span>
+<span class="sd">        """</span>
+        <span class="k">return</span> <span class="n">read</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_settings</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="GpuConfig.digest">
+<a class="viewcode-back" href="../../../stubs/fulqrum.gpu.config.GpuConfig.html#fulqrum.gpu.config.GpuConfig.digest">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">digest</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Return a short hash of the settings explicitly present in this snapshot."""</span>
+        <span class="n">text</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="nb">sorted</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_settings</span><span class="o">.</span><span class="n">items</span><span class="p">()))</span>
+        <span class="k">return</span> <span class="n">hashlib</span><span class="o">.</span><span class="n">sha256</span><span class="p">(</span><span class="n">text</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span><span class="o">.</span><span class="n">hexdigest</span><span class="p">()[:</span><span class="mi">16</span><span class="p">]</span></div>
+
+
+<div class="viewcode-block" id="GpuConfig.record">
+<a class="viewcode-back" href="../../../stubs/fulqrum.gpu.config.GpuConfig.html#fulqrum.gpu.config.GpuConfig.record">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">record</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Return the settings explicitly present in this snapshot as a plain dict."""</span>
+        <span class="k">return</span> <span class="nb">dict</span><span class="p">(</span><span class="nb">sorted</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_settings</span><span class="o">.</span><span class="n">items</span><span class="p">()))</span></div>
+</div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">unknown_names</span><span class="p">(</span><span class="n">environ</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">:</span>
+
+    <span class="n">environ</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span> <span class="k">if</span> <span class="n">environ</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">environ</span>
+    <span class="k">return</span> <span class="nb">sorted</span><span class="p">(</span>
+        <span class="n">name</span>
+        <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">environ</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">name</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">"FQ_"</span><span class="p">)</span> <span class="ow">or</span> <span class="n">name</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">"FULQRUM_"</span><span class="p">))</span>
+        <span class="ow">and</span> <span class="n">name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">REGISTRY</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">warn_unknown_names</span><span class="p">(</span><span class="n">environ</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">:</span>
+
+    <span class="n">names</span> <span class="o">=</span> <span class="n">unknown_names</span><span class="p">(</span><span class="n">environ</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">names</span><span class="p">:</span>
+        <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"Unrecognized GPU environment variables will be ignored: </span><span class="si">{</span><span class="s1">', '</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">names</span><span class="p">)</span><span class="si">}</span><span class="s2">. "</span>
+            <span class="s2">"Check registered names in fulqrum/gpu/config.py."</span><span class="p">,</span>
+            <span class="ne">RuntimeWarning</span><span class="p">,</span>
+            <span class="n">stacklevel</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>
+        <span class="p">)</span>
+    <span class="k">return</span> <span class="n">names</span>
+</pre></div>
+        </article>
+      </div>
+      <footer>
+        
+        <div class="related-pages">
+          
+          
+        </div>
+        <div class="bottom-of-page">
+          <div class="left-details">
+            <div class="copyright">
+                Copyright &#169; 2024, IBM Quantum
+            </div>
+            Made with <a href="https://www.sphinx-doc.org/">Sphinx</a> and <a class="muted-link" href="https://pradyunsg.me">@pradyunsg</a>'s
+            
+            <a href="https://github.com/pradyunsg/furo">Furo</a>
+            <div class="last-updated">
+              Last updated on 2026/11/11</div>
+          </div>
+          <div class="right-details">
+            
+          </div>
+        </div>
+        
+      </footer>
+    </div>
+    <aside class="toc-drawer no-toc">
+      
+      
+      
+    </aside>
+  </div>
+</div><script src="../../../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../_static/scripts/furo.js?v=46bd48cc"></script>
+    <script src="../../../_static/thebelab-helper.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@jupyter-widgets/html-manager@^1.0.1/dist/embed-amd.js"></script>
+    <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    </body>
+</html>
