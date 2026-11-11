@@ -25,8 +25,6 @@ COPY_STREAM_PRIORITY = -1000
 
 
 class HaloExchange:
-
-
     def __init__(self, comm, block, halo_rows, mode="stepped"):
         if mode not in MODES:
             raise ValueError(f"mode must be one of {MODES}; got {mode!r}")
@@ -56,9 +54,7 @@ class HaloExchange:
         )
         self.num_send = int(index.size)
         self.num_halo = int(halo_starts[-1])
-        self.send_index = cupy.asarray(
-            index.astype(np.int32)
-        )
+        self.send_index = cupy.asarray(index.astype(np.int32))
         self.send_buffer = cupy.empty(self.num_send, dtype=np.float64)
         self.send_pinned = None
         self.recv_pinned = None
@@ -96,7 +92,6 @@ class HaloExchange:
 
     def run(self, x_own, x_halo, stream):
 
-
         if self.num_send:
             with stream:
                 cupy.take(x_own, self.send_index, out=self.send_buffer)
@@ -106,7 +101,6 @@ class HaloExchange:
             self._run_stepped(x_halo, stream)
 
     def _run_stepped(self, x_halo, stream):
-
 
         self.copy_stream.wait_event(stream.record())
         empty64 = np.zeros(0, dtype=np.int64)
@@ -154,7 +148,6 @@ class HaloExchange:
         return self.num_send
 
     def reverse(self, y_own, y_halo, stream):
-
 
         import cupyx  # noqa: PLC0415
 
@@ -225,8 +218,6 @@ class HaloExchange:
 
 
 class CopyExchange:
-
-
     def __init__(self, copy_comm, share_starts):
         self.comm = copy_comm
         self.backend = _collective.backend_for(copy_comm)[0]
@@ -266,7 +257,6 @@ class CopyExchange:
 
     def allgather(self, x_share, x_block, stream):
 
-
         begin, end = self._segment(self.copy)
         x_block[begin:end].data.copy_from_device_async(
             x_share.data, 8 * (end - begin), stream=stream
@@ -290,7 +280,6 @@ class CopyExchange:
             )
 
     def reduce_scatter(self, y_block, out, stream):
-
 
         begin, end = self._segment(self.copy)
         own = self.contributions[self.copy]

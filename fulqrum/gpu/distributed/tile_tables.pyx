@@ -15,7 +15,7 @@
 
 
 cimport openmp
-from libc.stdint cimport uint8_t, uint32_t, uint64_t
+from libc.stdint cimport int8_t, int64_t, uint8_t, uint32_t, uint64_t
 from libcpp cimport bool
 from libcpp.vector cimport vector
 from libcpp.memory cimport unique_ptr
@@ -67,6 +67,21 @@ cdef extern from "../../core/src/tile_connections.hpp":
                                         const PairCounts& num_pairs,
                                         size_t other_begin,
                                         size_t other_end) except +
+    void tile_edge_values(const OperatorTables& tables,
+                          const HalfKeyView& store,
+                          const TileSectorGroupIndex& groups,
+                          int sector,
+                          const PairCounts& num_pairs,
+                          size_t bra_begin,
+                          size_t num_bra,
+                          const int64_t* single_offsets,
+                          const uint8_t* single_positions,
+                          const int64_t* double_offsets,
+                          const uint8_t* double_positions,
+                          double* single_values,
+                          int8_t* own_signs,
+                          int8_t* jw_signs,
+                          double* double_values) except +
     vector[T] tile_cross_sector_table "build_cross_sector_table"[T](const OperatorTables& tables,
                                                                     const PairCounts& num_pairs) except +
 
@@ -91,6 +106,7 @@ CROSS_SIGN_SHIFT = kCrossSignShift
 CROSS_MAX_PAIR = kCrossMaxPair
 SIGNED_PAIR_NEGATIVE = kSignedPairNegative
 MAX_DIRECTED_PAIRS = 0xFFFF
+MAX_TILE_WORDS = 2
 
 
 def cross_words(columns, pairs, signs):
@@ -135,6 +151,10 @@ def tile_input_error(FulqrumSpMV spmv, int num_alpha_qubits, alpha_strings, beta
     cdef vector[uint8_t] sector_of
     cdef int sector
     cdef size_t index
+    cdef size_t word
+    cdef size_t words
+    cdef size_t count
+    cdef const size_t* key
     if spmv.is_real != 1:
         return "the operator has complex values"
     if tables.num_groups() == 0:
@@ -153,15 +173,23 @@ def tile_input_error(FulqrumSpMV spmv, int num_alpha_qubits, alpha_strings, beta
     for sector in range(2):
         if 2 * pairs[sector] > MAX_DIRECTED_PAIRS:
             return f"sector {sector} has more than {MAX_DIRECTED_PAIRS // 2} orbital pairs"
-        if store.half_words(sector) != 1:
-            return f"sector {sector} is wider than 64 qubits"
+        if not 1 <= store.half_words(sector) <= MAX_TILE_WORDS:
+            return f"sector {sector} is wider than {64 * MAX_TILE_WORDS} qubits"
     for sector, strings in enumerate((alpha_strings, beta_strings)):
         strings = np.asarray(strings, dtype=np.uint64)
-        if store.num_half_keys(sector) != strings.size:
-            return f"sector {sector} has {store.num_half_keys(sector)} strings in the subspace, not {strings.size}"
-        keys = np.empty(strings.size, dtype=np.uint64)
-        for index in range(strings.size):
-            keys[index] = store.half_key(sector, index)[0]
+        words = store.half_words(sector)
+        count = strings.size // words
+        if store.num_half_keys(sector) != count or (
+            words > 1 and strings.shape != (count, words)
+        ):
+            return f"sector {sector} has {store.num_half_keys(sector)} strings in the subspace, not {count}"
+        keys = np.empty(count * words, dtype=np.uint64)
+        for index in range(count):
+            key = store.half_key(sector, index)
+            for word in range(words):
+                keys[index * words + word] = key[word]
+        if words > 1:
+            keys = keys.reshape(count, words)
         if not np.array_equal(keys, strings):
             return f"the sector {sector} strings of the subspace differ from the GPU strings"
     return None
@@ -169,6 +197,7 @@ def tile_input_error(FulqrumSpMV spmv, int num_alpha_qubits, alpha_strings, beta
 
 cdef void validate_tile(FulqrumSpMV spmv, HalfKeyView* store, int sector) except *:
     cdef PairCounts pairs
+    cdef size_t words
     if sector not in (0, 1):
         raise ValueError("sector must be 0 or 1")
     if not store.is_tensor_product() or spmv.is_real != 1:
@@ -177,9 +206,10 @@ cdef void validate_tile(FulqrumSpMV spmv, HalfKeyView* store, int sector) except
         raise ValueError("GPU tile tables require supported groups and a valid block layout")
     pairs = pairs_of(spmv)
     for half in range(2):
-        if store.half_words(half) != 1 or 2 * pairs[half] > MAX_DIRECTED_PAIRS:
+        words = store.half_words(half)
+        if not 1 <= words <= MAX_TILE_WORDS or 2 * pairs[half] > MAX_DIRECTED_PAIRS:
             raise ValueError("GPU tile sector exceeds the packed format limits")
-        if store.num_half_keys(half) > 0x100000000:
+        if store.num_half_keys(half) >= 0x100000000:
             raise ValueError("GPU tile columns must fit in uint32")
 
 def sector_tiles(FulqrumSpMV spmv, int sector, size_t bra_begin, size_t bra_end, block_bounds,
@@ -208,6 +238,53 @@ def sector_tiles(FulqrumSpMV spmv, int sector, size_t bra_begin, size_t bra_end,
     finally:
         openmp.omp_set_num_threads(previous)
     return [_tile_arrays(tiles[block]) for block in range(tiles.size())]
+
+
+def edge_values(FulqrumSpMV spmv, int sector, size_t bra_begin, single_offsets, single_positions,
+                double_offsets, double_positions, int threads=0):
+
+
+    cdef unique_ptr[HalfKeyView] owned_store = unique_ptr[HalfKeyView](new HalfKeyView(spmv.subspace.subspace))
+    cdef HalfKeyView* store = owned_store.get()
+    validate_tile(spmv, store, sector)
+    cdef PairCounts pairs = pairs_of(spmv)
+    cdef TileSectorGroupIndex groups = tile_index_groups(tables_of(spmv)[0], pairs)
+    cdef int64_t[::1] offsets2 = np.ascontiguousarray(single_offsets, dtype=np.int64)
+    cdef int64_t[::1] offsets4 = np.ascontiguousarray(double_offsets, dtype=np.int64)
+    cdef size_t num_bra = offsets2.shape[0] - 1
+    if offsets4.shape[0] != offsets2.shape[0] or offsets2[0] != 0 or offsets4[0] != 0:
+        raise ValueError("The single and double offsets must describe the same bra strings")
+    cdef size_t num_singles = offsets2[num_bra]
+    cdef size_t num_doubles = offsets4[num_bra]
+    positions2 = np.ascontiguousarray(single_positions, dtype=np.uint8)
+    positions4 = np.ascontiguousarray(double_positions, dtype=np.uint8)
+    if positions2.shape != (num_singles, 2) or positions4.shape != (num_doubles, 4):
+        raise ValueError("The flip positions do not match the offsets")
+    cdef uint8_t[::1] flips2 = np.ascontiguousarray(np.append(positions2.reshape(-1), np.uint8(0)))
+    cdef uint8_t[::1] flips4 = np.ascontiguousarray(np.append(positions4.reshape(-1), np.uint8(0)))
+    single_values = np.zeros(num_singles + 1, dtype=np.float64)
+    own_signs = np.zeros(num_singles + 1, dtype=np.int8)
+    jw_signs = np.zeros(num_singles + 1, dtype=np.int8)
+    double_values = np.zeros(num_doubles + 1, dtype=np.float64)
+    cdef double[::1] values2 = single_values
+    cdef int8_t[::1] own = own_signs
+    cdef int8_t[::1] jw = jw_signs
+    cdef double[::1] values4 = double_values
+    cdef int previous = openmp.omp_get_max_threads()
+    if threads > 0:
+        openmp.omp_set_num_threads(threads)
+    try:
+        tile_edge_values(tables_of(spmv)[0], deref(store), groups, sector, pairs, bra_begin, num_bra,
+                         &offsets2[0], &flips2[0], &offsets4[0], &flips4[0], &values2[0], &own[0],
+                         &jw[0], &values4[0])
+    finally:
+        openmp.omp_set_num_threads(previous)
+    return dict(
+        single_values=single_values[:num_singles],
+        own_signs=own_signs[:num_singles],
+        jw_signs=jw_signs[:num_singles],
+        double_values=double_values[:num_doubles],
+    )
 
 
 def cross_table(FulqrumSpMV spmv, int sector, size_t other_begin, size_t other_end, int threads=0):

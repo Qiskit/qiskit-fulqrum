@@ -27,36 +27,54 @@ constexpr int kRdmMaxOrbitals = 64;
 extern "C"
 {
 
-
     int rdm_launch_pair_overlap(const RdmSlabPair* slabs, const RdmPairs* pairs, void* stream);
-
 
     int rdm_launch_same_scatter(const RdmPairs* pairs, const RdmTensor* out, void* stream);
 
+    int rdm_launch_same_scatter_words(const RdmPairs* pairs, const RdmTensor* out, void* stream);
 
     std::size_t rdm_same_diagonal_shared_bytes(std::int32_t num_orbitals);
 
-
     int rdm_launch_same_diagonal(const RdmDiagonal* diagonal, const RdmTensor* out, void* stream);
 
-
-    int rdm_launch_alpha_one_body(const RdmSlabPair* slabs, const RdmSingles* singles, const RdmWeighted* out,
+    int rdm_launch_alpha_one_body(const RdmSlabPair* slabs,
+                                  const RdmSingles* singles,
+                                  const RdmWeighted* out,
                                   void* stream);
 
-
-    int rdm_launch_beta_one_body(const RdmSlabPair* slabs, const RdmSingles* singles, const RdmWeighted* out,
+    int rdm_launch_beta_one_body(const RdmSlabPair* slabs,
+                                 const RdmSingles* singles,
+                                 const RdmWeighted* out,
                                  void* stream);
 
-
-    int rdm_launch_diagonal(const RdmSlabPair* slabs, const RdmRows* rows, const RdmWeighted* out, int beta_side,
+    int rdm_launch_diagonal(const RdmSlabPair* slabs,
+                            const RdmRows* rows,
+                            const RdmWeighted* out,
+                            int beta_side,
                             void* stream);
 
+    int rdm_launch_alpha_one_body_words(const RdmSlabPair* slabs,
+                                        const RdmSingles* singles,
+                                        const RdmWeighted* out,
+                                        void* stream);
 
-    int rdm_launch_alpha_beta(const RdmAbSlabs* slabs, const RdmAbLists* lists, const RdmTensor* out, void* stream);
+    int rdm_launch_beta_one_body_words(const RdmSlabPair* slabs,
+                                       const RdmSingles* singles,
+                                       const RdmWeighted* out,
+                                       void* stream);
 
+    int rdm_launch_diagonal_words(const RdmSlabPair* slabs,
+                                  const RdmRows* rows,
+                                  const RdmWeighted* out,
+                                  int beta_side,
+                                  void* stream);
+
+    int rdm_launch_alpha_beta(const RdmAbSlabs* slabs,
+                              const RdmAbLists* lists,
+                              const RdmTensor* out,
+                              void* stream);
 
     std::size_t rdm_param_struct_size(int which);
-
 
     const char* rdm_error_name(int status);
 }

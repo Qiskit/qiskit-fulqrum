@@ -26,7 +26,6 @@ namespace
 
 namespace clique = fq::clique_word;
 
-
 struct CliqueLane
 {
     unsigned long long member;
@@ -36,20 +35,23 @@ struct CliqueLane
     bool active;
 };
 
-
-__device__ __forceinline__ CliqueLane lane_member(const FqCrossCliqueTables& tables, const int parent, const int lane)
+__device__ __forceinline__ CliqueLane lane_member(const FqCrossCliqueTables& tables,
+                                                  const int parent,
+                                                  const int lane)
 {
     const int first = __ldg(tables.parent_offsets + parent);
     const int count = __ldg(tables.parent_offsets + parent + 1) - first;
     CliqueLane me;
     me.active = lane < count;
-    me.member = me.active ? __ldg(reinterpret_cast<const unsigned long long*>(tables.members) + first + lane) : 0ull;
+    me.member =
+        me.active
+            ? __ldg(reinterpret_cast<const unsigned long long*>(tables.members) + first + lane)
+            : 0ull;
     me.alpha = clique::member_alpha(me.member);
     me.orbital = clique::member_orbital(me.member);
     me.orbital_offset = me.orbital * tables.orbitals;
     return me;
 }
-
 
 template <int EB>
 struct CliqueBatch
@@ -58,7 +60,6 @@ struct CliqueBatch
     int row[EB];
     bool not_finite;
 };
-
 
 template <int EB, bool TRANSPOSED>
 __device__ __forceinline__ void gather_batch(CliqueBatch<EB>& batch,
@@ -77,17 +78,18 @@ __device__ __forceinline__ void gather_batch(CliqueBatch<EB>& batch,
         const unsigned long long word = exists ? __ldg(words + first + e) : 0ull;
         batch.row[e] = exists ? clique::tile_word_row(word) : -1;
         const long long column = clique::tile_word_column(word);
-        const long long index = TRANSPOSED ? (long long)me.alpha * stride + column : column * stride + me.alpha;
+        const long long index =
+            TRANSPOSED ? (long long)me.alpha * stride + column : column * stride + me.alpha;
         const double x = me.active && exists ? __ldg(source + index) : 0.0;
-        batch.value[e] =
-            __longlong_as_double(__double_as_longlong(x) ^ (long long)clique::gather_sign_bit(me.member, word));
+        batch.value[e] = __longlong_as_double(__double_as_longlong(x) ^
+                                              (long long)clique::gather_sign_bit(me.member, word));
         batch.not_finite |= !isfinite(batch.value[e]);
     }
 }
 
-
 template <int NMAX>
-__device__ __forceinline__ void load_coefficients(double (&c)[NMAX], const double* block, const int orbital_offset)
+__device__ __forceinline__ void
+load_coefficients(double (&c)[NMAX], const double* block, const int orbital_offset)
 {
 #pragma unroll
     for(int l = 0; l < NMAX; ++l)
@@ -95,7 +97,6 @@ __device__ __forceinline__ void load_coefficients(double (&c)[NMAX], const doubl
         c[l] = __ldg(block + fq::device::warp_broadcast(orbital_offset, l));
     }
 }
-
 
 template <int NMAX, int EB>
 __device__ __forceinline__ void multiply_batch(double (&acc)[EB],
@@ -140,7 +141,6 @@ __device__ __forceinline__ void multiply_batch(double (&acc)[EB],
     }
 }
 
-
 template <int NMAX, bool TRANSPOSED>
 __device__ __forceinline__ void flush_tile(const double* row_tile,
                                            const int tile,
@@ -158,23 +158,24 @@ __device__ __forceinline__ void flush_tile(const double* row_tile,
         const double y = row_tile[r * NMAX + lane];
         if(y != 0.0)
         {
-            const long long index =
-                TRANSPOSED ? (long long)me.alpha * stride + (row0 + r) : (long long)(row0 + r) * stride + me.alpha;
+            const long long index = TRANSPOSED ? (long long)me.alpha * stride + (row0 + r)
+                                               : (long long)(row0 + r) * stride + me.alpha;
             atomicAdd(out + index, __longlong_as_double(__double_as_longlong(y) ^ sign));
         }
     }
 }
 
-
-__device__ __forceinline__ void clique_job(const FqCrossCliqueTables& tables, const long long job, int& tile, int& parent)
+__device__ __forceinline__ void
+clique_job(const FqCrossCliqueTables& tables, const long long job, int& tile, int& parent)
 {
     if(tables.parent_group >= 1)
     {
         const long long per_group = (long long)tables.parent_group * tables.num_tiles;
         const long long first = (job / per_group) * tables.parent_group;
         const long long in_group = job - (job / per_group) * per_group;
-        const long long width = tables.num_parents - first < tables.parent_group ? tables.num_parents - first
-                                                                                 : tables.parent_group;
+        const long long width = tables.num_parents - first < tables.parent_group
+                                    ? tables.num_parents - first
+                                    : tables.parent_group;
         tile = int(in_group / width);
         parent = int(first + (in_group - (long long)tile * width));
     }
@@ -185,13 +186,14 @@ __device__ __forceinline__ void clique_job(const FqCrossCliqueTables& tables, co
     }
 }
 
-
 template <int NMAX, int EB, bool TRANSPOSED>
-__global__ void __launch_bounds__(fq::launch::kCliqueThreads) cross_clique_kernel(const __grid_constant__ FqTileGeometry geometry,
-                                                                                const __grid_constant__ FqVectors vectors,
-                                                                                const __grid_constant__ FqCrossCliqueTables tables)
+__global__ void __launch_bounds__(fq::launch::kCliqueThreads)
+    cross_clique_kernel(const __grid_constant__ FqTileGeometry geometry,
+                        const __grid_constant__ FqVectors vectors,
+                        const __grid_constant__ FqCrossCliqueTables tables)
 {
-    static_assert(EB % 2 == 0 && NMAX >= 2 && NMAX <= clique::kMaxMembers, "unsupported clique kernel instance");
+    static_assert(EB % 2 == 0 && NMAX >= 2 && NMAX <= clique::kMaxMembers,
+                  "unsupported clique kernel instance");
     extern __shared__ double shared[];
     const int warp = int(threadIdx.x / 32);
     const int lane = int(threadIdx.x % 32);
@@ -216,15 +218,21 @@ __global__ void __launch_bounds__(fq::launch::kCliqueThreads) cross_clique_kerne
     CliqueBatch<EB> next;
     if(first_group < last_group)
     {
-        gather_batch<EB, TRANSPOSED>(next, words, __ldg(tables.group_offsets + first_group),
-                                     __ldg(tables.group_offsets + first_group + 1), vectors.src_in, stride, me);
+        gather_batch<EB, TRANSPOSED>(next,
+                                     words,
+                                     __ldg(tables.group_offsets + first_group),
+                                     __ldg(tables.group_offsets + first_group + 1),
+                                     vectors.src_in,
+                                     stride,
+                                     me);
     }
     for(int group = first_group; group < last_group; ++group)
     {
         double c[NMAX];
         load_coefficients<NMAX>(c,
                                 tables.coefficients +
-                                    (long long)__ldg(tables.group_pairs + group) * tables.orbitals * tables.orbitals +
+                                    (long long)__ldg(tables.group_pairs + group) * tables.orbitals *
+                                        tables.orbitals +
                                     me.orbital,
                                 me.orbital_offset);
         const int group_end = __ldg(tables.group_offsets + group + 1);
@@ -249,11 +257,13 @@ __global__ void __launch_bounds__(fq::launch::kCliqueThreads) cross_clique_kerne
             __syncwarp();
             if(e0 + EB < group_end)
             {
-                gather_batch<EB, TRANSPOSED>(next, words, e0 + EB, group_end, vectors.src_in, stride, me);
+                gather_batch<EB, TRANSPOSED>(
+                    next, words, e0 + EB, group_end, vectors.src_in, stride, me);
             }
             else if(group + 1 < last_group)
             {
-                gather_batch<EB, TRANSPOSED>(next, words, group_end, next_end, vectors.src_in, stride, me);
+                gather_batch<EB, TRANSPOSED>(
+                    next, words, group_end, next_end, vectors.src_in, stride, me);
             }
             double acc[EB];
             multiply_batch<NMAX, EB>(acc, c, published, not_finite);
@@ -274,15 +284,24 @@ __global__ void __launch_bounds__(fq::launch::kCliqueThreads) cross_clique_kerne
     __syncwarp();
     if(me.active)
     {
-        flush_tile<NMAX, TRANSPOSED>(row_tile, tile, tables.tile_rows, TRANSPOSED ? geometry.n_a_bra : geometry.n_b_bra,
-                                     geometry.n_a_bra, vectors.out_local, me, lane);
+        flush_tile<NMAX, TRANSPOSED>(row_tile,
+                                     tile,
+                                     tables.tile_rows,
+                                     TRANSPOSED ? geometry.n_a_bra : geometry.n_b_bra,
+                                     geometry.n_a_bra,
+                                     vectors.out_local,
+                                     me,
+                                     lane);
     }
 }
 
-
 template <int NMAX, int MT, bool DISTINCT_ROWS>
-__device__ __forceinline__ void add_mma_chunk(double* row_tile, const double (&y)[MT][2], const int g, const int t,
-                                              const int row0, const int row1)
+__device__ __forceinline__ void add_mma_chunk(double* row_tile,
+                                              const double (&y)[MT][2],
+                                              const int g,
+                                              const int t,
+                                              const int row0,
+                                              const int row1)
 {
 #pragma unroll
     for(int q = 0; q < (DISTINCT_ROWS ? 1 : 4); ++q)
@@ -310,13 +329,14 @@ __device__ __forceinline__ void add_mma_chunk(double* row_tile, const double (&y
     }
 }
 
-
 template <int NMAX, int EB, bool TRANSPOSED, bool DISTINCT_ROWS>
-__global__ void __launch_bounds__(fq::launch::kCliqueThreads) cross_clique_mma_kernel(const __grid_constant__ FqTileGeometry geometry,
-                                                                                    const __grid_constant__ FqVectors vectors,
-                                                                                    const __grid_constant__ FqCrossCliqueTables tables)
+__global__ void __launch_bounds__(fq::launch::kCliqueThreads)
+    cross_clique_mma_kernel(const __grid_constant__ FqTileGeometry geometry,
+                            const __grid_constant__ FqVectors vectors,
+                            const __grid_constant__ FqCrossCliqueTables tables)
 {
-    static_assert(NMAX % 4 == 0 && NMAX >= 4 && NMAX <= clique::kMaxMembers, "unsupported clique kernel instance");
+    static_assert(NMAX % 4 == 0 && NMAX >= 4 && NMAX <= clique::kMaxMembers,
+                  "unsupported clique kernel instance");
     constexpr int kMTiles = (NMAX + 7) / 8;
     constexpr int kKSteps = NMAX / 4;
     extern __shared__ double shared[];
@@ -371,8 +391,8 @@ __global__ void __launch_bounds__(fq::launch::kCliqueThreads) cross_clique_mma_k
     const int last_group = __ldg(tables.tile_group_offsets + tile + 1);
     for(int group = first_group; group < last_group; ++group)
     {
-        const double* block =
-            tables.coefficients + (long long)__ldg(tables.group_pairs + group) * tables.orbitals * tables.orbitals;
+        const double* block = tables.coefficients + (long long)__ldg(tables.group_pairs + group) *
+                                                        tables.orbitals * tables.orbitals;
         double a[kMTiles][kKSteps];
 #pragma unroll
         for(int i = 0; i < kMTiles; ++i)
@@ -380,7 +400,9 @@ __global__ void __launch_bounds__(fq::launch::kCliqueThreads) cross_clique_mma_k
 #pragma unroll
             for(int s = 0; s < kKSteps; ++s)
             {
-                a[i][s] = (m_orbital[i] >= 0 && k_offset[s] >= 0) ? __ldg(block + k_offset[s] + m_orbital[i]) : 0.0;
+                a[i][s] = (m_orbital[i] >= 0 && k_offset[s] >= 0)
+                              ? __ldg(block + k_offset[s] + m_orbital[i])
+                              : 0.0;
             }
         }
         const int group_end = __ldg(tables.group_offsets + group + 1);
@@ -394,14 +416,17 @@ __global__ void __launch_bounds__(fq::launch::kCliqueThreads) cross_clique_mma_k
 #pragma unroll
             for(int s = 0; s < kKSteps; ++s)
             {
-                const long long index = TRANSPOSED ? (long long)k_alpha[s] * stride + column : column * stride + k_alpha[s];
+                const long long index = TRANSPOSED ? (long long)k_alpha[s] * stride + column
+                                                   : column * stride + k_alpha[s];
                 const double x = exists && k_offset[s] >= 0 ? __ldg(vectors.src_in + index) : 0.0;
-                b[s] = __longlong_as_double(__double_as_longlong(x) ^ (long long)clique::gather_sign_bit(k_member[s], word));
+                b[s] = __longlong_as_double(__double_as_longlong(x) ^
+                                            (long long)clique::gather_sign_bit(k_member[s], word));
                 not_finite |= !isfinite(b[s]);
             }
             const int e_d0 = e0 + 2 * t;
             const int row_d0 = e_d0 < group_end ? clique::tile_word_row(__ldg(words + e_d0)) : -1;
-            const int row_d1 = e_d0 + 1 < group_end ? clique::tile_word_row(__ldg(words + e_d0 + 1)) : -1;
+            const int row_d1 =
+                e_d0 + 1 < group_end ? clique::tile_word_row(__ldg(words + e_d0 + 1)) : -1;
             double y[kMTiles][2];
             if(!fq::device::warp_any(not_finite))
             {
@@ -413,7 +438,8 @@ __global__ void __launch_bounds__(fq::launch::kCliqueThreads) cross_clique_mma_k
 #pragma unroll
                     for(int s = 0; s < kKSteps; ++s)
                     {
-                        asm volatile("mma.sync.aligned.m8n8k4.row.col.f64.f64.f64.f64 {%0,%1}, {%2}, {%3}, {%0,%1};"
+                        asm volatile("mma.sync.aligned.m8n8k4.row.col.f64.f64.f64.f64 {%0,%1}, "
+                                     "{%2}, {%3}, {%0,%1};"
                                      : "+d"(y[i][0]), "+d"(y[i][1])
                                      : "d"(a[i][s]), "d"(b[s]));
                     }
@@ -421,7 +447,6 @@ __global__ void __launch_bounds__(fq::launch::kCliqueThreads) cross_clique_mma_k
             }
             else
             {
-
 
 #pragma unroll
                 for(int i = 0; i < kMTiles; ++i)
@@ -456,11 +481,16 @@ __global__ void __launch_bounds__(fq::launch::kCliqueThreads) cross_clique_mma_k
     const CliqueLane me = lane_member(tables, parent_id, lane);
     if(me.active)
     {
-        flush_tile<NMAX, TRANSPOSED>(row_tile, tile, tables.tile_rows, TRANSPOSED ? geometry.n_a_bra : geometry.n_b_bra,
-                                     geometry.n_a_bra, vectors.out_local, me, lane);
+        flush_tile<NMAX, TRANSPOSED>(row_tile,
+                                     tile,
+                                     tables.tile_rows,
+                                     TRANSPOSED ? geometry.n_a_bra : geometry.n_b_bra,
+                                     geometry.n_a_bra,
+                                     vectors.out_local,
+                                     me,
+                                     lane);
     }
 }
-
 
 template <int NMAX>
 struct CliquePanel
@@ -471,11 +501,11 @@ struct CliquePanel
     static constexpr int kRow = 4 * kKSP;
 };
 
-
 template <int NMAX, bool TRANSPOSED>
-__global__ void __launch_bounds__(256) cross_clique_pack_kernel(const __grid_constant__ FqTileGeometry geometry,
-                                                               const double* __restrict__ source,
-                                                               const __grid_constant__ FqCrossCliqueTables tables)
+__global__ void __launch_bounds__(256)
+    cross_clique_pack_kernel(const __grid_constant__ FqTileGeometry geometry,
+                             const double* __restrict__ source,
+                             const __grid_constant__ FqCrossCliqueTables tables)
 {
     using P = CliquePanel<NMAX>;
     __shared__ int s_alpha[P::kRow];
@@ -513,8 +543,10 @@ __global__ void __launch_bounds__(256) cross_clique_pack_kernel(const __grid_con
             double v = 0.0;
             if(alpha >= 0 && c < ncol)
             {
-                const long long index = TRANSPOSED ? (long long)alpha * stride + column : (long long)column * stride + alpha;
-                v = __longlong_as_double(__double_as_longlong(__ldg(source + index)) ^ (long long)s_sign[q]);
+                const long long index = TRANSPOSED ? (long long)alpha * stride + column
+                                                   : (long long)column * stride + alpha;
+                v = __longlong_as_double(__double_as_longlong(__ldg(source + index)) ^
+                                         (long long)s_sign[q]);
                 not_finite |= !isfinite(v);
             }
             s_tile[c][q] = v;
@@ -532,11 +564,11 @@ __global__ void __launch_bounds__(256) cross_clique_pack_kernel(const __grid_con
     }
 }
 
-
 template <int NMAX, bool SPLIT>
-__global__ void __launch_bounds__(fq::launch::kCliqueThreads) cross_clique_panel_kernel(const __grid_constant__ FqTileGeometry geometry,
-                                                                                      const __grid_constant__ FqVectors vectors,
-                                                                                      const __grid_constant__ FqCrossCliqueTables tables)
+__global__ void __launch_bounds__(fq::launch::kCliqueThreads)
+    cross_clique_panel_kernel(const __grid_constant__ FqTileGeometry geometry,
+                              const __grid_constant__ FqVectors vectors,
+                              const __grid_constant__ FqCrossCliqueTables tables)
 {
     using P = CliquePanel<NMAX>;
     constexpr int MT = P::kMTiles;
@@ -569,7 +601,8 @@ __global__ void __launch_bounds__(fq::launch::kCliqueThreads) cross_clique_panel
     for(int s = 0; s < KS; ++s)
     {
         const int k = 4 * s + t;
-        k_offset[s] = k < count ? clique::member_orbital(__ldg(members + first + k)) * tables.orbitals : -1;
+        k_offset[s] =
+            k < count ? clique::member_orbital(__ldg(members + first + k)) * tables.orbitals : -1;
     }
     int m_orbital[MT];
 #pragma unroll
@@ -590,7 +623,8 @@ __global__ void __launch_bounds__(fq::launch::kCliqueThreads) cross_clique_panel
         unsigned long long word = e0 + g < end ? __ldg(words + e0 + g) : 0ull;
         for(int group = first_group; group < last_group; ++group)
         {
-            const double* block = tables.coefficients + (long long)__ldg(tables.group_pairs + group) * block_size;
+            const double* block =
+                tables.coefficients + (long long)__ldg(tables.group_pairs + group) * block_size;
             double a[MT][KS];
 #pragma unroll
             for(int i = 0; i < MT; ++i)
@@ -598,10 +632,13 @@ __global__ void __launch_bounds__(fq::launch::kCliqueThreads) cross_clique_panel
 #pragma unroll
                 for(int s = 0; s < KS; ++s)
                 {
-                    a[i][s] = (m_orbital[i] >= 0 && k_offset[s] >= 0) ? __ldg(block + k_offset[s] + m_orbital[i]) : 0.0;
+                    a[i][s] = (m_orbital[i] >= 0 && k_offset[s] >= 0)
+                                  ? __ldg(block + k_offset[s] + m_orbital[i])
+                                  : 0.0;
                 }
             }
-            const int next_end = group + 1 < last_group ? __ldg(tables.group_offsets + group + 2) : end;
+            const int next_end =
+                group + 1 < last_group ? __ldg(tables.group_offsets + group + 2) : end;
             for(; e0 < end; e0 += 8)
             {
                 const int ne = e0 + 8 < end ? e0 + 8 : end;
@@ -613,7 +650,8 @@ __global__ void __launch_bounds__(fq::launch::kCliqueThreads) cross_clique_panel
 #pragma unroll
                 for(int h = 0; h < KSP / 2; ++h)
                 {
-                    const double2 v = exists ? __ldg(reinterpret_cast<const double2*>(row + 8 * h)) : make_double2(0.0, 0.0);
+                    const double2 v = exists ? __ldg(reinterpret_cast<const double2*>(row + 8 * h))
+                                             : make_double2(0.0, 0.0);
                     b[2 * h] = v.x;
                     b[2 * h + 1] = v.y;
                 }
@@ -634,12 +672,14 @@ __global__ void __launch_bounds__(fq::launch::kCliqueThreads) cross_clique_panel
 #pragma unroll
                         for(int s = 0; s < KS; s += 2)
                         {
-                            asm volatile("mma.sync.aligned.m8n8k4.row.col.f64.f64.f64.f64 {%0,%1}, {%2}, {%3}, {%0,%1};"
+                            asm volatile("mma.sync.aligned.m8n8k4.row.col.f64.f64.f64.f64 {%0,%1}, "
+                                         "{%2}, {%3}, {%0,%1};"
                                          : "+d"(y0), "+d"(y1)
                                          : "d"(a[i][s]), "d"(b[s]));
                             if(s + 1 < KS)
                             {
-                                asm volatile("mma.sync.aligned.m8n8k4.row.col.f64.f64.f64.f64 {%0,%1}, {%2}, {%3}, {%0,%1};"
+                                asm volatile("mma.sync.aligned.m8n8k4.row.col.f64.f64.f64.f64 "
+                                             "{%0,%1}, {%2}, {%3}, {%0,%1};"
                                              : "+d"(z0), "+d"(z1)
                                              : "d"(a[i][s + 1]), "d"(b[s + 1]));
                             }
@@ -652,7 +692,8 @@ __global__ void __launch_bounds__(fq::launch::kCliqueThreads) cross_clique_panel
 #pragma unroll
                         for(int s = 0; s < KS; ++s)
                         {
-                            asm volatile("mma.sync.aligned.m8n8k4.row.col.f64.f64.f64.f64 {%0,%1}, {%2}, {%3}, {%0,%1};"
+                            asm volatile("mma.sync.aligned.m8n8k4.row.col.f64.f64.f64.f64 {%0,%1}, "
+                                         "{%2}, {%3}, {%0,%1};"
                                          : "+d"(y0), "+d"(y1)
                                          : "d"(a[i][s]), "d"(b[s]));
                         }
@@ -662,11 +703,13 @@ __global__ void __launch_bounds__(fq::launch::kCliqueThreads) cross_clique_panel
                     {
                         if(row0 >= 0)
                         {
-                            row_tile[row0 * NMAX + m] += __longlong_as_double(__double_as_longlong(y0) ^ sign0);
+                            row_tile[row0 * NMAX + m] +=
+                                __longlong_as_double(__double_as_longlong(y0) ^ sign0);
                         }
                         if(row1 >= 0)
                         {
-                            row_tile[row1 * NMAX + m] += __longlong_as_double(__double_as_longlong(y1) ^ sign1);
+                            row_tile[row1 * NMAX + m] +=
+                                __longlong_as_double(__double_as_longlong(y1) ^ sign1);
                         }
                     }
                 }
@@ -681,11 +724,16 @@ __global__ void __launch_bounds__(fq::launch::kCliqueThreads) cross_clique_panel
     const CliqueLane me = lane_member(tables, parent_id, lane);
     if(me.active)
     {
-        flush_tile<NMAX, false>(row_tile, tile, tables.tile_rows, geometry.n_b_bra, geometry.n_a_bra, vectors.out_local, me,
+        flush_tile<NMAX, false>(row_tile,
+                                tile,
+                                tables.tile_rows,
+                                geometry.n_b_bra,
+                                geometry.n_a_bra,
+                                vectors.out_local,
+                                me,
                                 lane);
     }
 }
-
 
 template <typename F>
 int with_panel_instance(const int bucket, F f)
@@ -694,41 +742,51 @@ int with_panel_instance(const int bucket, F f)
     {
     case 0:
         return f(cross_clique_panel_kernel<clique::bucket_members(0), true>,
-                 cross_clique_pack_kernel<clique::bucket_members(0), false>, clique::bucket_members(0),
+                 cross_clique_pack_kernel<clique::bucket_members(0), false>,
+                 clique::bucket_members(0),
                  CliquePanel<clique::bucket_members(0)>::kRow);
     case 1:
         return f(cross_clique_panel_kernel<clique::bucket_members(1), false>,
-                 cross_clique_pack_kernel<clique::bucket_members(1), false>, clique::bucket_members(1),
+                 cross_clique_pack_kernel<clique::bucket_members(1), false>,
+                 clique::bucket_members(1),
                  CliquePanel<clique::bucket_members(1)>::kRow);
     case 2:
         return f(cross_clique_panel_kernel<clique::bucket_members(2), false>,
-                 cross_clique_pack_kernel<clique::bucket_members(2), false>, clique::bucket_members(2),
+                 cross_clique_pack_kernel<clique::bucket_members(2), false>,
+                 clique::bucket_members(2),
                  CliquePanel<clique::bucket_members(2)>::kRow);
     case 3:
         return f(cross_clique_panel_kernel<clique::bucket_members(3), false>,
-                 cross_clique_pack_kernel<clique::bucket_members(3), false>, clique::bucket_members(3),
+                 cross_clique_pack_kernel<clique::bucket_members(3), false>,
+                 clique::bucket_members(3),
                  CliquePanel<clique::bucket_members(3)>::kRow);
     case 4:
         return f(cross_clique_panel_kernel<clique::bucket_members(4), false>,
-                 cross_clique_pack_kernel<clique::bucket_members(4), false>, clique::bucket_members(4),
+                 cross_clique_pack_kernel<clique::bucket_members(4), false>,
+                 clique::bucket_members(4),
                  CliquePanel<clique::bucket_members(4)>::kRow);
     case 5:
         return f(cross_clique_panel_kernel<clique::bucket_members(5), false>,
-                 cross_clique_pack_kernel<clique::bucket_members(5), false>, clique::bucket_members(5),
+                 cross_clique_pack_kernel<clique::bucket_members(5), false>,
+                 clique::bucket_members(5),
                  CliquePanel<clique::bucket_members(5)>::kRow);
     case 6:
         return f(cross_clique_panel_kernel<clique::bucket_members(6), false>,
-                 cross_clique_pack_kernel<clique::bucket_members(6), false>, clique::bucket_members(6),
+                 cross_clique_pack_kernel<clique::bucket_members(6), false>,
+                 clique::bucket_members(6),
                  CliquePanel<clique::bucket_members(6)>::kRow);
     default:
         return int(cudaErrorInvalidValue);
     }
 }
 
-
 template <typename F>
-int with_clique_instance(const int bucket, const int edges_per_batch, const bool transposed, const bool mma,
-                         const bool distinct_rows, F f)
+int with_clique_instance(const int bucket,
+                         const int edges_per_batch,
+                         const bool transposed,
+                         const bool mma,
+                         const bool distinct_rows,
+                         F f)
 {
     const auto pick = [&](auto nmax) {
         constexpr int NMAX = decltype(nmax)::value;
@@ -748,7 +806,8 @@ int with_clique_instance(const int bucket, const int edges_per_batch, const bool
             {
                 return mma_for(std::integral_constant<int, 4>{});
             }
-            return transposed ? f(cross_clique_kernel<NMAX, 4, true>, NMAX) : f(cross_clique_kernel<NMAX, 4, false>, NMAX);
+            return transposed ? f(cross_clique_kernel<NMAX, 4, true>, NMAX)
+                              : f(cross_clique_kernel<NMAX, 4, false>, NMAX);
         }
         if(edges_per_batch == 8)
         {
@@ -756,7 +815,8 @@ int with_clique_instance(const int bucket, const int edges_per_batch, const bool
             {
                 return mma_for(std::integral_constant<int, 8>{});
             }
-            return transposed ? f(cross_clique_kernel<NMAX, 8, true>, NMAX) : f(cross_clique_kernel<NMAX, 8, false>, NMAX);
+            return transposed ? f(cross_clique_kernel<NMAX, 8, true>, NMAX)
+                              : f(cross_clique_kernel<NMAX, 8, false>, NMAX);
         }
         return int(cudaErrorInvalidValue);
     };
@@ -781,7 +841,7 @@ int with_clique_instance(const int bucket, const int edges_per_batch, const bool
     }
 }
 
-}
+} // namespace
 
 extern "C"
 {
@@ -799,9 +859,16 @@ extern "C"
                         for(const bool distinct_rows : {false, true})
                         {
                             const int status = with_clique_instance(
-                                bucket, edges_per_batch, transposed, mma, distinct_rows, [&](auto kernel, int) {
+                                bucket,
+                                edges_per_batch,
+                                transposed,
+                                mma,
+                                distinct_rows,
+                                [&](auto kernel, int) {
                                     return int(cudaFuncSetAttribute(
-                                        kernel, cudaFuncAttributeMaxDynamicSharedMemorySize, max_shared_bytes));
+                                        kernel,
+                                        cudaFuncAttributeMaxDynamicSharedMemorySize,
+                                        max_shared_bytes));
                                 });
                             if(status != int(cudaSuccess))
                             {
@@ -812,7 +879,8 @@ extern "C"
                 }
             }
             const int status = with_panel_instance(bucket, [&](auto kernel, auto, int, int) {
-                return int(cudaFuncSetAttribute(kernel, cudaFuncAttributeMaxDynamicSharedMemorySize, max_shared_bytes));
+                return int(cudaFuncSetAttribute(
+                    kernel, cudaFuncAttributeMaxDynamicSharedMemorySize, max_shared_bytes));
             });
             if(status != int(cudaSuccess))
             {
@@ -828,7 +896,6 @@ extern "C"
                                      void* stream)
     {
 
-
         const long long jobs = (long long)tables->num_parents * tables->num_tiles;
         if(jobs <= 0)
         {
@@ -840,14 +907,21 @@ extern "C"
         }
         const unsigned int blocks =
             static_cast<unsigned int>((jobs + clique::kWarpsPerBlock - 1) / clique::kWarpsPerBlock);
-        return with_clique_instance(tables->bucket, tables->edges_per_batch, tables->transposed != 0, true,
-                                    tables->distinct_rows != 0, [&](auto kernel, const int nmax) {
-                                        const std::size_t bytes =
-                                            clique::shared_bytes(nmax, tables->edges_per_batch, tables->tile_rows);
-                                        kernel<<<blocks, fq::launch::kCliqueThreads, bytes,
-                                                 static_cast<cudaStream_t>(stream)>>>(*geometry, *vectors, *tables);
-                                        return int(cudaGetLastError());
-                                    });
+        return with_clique_instance(
+            tables->bucket,
+            tables->edges_per_batch,
+            tables->transposed != 0,
+            true,
+            tables->distinct_rows != 0,
+            [&](auto kernel, const int nmax) {
+                const std::size_t bytes =
+                    clique::shared_bytes(nmax, tables->edges_per_batch, tables->tile_rows);
+                kernel<<<blocks,
+                         fq::launch::kCliqueThreads,
+                         bytes,
+                         static_cast<cudaStream_t>(stream)>>>(*geometry, *vectors, *tables);
+                return int(cudaGetLastError());
+            });
     }
 
     int fq_launch_cross_clique_pack(const FqTileGeometry* geometry,
@@ -855,7 +929,6 @@ extern "C"
                                     const FqCrossCliqueTables* tables,
                                     void* stream)
     {
-
 
         if(tables->num_parents <= 0 || tables->panel_columns <= 0)
         {
@@ -868,7 +941,8 @@ extern "C"
         const auto cuda_stream = static_cast<cudaStream_t>(stream);
         return with_panel_instance(tables->bucket, [&](auto, auto pack, int, int) {
             const dim3 pack_grid(static_cast<unsigned int>((tables->panel_columns + 31) / 32),
-                                 static_cast<unsigned int>(tables->num_parents < 65535 ? tables->num_parents : 65535));
+                                 static_cast<unsigned int>(
+                                     tables->num_parents < 65535 ? tables->num_parents : 65535));
             pack<<<pack_grid, 256, 0, cuda_stream>>>(*geometry, vectors->src_in, *tables);
             return int(cudaGetLastError());
         });
@@ -900,35 +974,50 @@ extern "C"
         const bool panel = tables->panel != nullptr;
         if(panel)
         {
-            if(tables->nonfinite == nullptr || tables->transposed != 0 || tables->mma == 0 || tables->distinct_rows == 0 ||
-               tables->panel_columns <= 0)
+            if(tables->nonfinite == nullptr || tables->transposed != 0 || tables->mma == 0 ||
+               tables->distinct_rows == 0 || tables->panel_columns <= 0)
             {
                 return int(cudaErrorInvalidValue);
             }
 
-
-            cudaMemsetAsync(tables->nonfinite, 0, sizeof(std::int32_t), cuda_stream);
-            const int status = with_panel_instance(tables->bucket, [&](auto kernel, auto pack, const int nmax, int) {
-                const dim3 pack_grid(static_cast<unsigned int>((tables->panel_columns + 31) / 32),
-                                     static_cast<unsigned int>(tables->num_parents < 65535 ? tables->num_parents : 65535));
-                pack<<<pack_grid, 256, 0, cuda_stream>>>(*geometry, vectors->src_in, *tables);
-                const std::size_t bytes = std::size_t(clique::kWarpsPerBlock) * tables->tile_rows * nmax * sizeof(double);
-                kernel<<<blocks, fq::launch::kCliqueThreads, bytes, cuda_stream>>>(*geometry, *vectors, *tables);
-                return int(cudaGetLastError());
-            });
+            const cudaError_t cleared =
+                cudaMemsetAsync(tables->nonfinite, 0, sizeof(std::int32_t), cuda_stream);
+            if(cleared != cudaSuccess)
+            {
+                return int(cleared);
+            }
+            const int status = with_panel_instance(
+                tables->bucket, [&](auto kernel, auto pack, const int nmax, int) {
+                    const dim3 pack_grid(
+                        static_cast<unsigned int>((tables->panel_columns + 31) / 32),
+                        static_cast<unsigned int>(tables->num_parents < 65535 ? tables->num_parents
+                                                                              : 65535));
+                    pack<<<pack_grid, 256, 0, cuda_stream>>>(*geometry, vectors->src_in, *tables);
+                    const std::size_t bytes = std::size_t(clique::kWarpsPerBlock) *
+                                              tables->tile_rows * nmax * sizeof(double);
+                    kernel<<<blocks, fq::launch::kCliqueThreads, bytes, cuda_stream>>>(
+                        *geometry, *vectors, *tables);
+                    return int(cudaGetLastError());
+                });
             if(status != int(cudaSuccess))
             {
                 return status;
             }
         }
-        return with_clique_instance(tables->bucket, tables->edges_per_batch, tables->transposed != 0, tables->mma != 0,
-                                    tables->distinct_rows != 0,
-                                    [&](auto kernel, const int nmax) {
-                                        const std::size_t bytes =
-                                            clique::shared_bytes(nmax, tables->edges_per_batch, tables->tile_rows);
-                                        kernel<<<blocks, fq::launch::kCliqueThreads, bytes,
-                                                 static_cast<cudaStream_t>(stream)>>>(*geometry, *vectors, *tables);
-                                        return int(cudaGetLastError());
-                                    });
+        return with_clique_instance(
+            tables->bucket,
+            tables->edges_per_batch,
+            tables->transposed != 0,
+            tables->mma != 0,
+            tables->distinct_rows != 0,
+            [&](auto kernel, const int nmax) {
+                const std::size_t bytes =
+                    clique::shared_bytes(nmax, tables->edges_per_batch, tables->tile_rows);
+                kernel<<<blocks,
+                         fq::launch::kCliqueThreads,
+                         bytes,
+                         static_cast<cudaStream_t>(stream)>>>(*geometry, *vectors, *tables);
+                return int(cudaGetLastError());
+            });
     }
 }

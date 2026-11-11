@@ -118,7 +118,9 @@ def test_predicted_hbm_bytes_shape():
         "arm_caches",
         "aabb_csr",
         "aabb_parent_extra",
+        "aabb_remote_alpha_metadata",
         "aabb_remote_beta_metadata",
+        "aabb_direct",
     }
     assert pred["v_local"] == 12 * 8
     assert pred["out_local"] == 12 * 8
@@ -175,7 +177,8 @@ def test_verify_hbm_fits_raises_on_overrun(monkeypatch):
     col.reset_for_testing()
     hsub = _make_tiny_hsub()
     n_a, n_b = 32, 32
-    with pytest.raises(RuntimeError, match=r"predicted.*free_bytes"):
+    expected = r"pending=\d+ B .*free_bytes=1024 B"
+    with pytest.raises(RuntimeError, match=expected) as info:
         TileGPUResidentHamiltonian(
             hsub,
             np.arange(n_a, dtype=np.uint64),
@@ -183,6 +186,9 @@ def test_verify_hbm_fits_raises_on_overrun(monkeypatch):
             comm=MPI.COMM_SELF,
             comm_backend="host_mpi",
         )
+    # The pending scratch alone (1 GiB) exceeds 1.2 * 1024 B of free memory.
+    pending = int(str(info.value).split("pending=")[1].split(" B")[0])
+    assert pending >= TileGPUResidentHamiltonian._SCRATCH_BYTES > 1.2 * 1024
 
 
 def test_mixed_neighbors_empty_at_comm_self():

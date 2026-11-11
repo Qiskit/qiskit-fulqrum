@@ -20,11 +20,21 @@ import warnings
 import numpy as np
 from scipy.sparse.linalg import LinearOperator
 
+from ..core.spmv import FulqrumSpMV
 from ..exceptions import FulqrumError
+from .common.wide import max_electrons, popcount_w, sort_strings, width_error
 from .distributed.dist_matvec import _default_2d_process_grid
 from .distributed.local_comm import LocalComm, run_ranks
 
 logger = logging.getLogger(__name__)
+
+
+def _sector_electrons(subspace):
+
+    alpha, beta = subspace.alpha_strs, subspace.beta_strs
+    if alpha is None or beta is None:
+        return None
+    return max_electrons(alpha), max_electrons(beta)
 
 
 def _check_gpu_preconditions(hsub, classname: str) -> None:
@@ -40,9 +50,9 @@ def _check_gpu_preconditions(hsub, classname: str) -> None:
             f"{classname} requires a half-string Subspace. "
             "Construct it with: fq.Subspace([alpha_strs, beta_strs])."
         )
-    a_arr, b_arr = subspace.to_alpha_beta_arrays()
-    low_a = a_arr.size and min(int(x).bit_count() for x in a_arr) < 2
-    low_b = b_arr.size and min(int(x).bit_count() for x in b_arr) < 2
+    a_arr, b_arr = subspace._alpha_beta_words(2)
+    low_a = a_arr.size and int(popcount_w(a_arr).min()) < 2
+    low_b = b_arr.size and int(popcount_w(b_arr).min()) < 2
     if low_a or low_b:
         warnings.warn(
             f"{classname}: subspace contains alpha or beta half-strings with Hamming weight < 2. "
@@ -55,28 +65,17 @@ def _check_gpu_preconditions(hsub, classname: str) -> None:
 
 
 class GPUHamiltonian(LinearOperator):
-    """GPU-backed real type-2 Hamiltonian for matrix-free matvec and eigensolving.
+    """GPU-accelerated real type-2 Hamiltonian for tensor-product subspace (non-MPI).
 
-    This SciPy ``LinearOperator`` represents the full tensor-product subspace.
-    It can be used with ``operator @ vector`` and LinearOperator-compatible
-    eigensolvers such as ``scipy.sparse.linalg.eigsh`` and ``primme.eigsh``.
-    Each entry in ``gpu_ids`` creates one worker; the wrapper partitions the
-    calculation and combines the results. MPI is not required for this wrapper.
-    For multiple processes, use ``DistributedMPIGPUHamiltonian``.
+    It performs matrix-free ``matrix @ vector`` (matvec) product and can used
+    with SciPy LinearOperator-compatible eigensolvers such as
+    ``scipy.sparse.linalg.eigsh`` and ``primme.eigsh``.
+    MPI is not required to use single or multiple GPUs on a single node via
+    this wrapper. For multiple processes, use ``DistributedMPIGPUHamiltonian``.
 
-    Supported inputs use ``fq.Subspace([alpha_strs, beta_strs])``, with alpha in
-    the low qubits and beta in the high qubits. Each spin-sector must contain 1–64
-    orbitals (bits), have a fixed electron count, and pass the GPU operator checks.
-    Verified GPU support requires at least two occupied orbitals in every half
-    string. Smaller occupations trigger ``RuntimeWarning`` and may produce
+    Requires at least two occupied orbitals in every half string.
+    Smaller occupations trigger ``RuntimeWarning`` and may produce
     incorrect results.
-
-    The LinearOperator has shape ``(N, N)`` and dtype ``float64``, where
-    ``N = n_alpha * n_beta`` and each count is the number of half strings.
-    Half strings are sorted independently. Vector index
-    ``beta_index * n_alpha + alpha_index`` identifies the corresponding product
-    state (full determinant). ``matvec`` accepts a full real host vector of shape
-    ``(N,)`` or ``(N, 1)`` and returns a NumPy ``float64`` array of the same shape.
 
     Args:
         hsub: Real type-2 ``SubspaceHamiltonian`` on the half-string/tensor product
@@ -104,6 +103,16 @@ class GPUHamiltonian(LinearOperator):
             raise NotImplementedError(
                 "GPUHamiltonian currently supports real-valued operators only."
             )
+        spmv = hsub.spmv
+        if isinstance(spmv, FulqrumSpMV):
+            num_alpha = int(spmv.subspace.num_alpha_qubits)
+            error = width_error(
+                (num_alpha, int(spmv.width) - num_alpha),
+                _sector_electrons(spmv.subspace),
+                max_words=2,
+            )
+            if error:
+                raise FulqrumError(f"GPUHamiltonian failed: {error}")
         _check_gpu_preconditions(hsub, "GPUHamiltonian")
         import cupy  # noqa: PLC0415
 
@@ -114,10 +123,10 @@ class GPUHamiltonian(LinearOperator):
         self._gpu_ids = tuple(int(gid) for gid in gpu_ids)
         if not self._gpu_ids:
             raise ValueError("GPUHamiltonian needs at least one GPU id")
-        alpha, beta = hsub.spmv.subspace.to_alpha_beta_arrays()
-        alpha = np.sort(np.asarray(alpha, dtype=np.uint64))
-        beta = np.sort(np.asarray(beta, dtype=np.uint64))
-        self._n_a, self._n_b = int(alpha.size), int(beta.size)
+        alpha, beta = hsub.spmv.subspace._alpha_beta_words(2)
+        alpha = sort_strings(alpha)
+        beta = sort_strings(beta)
+        self._n_a, self._n_b = int(alpha.shape[0]), int(beta.shape[0])
         super().__init__(
             shape=(self._n_a * self._n_b, self._n_a * self._n_b), dtype=np.float64
         )
@@ -170,6 +179,25 @@ class GPUHamiltonian(LinearOperator):
         existing measurements and does not launch GPU work.
         """
         return [op.last_timing for op in self._ranks]
+
+    def _run_and_recover(self, function):
+
+        import cupy  # noqa: PLC0415
+
+        try:
+            return run_ranks(self._comms, function)
+        except BaseException:
+            for gpu_id, op in zip(self._gpu_ids, self._ranks):
+                with cupy.cuda.Device(gpu_id):
+                    try:
+                        cupy.cuda.runtime.deviceSynchronize()
+                    except Exception:  # noqa: BLE001
+                        pass
+                    try:
+                        op.reset_cache()
+                    except Exception:  # noqa: BLE001
+                        pass
+            raise
 
     def reset_cache(self) -> None:
         """Clear cached GPU connection data on every worker.
@@ -225,16 +253,16 @@ class GPUHamiltonian(LinearOperator):
                 )
             out[b0:b1, a0:a1] = np.asarray(tile).reshape(b1 - b0, a1 - a0)
 
-        run_ranks(self._comms, product)
+        self._run_and_recover(product)
         return out.reshape(-1)
 
     def compute_rdms(self, evec, *, rank: int = 1, spin_summed: bool = False):
         """Compute one- and optionally two-particle reduced density matrices.
 
         Pass the full real state vector in the same sorted product order as
-        ``matvec``. The wrapper distributes it to every worker and returns the
-        combined result as host NumPy arrays after GPU work completes. Alpha
-        and beta must have equal orbital counts for this operation.
+        the tensor-product subspace. The wrapper distributes it to every worker
+        and returns the combined result as host NumPy arrays after GPU work completes.
+        Alpha and beta must have equal orbital counts for this operation.
 
         Amplitudes are used without normalization: scaling the vector by a
         real factor scales every RDM by its square. Normalize the vector before
@@ -255,6 +283,7 @@ class GPUHamiltonian(LinearOperator):
             is the common number of orbitals per sector.
 
         Raises:
+            FulqrumError: A sector has more than 128 orbitals.
             ValueError: The RDM order or vector length is invalid, or alpha and
                 beta have different orbital counts.
         """
@@ -283,4 +312,4 @@ class GPUHamiltonian(LinearOperator):
                     spin_summed=spin_summed,
                 )
 
-        return run_ranks(self._comms, rdms)[0]
+        return self._run_and_recover(rdms)[0]

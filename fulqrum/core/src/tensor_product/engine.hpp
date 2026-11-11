@@ -20,8 +20,8 @@
 #include <type_traits>
 #include <vector>
 
-#include "build.hpp"
 #include "../tier_utils.hpp"
+#include "build.hpp"
 
 inline constexpr int NARROW_BLOCK = 8;
 inline constexpr int WIDE_BLOCK = 32;
@@ -33,9 +33,12 @@ bool use_wide_blocks(const TensorProductEngine<T>& tier, const int sector)
 {
     const SectorConnections<T>& connections = tier.sectors[sector];
     const std::uint64_t num_strings = tier.num_strings[sector];
-    const std::size_t block_rows = 2 * num_strings + (tier.cross_formed ? connections.slot_pair.size() : 0);
-    const std::uint64_t entries = connections.single_offsets.back() + connections.double_offsets.back();
-    return entries >= WIDE_BLOCK_ENTRIES * num_strings && block_rows * WIDE_BLOCK * sizeof(T) <= WIDE_BLOCK_BYTES;
+    const std::size_t block_rows =
+        2 * num_strings + (tier.cross_formed ? connections.slot_pair.size() : 0);
+    const std::uint64_t entries =
+        connections.single_offsets.back() + connections.double_offsets.back();
+    return entries >= WIDE_BLOCK_ENTRIES * num_strings &&
+           block_rows * WIDE_BLOCK * sizeof(T) <= WIDE_BLOCK_BYTES;
 }
 
 /**
@@ -58,9 +61,13 @@ void apply_alpha_arm_blocks(const TensorProductEngine<T>& tier, const T* diag, c
     const UpperConnections<T>& upper = tier.upper[0];
     const std::size_t num_blocks = ceiling_divide(num_beta, R);
     const std::size_t block_cells = checked_multiply(num_alpha, R);
-    const std::size_t occupancy_cells = tier.cross_formed ? checked_multiply(checked_multiply(2, tier.num_orbitals[1]), R) : 0;
-    const std::size_t cross_cells = tier.cross_formed ? checked_multiply(tier.sectors[0].slot_pair.size(), R) : 0;
-    checked_add(checked_add(checked_multiply(block_cells, 2 * sizeof(T)), checked_multiply(occupancy_cells, sizeof(double))), checked_multiply(cross_cells, sizeof(T)));
+    const std::size_t occupancy_cells =
+        tier.cross_formed ? checked_multiply(checked_multiply(2, tier.num_orbitals[1]), R) : 0;
+    const std::size_t cross_cells =
+        tier.cross_formed ? checked_multiply(tier.sectors[0].slot_pair.size(), R) : 0;
+    checked_add(checked_add(checked_multiply(block_cells, 2 * sizeof(T)),
+                            checked_multiply(occupancy_cells, sizeof(double))),
+                checked_multiply(cross_cells, sizeof(T)));
 #pragma omp parallel
     {
         std::vector<T> x_block(block_cells);
@@ -77,8 +84,14 @@ void apply_alpha_arm_blocks(const TensorProductEngine<T>& tier, const T* diag, c
 
             if(tier.cross_formed)
             {
-                form_cross_block<R>(tier.cross[0], tier.half_keys[1].data(), tier.half_words[1], tier.num_orbitals[1],
-                                    first_beta, rows, occupancy.data(), cross_block.data());
+                form_cross_block<R>(tier.cross[0],
+                                    tier.half_keys[1].data(),
+                                    tier.half_words[1],
+                                    tier.num_orbitals[1],
+                                    first_beta,
+                                    rows,
+                                    occupancy.data(),
+                                    cross_block.data());
             }
             else
             {
@@ -109,7 +122,9 @@ void apply_alpha_arm_blocks(const TensorProductEngine<T>& tier, const T* diag, c
                     const std::uint32_t column = single_column(packed_entry);
                     const T base = upper.single_values[k];
                     const double own_sign = single_own_sign(packed_entry);
-                    const T* cross = cross_rows + alpha.pair_slot[single_directed_pair(packed_entry)] * cross_stride;
+                    const T* cross =
+                        cross_rows +
+                        alpha.pair_slot[single_directed_pair(packed_entry)] * cross_stride;
                     const T* x_column = x_block.data() + std::size_t(column) * R;
                     T* y_column = y_block.data() + std::size_t(column) * R;
 
@@ -174,9 +189,13 @@ void add_beta_arm_blocks(const TensorProductEngine<T>& tier, const T* x, T* y)
     const UpperConnections<T>& upper = tier.upper[1];
     const std::size_t num_blocks = ceiling_divide(num_alpha, R);
     const std::size_t block_cells = checked_multiply(num_beta, R);
-    const std::size_t occupancy_cells = tier.cross_formed ? checked_multiply(checked_multiply(2, tier.num_orbitals[0]), R) : 0;
-    const std::size_t cross_cells = tier.cross_formed ? checked_multiply(tier.sectors[1].slot_pair.size(), R) : 0;
-    checked_add(checked_add(checked_multiply(block_cells, 2 * sizeof(T)), checked_multiply(occupancy_cells, sizeof(double))), checked_multiply(cross_cells, sizeof(T)));
+    const std::size_t occupancy_cells =
+        tier.cross_formed ? checked_multiply(checked_multiply(2, tier.num_orbitals[0]), R) : 0;
+    const std::size_t cross_cells =
+        tier.cross_formed ? checked_multiply(tier.sectors[1].slot_pair.size(), R) : 0;
+    checked_add(checked_add(checked_multiply(block_cells, 2 * sizeof(T)),
+                            checked_multiply(occupancy_cells, sizeof(double))),
+                checked_multiply(cross_cells, sizeof(T)));
 #pragma omp parallel
     {
         std::vector<T> x_block(block_cells);
@@ -193,8 +212,14 @@ void add_beta_arm_blocks(const TensorProductEngine<T>& tier, const T* x, T* y)
 
             if(tier.cross_formed)
             {
-                form_cross_block<R>(tier.cross[1], tier.half_keys[0].data(), tier.half_words[0], tier.num_orbitals[0],
-                                    first_alpha, columns, occupancy.data(), formed_block.data());
+                form_cross_block<R>(tier.cross[1],
+                                    tier.half_keys[0].data(),
+                                    tier.half_words[0],
+                                    tier.num_orbitals[0],
+                                    first_alpha,
+                                    columns,
+                                    occupancy.data(),
+                                    formed_block.data());
             }
             else
             {
@@ -225,7 +250,9 @@ void add_beta_arm_blocks(const TensorProductEngine<T>& tier, const T* x, T* y)
                     const std::uint32_t column = single_column(packed_entry);
                     const T base = upper.single_values[k];
                     const double own_sign = single_own_sign(packed_entry);
-                    const T* cross = cross_rows + beta.pair_slot[single_directed_pair(packed_entry)] * cross_stride;
+                    const T* cross =
+                        cross_rows +
+                        beta.pair_slot[single_directed_pair(packed_entry)] * cross_stride;
 
                     for(int r = 0; r < R; r++)
                     {
@@ -328,13 +355,15 @@ inline T gather_cross_sum(const T* __restrict coefficients,
         {
             for(int u = 0; u < 4; u++)
             {
-                partial[u] += coefficients[index[k + u] >> 32] * x_row[static_cast<std::uint32_t>(index[k + u])];
+                partial[u] += coefficients[index[k + u] >> 32] *
+                              x_row[static_cast<std::uint32_t>(index[k + u])];
             }
         }
 
         for(; k < last; k++)
         {
-            partial[0] += coefficients[index[k] >> 32] * x_row[static_cast<std::uint32_t>(index[k])];
+            partial[0] +=
+                coefficients[index[k] >> 32] * x_row[static_cast<std::uint32_t>(index[k])];
         }
 
         sum = partial[0] + partial[1] + partial[2] + partial[3];
@@ -350,11 +379,12 @@ inline T gather_cross_sum(const T* __restrict coefficients,
     return sum;
 }
 
-inline void add_cross_slot_batches(const TensorProductEngine<double>& tier, const double* x, double* y)
+inline void
+add_cross_slot_batches(const TensorProductEngine<double>& tier, const double* x, double* y)
 {
     constexpr int L = CROSS_BATCH_LANES;
     const std::size_t num_alpha = tier.num_strings[0];
-    const std::size_t alpha_columns = 2 * tier.sectors[0].slot_pair.size();
+    const CrossSectorTable<double>& table = tier.cross_sector_table;
     const std::uint64_t* __restrict offsets = tier.sectors[0].single_offsets.data();
     const std::uint64_t* __restrict index = tier.sectors[0].single_cross_index.data();
     const CrossSlotBatches& batches = tier.cross_batches;
@@ -370,13 +400,15 @@ inline void add_cross_slot_batches(const TensorProductEngine<double>& tier, cons
             const std::size_t first_alpha = batches.tile_first_alpha[tile];
             const std::size_t last_alpha = batches.tile_last_alpha[tile];
 
-            for(std::uint64_t batch = batches.block_first_batch[block]; batch < batches.block_first_batch[block + 1];
+            for(std::uint64_t batch = batches.block_first_batch[block];
+                batch < batches.block_first_batch[block + 1];
                 batch++)
             {
                 const int count = static_cast<int>(batches.batch_count[batch]);
                 const std::uint64_t first = batches.batch_first[batch];
                 const double* __restrict coefficients =
-                    tier.cross_sector_table.data() + std::size_t(batches.batch_slot[batch]) * alpha_columns;
+                    table.values.data() +
+                    std::size_t(table.row_of_slot[batches.batch_slot[batch]]) * table.num_columns;
                 const double* source[L];
                 double* target[L];
                 double sign[L];
@@ -464,14 +496,19 @@ void add_sparse_cross_arm(const TensorProductEngine<T>& tier, const T* x, T* y)
             const std::uint32_t beta_slot = beta.pair_slot[single_directed_pair(packed_entry)];
             const double beta_sign = single_jw_sign(packed_entry);
 
-            for(std::uint64_t entry = sparse.offsets[beta_slot]; entry < sparse.offsets[beta_slot + 1]; entry++)
+            for(std::uint64_t entry = sparse.offsets[beta_slot];
+                entry < sparse.offsets[beta_slot + 1];
+                entry++)
             {
                 const std::uint32_t alpha_slot = sparse.alpha_slot[entry];
                 const T value = beta_sign * sparse.value[entry];
 
-                for(std::uint64_t k = sparse.single_offsets[alpha_slot]; k < sparse.single_offsets[alpha_slot + 1]; k++)
+                for(std::uint64_t k = sparse.single_offsets[alpha_slot];
+                    k < sparse.single_offsets[alpha_slot + 1];
+                    k++)
                 {
-                    y_row[sparse.single_row[k]] += value * sparse.single_sign[k] * x_row[sparse.single_column[k]];
+                    y_row[sparse.single_row[k]] +=
+                        value * sparse.single_sign[k] * x_row[sparse.single_column[k]];
                 }
             }
         }
@@ -492,7 +529,7 @@ void add_cross_sector_arm(const TensorProductEngine<T>& tier, const T* x, T* y)
     const std::size_t num_beta = tier.num_strings[1];
     const SectorConnections<T>& alpha = tier.sectors[0];
     const SectorConnections<T>& beta = tier.sectors[1];
-    const std::size_t alpha_columns = 2 * alpha.slot_pair.size();
+    const CrossSectorTable<T>& table = tier.cross_sector_table;
     const std::uint64_t* __restrict index = alpha.single_cross_index.data();
 
     if(!tier.sparse_cross.offsets.empty())
@@ -520,7 +557,9 @@ void add_cross_sector_arm(const TensorProductEngine<T>& tier, const T* x, T* y)
             const std::uint64_t packed_entry = beta.single_packed_entries[kb];
             const T* __restrict x_row = x + std::size_t(single_column(packed_entry)) * num_alpha;
             const T* __restrict coefficients =
-                tier.cross_sector_table.data() + beta.pair_slot[single_directed_pair(packed_entry)] * alpha_columns;
+                table.values.data() +
+                std::size_t(table.row_of_slot[beta.pair_slot[single_directed_pair(packed_entry)]]) *
+                    table.num_columns;
             const double beta_sign = single_jw_sign(packed_entry);
 
             for(std::size_t a = 0; a < num_alpha; a++)
@@ -566,7 +605,10 @@ void tensor_product_apply(const TensorProductEngine<T>& tier, const T* diag, con
  * @param emit The callback.
  */
 template <typename T, typename Emit>
-void tensor_product_row_elements(const TensorProductEngine<T>& tier, const T* diag, const std::size_t row, Emit&& emit)
+void tensor_product_row_elements(const TensorProductEngine<T>& tier,
+                                 const T* diag,
+                                 const std::size_t row,
+                                 Emit&& emit)
 {
     const std::size_t num_alpha = tier.num_strings[0];
     const std::size_t b = row / num_alpha;
@@ -588,7 +630,8 @@ void tensor_product_row_elements(const TensorProductEngine<T>& tier, const T* di
     for(std::uint64_t k = alpha.single_offsets[a]; k < alpha.single_offsets[a + 1]; k++)
     {
         const std::uint64_t packed_entry = alpha.single_packed_entries[k];
-        const T cross = cross_value(tier, 0, alpha.pair_slot[single_directed_pair(packed_entry)], b);
+        const T cross =
+            cross_value(tier, 0, alpha.pair_slot[single_directed_pair(packed_entry)], b);
         emit_nonzero(b * num_alpha + single_column(packed_entry),
                      alpha.single_values[k] + single_own_sign(packed_entry) * cross);
     }
@@ -611,14 +654,17 @@ void tensor_product_row_elements(const TensorProductEngine<T>& tier, const T* di
         emit_nonzero(std::size_t(beta.double_columns[k]) * num_alpha + a, beta.double_values[k]);
     }
 
-    const std::size_t alpha_columns = 2 * alpha.slot_pair.size();
+    const CrossSectorTable<T>& table = tier.cross_sector_table;
 
     for(std::uint64_t kb = beta.single_offsets[b]; kb < beta.single_offsets[b + 1]; kb++)
     {
         const std::uint64_t packed_entry = beta.single_packed_entries[kb];
         const std::uint32_t beta_slot = beta.pair_slot[single_directed_pair(packed_entry)];
         const bool sparse = !tier.sparse_cross.offsets.empty();
-        const T* coefficients = sparse ? nullptr : tier.cross_sector_table.data() + beta_slot * alpha_columns;
+        const T* coefficients =
+            sparse ? nullptr
+                   : table.values.data() +
+                         std::size_t(table.row_of_slot[beta_slot]) * table.num_columns;
         const std::size_t target_row = std::size_t(single_column(packed_entry)) * num_alpha;
         const double beta_sign = single_jw_sign(packed_entry);
 
@@ -627,7 +673,8 @@ void tensor_product_row_elements(const TensorProductEngine<T>& tier, const T* di
             const std::uint64_t index = alpha.single_cross_index[ka];
             const std::uint32_t signed_slot = static_cast<std::uint32_t>(index >> 32);
             const T coefficient =
-                sparse ? sparse_cross_value(tier.sparse_cross, beta_slot, signed_slot) : coefficients[signed_slot];
+                sparse ? sparse_cross_value(tier.sparse_cross, beta_slot, signed_slot)
+                       : coefficients[signed_slot];
             emit_nonzero(target_row + static_cast<std::uint32_t>(index), beta_sign * coefficient);
         }
     }

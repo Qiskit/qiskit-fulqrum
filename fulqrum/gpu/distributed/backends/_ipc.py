@@ -28,8 +28,6 @@ _DONE_TAG = 2 << 20
 
 
 class IpcPeers:
-
-
     def __init__(self, enabled: bool, node_of, device_of, reason: str):
 
         self.enabled = enabled
@@ -42,10 +40,14 @@ class IpcPeers:
     @classmethod
     def discover(cls, comm) -> "IpcPeers":
 
-
         from ...config import read  # noqa: PLC0415
 
-        want = bool(read("FQ_HOST_MPI_USE_CUDA_IPC"))
+        error = None
+        try:
+            want = bool(read("FQ_HOST_MPI_USE_CUDA_IPC"))
+        except ValueError as exc:
+            want, error = False, str(exc)
+        raise_on_every_rank(comm, error, what="host_mpi IPC settings")
         wants = comm.allgather(want)
         if not any(wants):
             return cls(False, None, None, "FQ_HOST_MPI_USE_CUDA_IPC is off")
@@ -59,12 +61,14 @@ class IpcPeers:
         import cupy  # noqa: PLC0415
         from mpi4py import MPI  # noqa: PLC0415
 
-        if comm.Get_size() != MPI.COMM_WORLD.Get_size():
+        if comm.Get_size() != MPI.COMM_WORLD.Get_size() or MPI.Comm.Compare(
+            comm, MPI.COMM_WORLD
+        ) not in (MPI.IDENT, MPI.CONGRUENT):
             return cls(
                 False,
                 None,
                 None,
-                "the backend communicator is not the world communicator",
+                "the backend communicator is not COMM_WORLD in world rank order",
             )
         tag_ub = MPI.COMM_WORLD.Get_attr(MPI.TAG_UB)
         if tag_ub is None or int(tag_ub) < _DONE_TAG + (1 << 16):
@@ -177,7 +181,6 @@ _LIBCUDA = None
 
 
 def _allocation_base(address: int) -> int:
-
 
     import ctypes  # noqa: PLC0415
 

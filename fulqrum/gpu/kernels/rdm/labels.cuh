@@ -15,14 +15,14 @@
 
 #include <cstdint>
 
-
-__device__ __forceinline__ std::int64_t four_index(const int m, const int p, const int q, const int r, const int s)
+__device__ __forceinline__ std::int64_t
+four_index(const int m, const int p, const int q, const int r, const int s)
 {
     return ((std::int64_t(p) * m + q) * m + r) * m + s;
 }
 
-
-__device__ __forceinline__ int parity_between(const std::uint64_t key, const int low, const int high)
+__device__ __forceinline__ int
+parity_between(const std::uint64_t key, const int low, const int high)
 {
     if(high <= low + 1)
     {
@@ -32,9 +32,8 @@ __device__ __forceinline__ int parity_between(const std::uint64_t key, const int
     return __popcll(key & mask) & 1;
 }
 
-
-__device__ __forceinline__ double double_move_sign(std::uint64_t key, const int q, const int s, const int r,
-                                                   const int p)
+__device__ __forceinline__ double
+double_move_sign(std::uint64_t key, const int q, const int s, const int r, const int p)
 {
     const int orbital[4] = {q, s, r, p};
     double sign = 1.0;
@@ -55,7 +54,6 @@ __device__ __forceinline__ double double_move_sign(std::uint64_t key, const int 
     return sign;
 }
 
-
 __device__ __forceinline__ void lowest_four_bits(std::uint64_t x, int* position)
 {
     int count = 0;
@@ -69,7 +67,6 @@ __device__ __forceinline__ void lowest_four_bits(std::uint64_t x, int* position)
         position[count++] = 0;
     }
 }
-
 
 __device__ __forceinline__ double warp_sum(double value)
 {

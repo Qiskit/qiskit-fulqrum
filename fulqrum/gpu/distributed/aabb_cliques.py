@@ -27,7 +27,6 @@ def _tasks_from_rows(rows, n_rows):
 
 def beta_clique_plan(beta_strings, graph, num_beta, min_size, kind="auto"):
 
-
     import numpy as np
 
     from .aabb_parents import _residual_sell, choose_parent_plan, unpack_sell

@@ -13,7 +13,6 @@
 
 def source_class(same_alpha, same_beta):
 
-
     return (
         ("self" if same_beta else "same_alpha_remote_beta")
         if same_alpha
@@ -51,7 +50,6 @@ def rank_summary(rows):
 
 
 def format_source_timings(iteration, rows):
-
 
     def fmt(value):
 

@@ -121,15 +121,19 @@ def test_operator_arrays_cythonizes(tmp_path):
     assert result.returncode == 0, result.stderr
 
 
-def test_alpha_beta_arrays_refuse_halves_wider_than_64_qubits():
+def test_alpha_beta_arrays_refuse_halves_wider_than_128_qubits():
     narrow = "0" * 63 + "1"
-    wide = "0" * 64 + "1"
+    wide = "0" * 128 + "1"
     with pytest.raises(FulqrumError):
         fq.Subspace([[wide], [narrow]]).to_alpha_beta_arrays()
     with pytest.raises(FulqrumError):
         fq.Subspace([[narrow], [wide]]).to_alpha_beta_arrays()
     alpha_arr, beta_arr = fq.Subspace([[narrow], [narrow]]).to_alpha_beta_arrays()
     assert alpha_arr[0] == 1 and beta_arr[0] == 1
+    two_words = "1" + "0" * 63 + "1"
+    alpha_arr, beta_arr = fq.Subspace([[two_words], [narrow]]).to_alpha_beta_arrays()
+    assert alpha_arr.shape == (1, 2) and alpha_arr.tolist() == [[1, 1]]
+    assert beta_arr.shape == (1,) and beta_arr[0] == 1
 
 
 def test_gpu_term_arrays_refuse_widths_above_256():

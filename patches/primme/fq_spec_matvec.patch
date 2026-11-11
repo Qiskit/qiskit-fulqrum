@@ -32,7 +32,7 @@ index 80f4a42..78ac99d 100644
  
     SCALAR *Vb = &V[ldV * basisSize], *Wb = &W[ldW * basisSize];
 diff --git a/src/eigs/correction.c b/src/eigs/correction.c
-index df54eff..7601917 100644
+index df54eff..83fc163 100644
 --- a/src/eigs/correction.c
 +++ b/src/eigs/correction.c
 @@ -47,6 +47,13 @@
@@ -49,7 +49,7 @@ index df54eff..7601917 100644
  #ifdef SUPPORTED_TYPE
  
  /*******************************************************************************
-@@ -339,7 +346,27 @@ int solve_correction_Sprimme(SCALAR *V, PRIMME_INT ldV, SCALAR *W,
+@@ -339,7 +346,29 @@ int solve_correction_Sprimme(SCALAR *V, PRIMME_INT ldV, SCALAR *W,
        SCALAR *r = &W[ldW*basisSize];    /* All the block residuals    */
        SCALAR *x = &V[ldV*basisSize];    /* All the block Ritz vectors */
        SCALAR *Bx = &BV[ldBV*basisSize]; /* B*x                        */
@@ -70,6 +70,8 @@ index df54eff..7601917 100644
 +                                    primme->orth == primme_orth_implicit_I));
 +         if (fq_primme_spec_take(blockOfShifts[0],
 +                   fq_olsen ? approxOlsenEps[0] : 0.0, fq_precond) == 0) {
++            /* Fulqrum: the spec pass applied the preconditioner. */
++            if (fq_precond) primme->stats.numPreconds += blockSize;
 +            goto fq_correction_done;
 +         }
 +      }
@@ -78,7 +80,7 @@ index df54eff..7601917 100644
        if ( primme->correctionParams.projectors.RightX &&
             primme->correctionParams.projectors.SkewX    ) {    
             /* Compute exact Olsen's projected preconditioner. This is */
-@@ -378,6 +405,9 @@ int solve_correction_Sprimme(SCALAR *V, PRIMME_INT ldV, SCALAR *W,
+@@ -378,6 +407,9 @@ int solve_correction_Sprimme(SCALAR *V, PRIMME_INT ldV, SCALAR *W,
           CHKERR(applyPreconditioner_Sprimme(r, primme->nLocal, ldW,
                    x, ldV, blockSize, ctx));
        }
@@ -89,7 +91,7 @@ index df54eff..7601917 100644
     /* ------------------------------------------------------------ */
     /*  JDQMR --- JD inner-outer variants                           */
 diff --git a/src/eigs/main_iter.c b/src/eigs/main_iter.c
-index a8bc5c0..97d1593 100644
+index f15e140..050460c 100644
 --- a/src/eigs/main_iter.c
 +++ b/src/eigs/main_iter.c
 @@ -61,6 +61,41 @@ extern int fq_primme_matvec_input_done(primme_params *primme)
@@ -184,7 +186,7 @@ index a8bc5c0..97d1593 100644
     int touch=0;             /* param used in inner solver stopping criteria  */
  
     int *perm=NULL;          /* Permutation on the locked pairs */
-@@ -703,10 +781,93 @@ int main_iter_Sprimme(HEVAL *evals, SCALAR *evecs, PRIMME_INT ldevecs,
+@@ -720,10 +798,93 @@ int main_iter_Sprimme(HEVAL *evals, SCALAR *evecs, PRIMME_INT ldevecs,
              /* the orthogonalization. Then H*x = (H*t - W*c)/rho, with        */
              /* c = V'*t and rho = sqrt(t'*t - c'*c), gives the new column of  */
              /* W without a matvec on the critical path.                       */
@@ -280,7 +282,7 @@ index a8bc5c0..97d1593 100644
                    fq_primme_matvec_wait && blockSize == 1 && basisSize > 0 &&
                    BV == NULL && Rlocked == NULL &&
                    primme->numOrthoConst + numLocked == 0) {
-@@ -747,6 +908,9 @@ int main_iter_Sprimme(HEVAL *evals, SCALAR *evecs, PRIMME_INT ldevecs,
+@@ -764,6 +925,9 @@ int main_iter_Sprimme(HEVAL *evals, SCALAR *evecs, PRIMME_INT ldevecs,
              /* the current basis. If basis hasn't expanded with any new       */
              /* vector, try a random vector                                    */
  
@@ -289,8 +291,8 @@ index a8bc5c0..97d1593 100644
 +#endif
              for (i=0; i < maxNumRandoms; i++) {
                 int basisSizeOut;
-                CHKERR(Bortho_block_Sprimme(V, ldV, VtBV, ldVtBV, fVtBV, ldfVtBV,
-@@ -766,8 +930,9 @@ int main_iter_Sprimme(HEVAL *evals, SCALAR *evecs, PRIMME_INT ldevecs,
+                FQ_CHKERR_WAIT(Bortho_block_Sprimme(V, ldV, VtBV, ldVtBV, fVtBV, ldfVtBV,
+@@ -783,8 +947,9 @@ int main_iter_Sprimme(HEVAL *evals, SCALAR *evecs, PRIMME_INT ldevecs,
  #if defined(USE_HOST) && defined(USE_DOUBLE) && !defined(CHECK_TEMPLATE)
              /* Fulqrum: keep the product of t when x came from t alone and    */
              /* the cancellation |t|/rho is at most 10, else discard it.       */
@@ -301,7 +303,7 @@ index a8bc5c0..97d1593 100644
                    HREAL fq_tt = REAL_PART(fq_c[basisSize]);
                    HREAL fq_cc = REAL_PART(
                          Num_dot_SHprimme(basisSize, fq_c, 1, fq_c, 1, ctx));
-@@ -776,18 +941,61 @@ int main_iter_Sprimme(HEVAL *evals, SCALAR *evecs, PRIMME_INT ldevecs,
+@@ -793,18 +958,61 @@ int main_iter_Sprimme(HEVAL *evals, SCALAR *evecs, PRIMME_INT ldevecs,
                       fq_accept = 1;
                    }
                 }
@@ -367,7 +369,7 @@ index a8bc5c0..97d1593 100644
                 }
                 CHKERR(Num_free_SHprimme(fq_c, ctx));
              }
-@@ -908,6 +1116,16 @@ int main_iter_Sprimme(HEVAL *evals, SCALAR *evecs, PRIMME_INT ldevecs,
+@@ -926,6 +1134,16 @@ int main_iter_Sprimme(HEVAL *evals, SCALAR *evecs, PRIMME_INT ldevecs,
              /* Extend H by blockSize columns and rows and solve the */
              /* eigenproblem for the new H.                          */
  
@@ -384,7 +386,7 @@ index a8bc5c0..97d1593 100644
              if (H)
                 CHKERR(update_projection_Sprimme(V, ldV, W, ldW, H,
                       primme->maxBasisSize, primme->nLocal, basisSize, blockSize,
-@@ -942,6 +1160,59 @@ int main_iter_Sprimme(HEVAL *evals, SCALAR *evecs, PRIMME_INT ldevecs,
+@@ -960,6 +1178,59 @@ int main_iter_Sprimme(HEVAL *evals, SCALAR *evecs, PRIMME_INT ldevecs,
              numArbitraryVecs = 0;
              candidates_prepared = 0;
  
@@ -444,7 +446,7 @@ index a8bc5c0..97d1593 100644
              /* If QR decomposition accumulates so much error, force it to     */
              /* reset by setting targetShiftIndex to -1. We use the next       */
              /* heuristic. Note that if (s_0, u_0, y_0) is the smallest triplet*/
-@@ -1431,6 +1702,15 @@ int main_iter_Sprimme(HEVAL *evals, SCALAR *evecs, PRIMME_INT ldevecs,
+@@ -1449,6 +1720,15 @@ int main_iter_Sprimme(HEVAL *evals, SCALAR *evecs, PRIMME_INT ldevecs,
        * -------------------------------------------------------------- */
  
  clean:

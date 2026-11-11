@@ -18,28 +18,23 @@
 namespace fq::sell
 {
 
-
 inline constexpr int kSliceRows = 32;
 
-
 inline constexpr std::int64_t kMaxSlots = 9223372036854775807;
-
 
 constexpr int slice_of(const int row)
 {
     return row / kSliceRows;
 }
 
-
 constexpr int lane_of(const int row)
 {
     return row % kSliceRows;
 }
-
 
 constexpr std::int64_t slot(const std::int64_t slice_offset, const int row, const int k)
 {
     return slice_offset + std::int64_t(k) * kSliceRows + lane_of(row);
 }
 
-}
+} // namespace fq::sell

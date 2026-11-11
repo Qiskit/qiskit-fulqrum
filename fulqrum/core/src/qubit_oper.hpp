@@ -17,8 +17,8 @@
 #include <boost/sort/pdqsort/pdqsort.hpp>
 #include <cmath>
 #include <complex>
-#include <cstdlib>
 #include <cstdint>
+#include <cstdlib>
 #include <map>
 #include <numeric>
 #include <ostream>
@@ -129,7 +129,6 @@ inline std::size_t max_offdiag_ptr_size(std::vector<std::size_t>& vec)
 // Reverse mask for marking terms as extended or not
 // Z, 0, 1, X, Y, -, +
 const int REV_EXT_MASK[7] = {1, 0, 0, 1, 1, 0, 0};
-
 
 /**
  * Comparator for term grouping
@@ -384,12 +383,15 @@ inline void check_ladder_bins(const std::vector<OperatorTerm>& terms,
                               const std::size_t num_ladder_ptrs,
                               const std::size_t ladder_offset)
 {
-    const std::string fix = " Sort the terms with group_term_sort_by_ladder_int and rebuild the bins.";
+    const std::string fix =
+        " Sort the terms with group_term_sort_by_ladder_int and rebuild the bins.";
 
     if(ladder_offset == 0 || (ladder_offset & (ladder_offset - 1)) != 0 ||
-       num_ladder_ptrs != num_groups * ladder_offset + 1 || ladder_ptrs[num_groups * ladder_offset] != terms.size())
+       num_ladder_ptrs != num_groups * ladder_offset + 1 ||
+       ladder_ptrs[num_groups * ladder_offset] != terms.size())
     {
-        throw std::invalid_argument("The ladder bins do not have the size of the operator's groups and terms." + fix);
+        throw std::invalid_argument(
+            "The ladder bins do not have the size of the operator's groups and terms." + fix);
     }
 
     const width_t ladder_width = static_cast<width_t>(__builtin_ctzll(ladder_offset));
@@ -400,7 +402,8 @@ inline void check_ladder_bins(const std::vector<OperatorTerm>& terms,
            ladder_ptrs[(group + 1) * ladder_offset] != group_ptrs[group + 1] ||
            ladder_ptrs[group * ladder_offset] != group_ptrs[group])
         {
-            throw std::invalid_argument("The ladder bins do not start at the operator's groups." + fix);
+            throw std::invalid_argument("The ladder bins do not start at the operator's groups." +
+                                        fix);
         }
 
         for(std::size_t bin = 0; bin < ladder_offset; bin++)
@@ -408,13 +411,15 @@ inline void check_ladder_bins(const std::vector<OperatorTerm>& terms,
             const std::size_t first = ladder_ptrs[group * ladder_offset + bin];
             const std::size_t last = ladder_ptrs[group * ladder_offset + bin + 1];
             if(first > last || last > group_ptrs[group + 1])
-                throw std::invalid_argument("The ladder bins are not ordered within the operator's groups." + fix);
+                throw std::invalid_argument(
+                    "The ladder bins are not ordered within the operator's groups." + fix);
 
             for(std::size_t term = first; term < last; term++)
             {
                 if(term >= terms.size() || term_ladder_int(terms[term], ladder_width) != bin)
                 {
-                    throw std::invalid_argument("A term is not in the bin of its ladder integer." + fix);
+                    throw std::invalid_argument("A term is not in the bin of its ladder integer." +
+                                                fix);
                 }
             }
         }

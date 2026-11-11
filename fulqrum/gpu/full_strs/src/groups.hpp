@@ -29,13 +29,11 @@
 namespace fq::full_strs
 {
 
-
 enum GroupKind : int
 {
     kIntersection = 0,
     kUnion = 1
 };
-
 
 struct GroupKinds
 {
@@ -43,25 +41,22 @@ struct GroupKinds
     int beta = kIntersection;
 };
 
-
 inline int default_kind(const int num_orbitals, const int num_electrons)
 {
     return num_orbitals - num_electrons < num_electrons ? kUnion : kIntersection;
 }
 
-
 template <std::size_t W>
 inline GroupKinds default_kinds(const KeyStore<W>& store)
 {
-    return {default_kind(store.num_orbitals, store.num_alpha), default_kind(store.num_orbitals, store.num_beta)};
+    return {default_kind(store.num_orbitals, store.num_alpha),
+            default_kind(store.num_orbitals, store.num_beta)};
 }
-
 
 struct GroupSlice
 {
     int count = 1;
     int index = 0;
-
 
     template <std::size_t K>
     bool contains(const std::array<Word, K>& key) const
@@ -79,7 +74,6 @@ struct GroupSlice
     }
 };
 
-
 struct ClassGroups
 {
     std::vector<std::int64_t> member_start{0};
@@ -88,19 +82,16 @@ struct ClassGroups
     std::vector<std::int64_t> owner;
     std::vector<std::int64_t> slot_start{0};
 
-
     std::int64_t num_groups() const
     {
         return static_cast<std::int64_t>(num_outputs.size());
     }
-
 
     std::int64_t num_slots() const
     {
         return slot_start.back();
     }
 };
-
 
 struct GroupStore
 {
@@ -110,7 +101,6 @@ struct GroupStore
     std::vector<std::int64_t> row_slot_start;
     std::vector<std::int64_t> row_slots;
 };
-
 
 template <std::size_t W>
 inline bool pair_counts(const int cls, const Word* out, const Word* source)
@@ -137,9 +127,12 @@ inline bool pair_counts(const int cls, const Word* out, const Word* source)
     }
 }
 
-
 template <std::size_t W, typename Visit>
-inline void for_each_changed_key(const Word* string, const int num_orbitals, const int kind, const int num_changed, Visit&& visit)
+inline void for_each_changed_key(const Word* string,
+                                 const int num_orbitals,
+                                 const int kind,
+                                 const int num_changed,
+                                 Visit&& visit)
 {
     int orbitals[64 * W];
     int count = 0;
@@ -154,7 +147,8 @@ inline void for_each_changed_key(const Word* string, const int num_orbitals, con
     std::copy_n(string, W, key.data());
     for(int i = 0; i < count; i++)
     {
-        key[static_cast<std::size_t>(orbitals[i] / kWordBits)] ^= Word(1) << (orbitals[i] % kWordBits);
+        key[static_cast<std::size_t>(orbitals[i] / kWordBits)] ^= Word(1)
+                                                                  << (orbitals[i] % kWordBits);
         if(num_changed == 1)
         {
             visit(key, orbitals[i], -1);
@@ -163,23 +157,30 @@ inline void for_each_changed_key(const Word* string, const int num_orbitals, con
         {
             for(int j = i + 1; j < count; j++)
             {
-                key[static_cast<std::size_t>(orbitals[j] / kWordBits)] ^= Word(1) << (orbitals[j] % kWordBits);
+                key[static_cast<std::size_t>(orbitals[j] / kWordBits)] ^=
+                    Word(1) << (orbitals[j] % kWordBits);
                 visit(key, orbitals[i], orbitals[j]);
-                key[static_cast<std::size_t>(orbitals[j] / kWordBits)] ^= Word(1) << (orbitals[j] % kWordBits);
+                key[static_cast<std::size_t>(orbitals[j] / kWordBits)] ^=
+                    Word(1) << (orbitals[j] % kWordBits);
             }
         }
-        key[static_cast<std::size_t>(orbitals[i] / kWordBits)] ^= Word(1) << (orbitals[i] % kWordBits);
+        key[static_cast<std::size_t>(orbitals[i] / kWordBits)] ^= Word(1)
+                                                                  << (orbitals[i] % kWordBits);
     }
 }
 
-
 template <std::size_t W, typename Visit>
-inline void for_each_key(const Word* string, const int num_orbitals, const int kind, const int num_changed, Visit&& visit)
+inline void for_each_key(const Word* string,
+                         const int num_orbitals,
+                         const int kind,
+                         const int num_changed,
+                         Visit&& visit)
 {
-    for_each_changed_key<W>(string, num_orbitals, kind, num_changed,
-                            [&](const std::array<Word, W>& key, int, int) { visit(key); });
+    for_each_changed_key<W>(
+        string, num_orbitals, kind, num_changed, [&](const std::array<Word, W>& key, int, int) {
+            visit(key);
+        });
 }
-
 
 template <std::size_t K>
 inline bool key_less(const std::array<Word, K>& a, const std::array<Word, K>& b)
@@ -193,7 +194,6 @@ inline bool key_less(const std::array<Word, K>& a, const std::array<Word, K>& b)
     }
     return false;
 }
-
 
 template <std::size_t K>
 struct PendingGroups
@@ -209,14 +209,17 @@ struct PendingGroups
     std::vector<Descriptor> descriptors;
     std::vector<std::int32_t> members;
 
-
-    void add(const std::int64_t owner, const std::array<Word, K>& key, const std::vector<std::int32_t>& group_members)
+    void add(const std::int64_t owner,
+             const std::array<Word, K>& key,
+             const std::vector<std::int32_t>& group_members)
     {
-        descriptors.push_back({owner, key, static_cast<std::int64_t>(members.size()), static_cast<std::int32_t>(group_members.size())});
+        descriptors.push_back({owner,
+                               key,
+                               static_cast<std::int64_t>(members.size()),
+                               static_cast<std::int32_t>(group_members.size())});
         members.insert(members.end(), group_members.begin(), group_members.end());
     }
 };
-
 
 template <std::size_t K>
 inline void merge_groups(const std::vector<PendingGroups<K>>& pending, ClassGroups& out)
@@ -235,8 +238,10 @@ inline void merge_groups(const std::vector<PendingGroups<K>>& pending, ClassGrou
         }
     }
     parallel_sort(refs, [&pending](const Ref& a, const Ref& b) {
-        const auto& da = pending[static_cast<std::size_t>(a.thread)].descriptors[static_cast<std::size_t>(a.index)];
-        const auto& db = pending[static_cast<std::size_t>(b.thread)].descriptors[static_cast<std::size_t>(b.index)];
+        const auto& da = pending[static_cast<std::size_t>(a.thread)]
+                             .descriptors[static_cast<std::size_t>(a.index)];
+        const auto& db = pending[static_cast<std::size_t>(b.thread)]
+                             .descriptors[static_cast<std::size_t>(b.index)];
         if(da.owner != db.owner)
         {
             return da.owner < db.owner;
@@ -250,11 +255,14 @@ inline void merge_groups(const std::vector<PendingGroups<K>>& pending, ClassGrou
     out.slot_start.assign(checked_add(num_groups, 1), 0);
     for(std::size_t g = 0; g < num_groups; g++)
     {
-        const auto& d = pending[static_cast<std::size_t>(refs[g].thread)].descriptors[static_cast<std::size_t>(refs[g].index)];
-        out.member_start[g + 1] = checked_index<std::int64_t>(checked_add(static_cast<std::size_t>(out.member_start[g]), static_cast<std::size_t>(d.count)));
+        const auto& d = pending[static_cast<std::size_t>(refs[g].thread)]
+                            .descriptors[static_cast<std::size_t>(refs[g].index)];
+        out.member_start[g + 1] = checked_index<std::int64_t>(checked_add(
+            static_cast<std::size_t>(out.member_start[g]), static_cast<std::size_t>(d.count)));
         out.num_outputs[g] = d.count;
         out.owner[g] = d.owner;
-        out.slot_start[g + 1] = checked_index<std::int64_t>(checked_add(static_cast<std::size_t>(out.slot_start[g]), static_cast<std::size_t>(d.count)));
+        out.slot_start[g + 1] = checked_index<std::int64_t>(checked_add(
+            static_cast<std::size_t>(out.slot_start[g]), static_cast<std::size_t>(d.count)));
     }
     out.members.resize(static_cast<std::size_t>(out.member_start.back()));
 #pragma omp parallel for schedule(dynamic, 1024)
@@ -262,13 +270,14 @@ inline void merge_groups(const std::vector<PendingGroups<K>>& pending, ClassGrou
     {
         const PendingGroups<K>& source = pending[static_cast<std::size_t>(refs[g].thread)];
         const auto& d = source.descriptors[static_cast<std::size_t>(refs[g].index)];
-        std::copy_n(source.members.data() + d.offset, d.count, out.members.data() + out.member_start[g]);
+        std::copy_n(
+            source.members.data() + d.offset, d.count, out.members.data() + out.member_start[g]);
     }
 }
 
-
 template <std::size_t W, typename KeyOf>
-inline void mark_useful(const int cls, const std::size_t count, KeyOf&& key_of, std::vector<char>& useful)
+inline void
+mark_useful(const int cls, const std::size_t count, KeyOf&& key_of, std::vector<char>& useful)
 {
     useful.assign(count, 0);
     if(cls == kAlphaSingle || cls == kBetaSingle)
@@ -305,16 +314,20 @@ inline void mark_useful(const int cls, const std::size_t count, KeyOf&& key_of, 
     }
 }
 
-
 template <std::size_t W>
-inline std::size_t keep_useful(const KeyStore<W>& store, const int cls, std::vector<std::int32_t>& candidates)
+inline std::size_t
+keep_useful(const KeyStore<W>& store, const int cls, std::vector<std::int32_t>& candidates)
 {
     if(cls == kAlphaSingle || cls == kBetaSingle)
     {
         return candidates.size();
     }
     std::vector<char> useful;
-    mark_useful<W>(cls, candidates.size(), [&](const std::size_t i) { return store.alpha(candidates[i]); }, useful);
+    mark_useful<W>(
+        cls,
+        candidates.size(),
+        [&](const std::size_t i) { return store.alpha(candidates[i]); },
+        useful);
     std::size_t kept = 0;
     for(std::size_t i = 0; i < candidates.size(); i++)
     {
@@ -327,9 +340,12 @@ inline std::size_t keep_useful(const KeyStore<W>& store, const int cls, std::vec
     return kept;
 }
 
-
 template <std::size_t W>
-inline void build_sector_groups(const KeyStore<W>& store, const int cls, const int kind, const GroupSlice& slice, ClassGroups& out)
+inline void build_sector_groups(const KeyStore<W>& store,
+                                const int cls,
+                                const int kind,
+                                const GroupSlice& slice,
+                                ClassGroups& out)
 {
     const int sector = (cls == kAlphaSingle || cls == kAlphaDouble) ? 0 : 1;
     const int num_changed = (cls == kAlphaSingle || cls == kBetaSingle) ? 1 : 2;
@@ -362,14 +378,19 @@ inline void build_sector_groups(const KeyStore<W>& store, const int cls, const i
             records.clear();
             for(std::int64_t entry = begin; entry < end; entry++)
             {
-                const std::int64_t row = sector == 0 ? entry : store.column_rows[static_cast<std::size_t>(entry)];
+                const std::int64_t row =
+                    sector == 0 ? entry : store.column_rows[static_cast<std::size_t>(entry)];
                 const Word* string = store.alpha(row) + sector * W;
-                for_each_key<W>(string, store.num_orbitals, kind, num_changed, [&](const std::array<Word, W>& key) {
-                    if(slice.contains(key))
-                    {
-                        records.push_back({key, static_cast<std::int32_t>(row)});
-                    }
-                });
+                for_each_key<W>(string,
+                                store.num_orbitals,
+                                kind,
+                                num_changed,
+                                [&](const std::array<Word, W>& key) {
+                                    if(slice.contains(key))
+                                    {
+                                        records.push_back({key, static_cast<std::int32_t>(row)});
+                                    }
+                                });
             }
             std::sort(records.begin(), records.end(), [](const Record& a, const Record& b) {
                 if(a.key != b.key)
@@ -404,9 +425,11 @@ inline void build_sector_groups(const KeyStore<W>& store, const int cls, const i
     merge_groups(pending, out);
 }
 
-
 template <std::size_t W>
-inline void build_mixed_groups(const KeyStore<W>& store, const GroupKinds& kinds, const GroupSlice& slice, ClassGroups& out)
+inline void build_mixed_groups(const KeyStore<W>& store,
+                               const GroupKinds& kinds,
+                               const GroupSlice& slice,
+                               ClassGroups& out)
 {
     struct LineRecord
     {
@@ -425,9 +448,11 @@ inline void build_mixed_groups(const KeyStore<W>& store, const GroupKinds& kinds
 #pragma omp for schedule(static)
         for(std::int64_t line = 0; line < num_lines; line++)
         {
-            for_each_key<W>(store.line_beta(line), store.num_orbitals, kinds.beta, 1, [&](const std::array<Word, W>& key) {
-                mine.push_back({key, line});
-            });
+            for_each_key<W>(store.line_beta(line),
+                            store.num_orbitals,
+                            kinds.beta,
+                            1,
+                            [&](const std::array<Word, W>& key) { mine.push_back({key, line}); });
         }
     }
     std::vector<LineRecord> line_records;
@@ -477,7 +502,9 @@ inline void build_mixed_groups(const KeyStore<W>& store, const GroupKinds& kinds
         {
             records.clear();
             std::array<Word, 2 * W> group_key;
-            std::copy_n(line_records[static_cast<std::size_t>(runs[run].first)].key.data(), W, group_key.data() + W);
+            std::copy_n(line_records[static_cast<std::size_t>(runs[run].first)].key.data(),
+                        W,
+                        group_key.data() + W);
             for(std::int64_t k = runs[run].first; k < runs[run].second; k++)
             {
                 const std::int64_t line = line_records[static_cast<std::size_t>(k)].line;
@@ -485,13 +512,18 @@ inline void build_mixed_groups(const KeyStore<W>& store, const GroupKinds& kinds
                     row < store.line_start[static_cast<std::size_t>(line) + 1];
                     row++)
                 {
-                    for_each_key<W>(store.alpha(row), store.num_orbitals, kinds.alpha, 1, [&](const std::array<Word, W>& key) {
-                        std::copy_n(key.data(), W, group_key.data());
-                        if(slice.contains(group_key))
-                        {
-                            records.push_back({key, static_cast<std::int32_t>(row)});
-                        }
-                    });
+                    for_each_key<W>(store.alpha(row),
+                                    store.num_orbitals,
+                                    kinds.alpha,
+                                    1,
+                                    [&](const std::array<Word, W>& key) {
+                                        std::copy_n(key.data(), W, group_key.data());
+                                        if(slice.contains(group_key))
+                                        {
+                                            records.push_back(
+                                                {key, static_cast<std::int32_t>(row)});
+                                        }
+                                    });
                 }
             }
             std::sort(records.begin(), records.end(), [](const Record& a, const Record& b) {
@@ -532,7 +564,6 @@ inline void build_mixed_groups(const KeyStore<W>& store, const GroupKinds& kinds
     merge_groups(pending, out);
 }
 
-
 template <std::size_t W>
 inline GroupStore build_groups(const KeyStore<W>& store,
                                const GroupKinds& kinds,
@@ -541,7 +572,8 @@ inline GroupStore build_groups(const KeyStore<W>& store,
 {
     if(store.num_rows() >= static_cast<std::int64_t>(std::numeric_limits<std::int32_t>::max()))
     {
-        throw std::invalid_argument("A block can hold at most 2^31 - 1 rows, got " + std::to_string(store.num_rows()));
+        throw std::invalid_argument("A block can hold at most 2^31 - 1 rows, got " +
+                                    std::to_string(store.num_rows()));
     }
     GroupStore groups;
     groups.kinds = kinds;
@@ -554,7 +586,8 @@ inline GroupStore build_groups(const KeyStore<W>& store,
     for(int cls = 0; cls < kNumClasses; cls++)
     {
         groups.class_slot_start[static_cast<std::size_t>(cls) + 1] =
-            groups.class_slot_start[static_cast<std::size_t>(cls)] + groups.classes[static_cast<std::size_t>(cls)].num_slots();
+            groups.class_slot_start[static_cast<std::size_t>(cls)] +
+            groups.classes[static_cast<std::size_t>(cls)].num_slots();
     }
     if(!with_row_slots)
     {
@@ -569,16 +602,22 @@ inline GroupStore build_groups(const KeyStore<W>& store,
             const std::int64_t first = c.member_start[static_cast<std::size_t>(g)];
             for(std::int64_t k = 0; k < c.num_outputs[static_cast<std::size_t>(g)]; k++)
             {
-                groups.row_slot_start[static_cast<std::size_t>(c.members[static_cast<std::size_t>(first + k)]) + 1]++;
+                groups.row_slot_start[static_cast<std::size_t>(
+                                          c.members[static_cast<std::size_t>(first + k)]) +
+                                      1]++;
             }
         }
     }
     for(std::int64_t row = 0; row < num_rows; row++)
     {
-        groups.row_slot_start[static_cast<std::size_t>(row) + 1] = checked_index<std::int64_t>(checked_add(static_cast<std::size_t>(groups.row_slot_start[static_cast<std::size_t>(row) + 1]), static_cast<std::size_t>(groups.row_slot_start[static_cast<std::size_t>(row)])));
+        groups.row_slot_start[static_cast<std::size_t>(row) + 1] =
+            checked_index<std::int64_t>(checked_add(
+                static_cast<std::size_t>(groups.row_slot_start[static_cast<std::size_t>(row) + 1]),
+                static_cast<std::size_t>(groups.row_slot_start[static_cast<std::size_t>(row)])));
     }
     groups.row_slots.resize(static_cast<std::size_t>(groups.row_slot_start.back()));
-    std::vector<std::int64_t> cursor(groups.row_slot_start.begin(), groups.row_slot_start.end() - 1);
+    std::vector<std::int64_t> cursor(groups.row_slot_start.begin(),
+                                     groups.row_slot_start.end() - 1);
     for(int cls = 0; cls < kNumClasses; cls++)
     {
         const ClassGroups& c = groups.classes[static_cast<std::size_t>(cls)];
@@ -587,18 +626,20 @@ inline GroupStore build_groups(const KeyStore<W>& store,
             const std::int64_t first = c.member_start[static_cast<std::size_t>(g)];
             for(std::int64_t k = 0; k < c.num_outputs[static_cast<std::size_t>(g)]; k++)
             {
-                const std::size_t row = static_cast<std::size_t>(c.members[static_cast<std::size_t>(first + k)]);
+                const std::size_t row =
+                    static_cast<std::size_t>(c.members[static_cast<std::size_t>(first + k)]);
                 groups.row_slots[static_cast<std::size_t>(cursor[row]++)] =
-                    groups.class_slot_start[static_cast<std::size_t>(cls)] + c.slot_start[static_cast<std::size_t>(g)] + k;
+                    groups.class_slot_start[static_cast<std::size_t>(cls)] +
+                    c.slot_start[static_cast<std::size_t>(g)] + k;
             }
         }
     }
     return groups;
 }
 
-
 template <std::size_t W>
-inline std::vector<std::pair<std::int64_t, std::int64_t>> group_pairs(const KeyStore<W>& store, const GroupStore& groups, const int cls)
+inline std::vector<std::pair<std::int64_t, std::int64_t>>
+group_pairs(const KeyStore<W>& store, const GroupStore& groups, const int cls)
 {
     const ClassGroups& c = groups.classes[static_cast<std::size_t>(cls)];
     std::vector<std::pair<std::int64_t, std::int64_t>> pairs;
@@ -623,7 +664,6 @@ inline std::vector<std::pair<std::int64_t, std::int64_t>> group_pairs(const KeyS
     return pairs;
 }
 
-
 template <std::size_t W>
 inline int move_class(const Word* a, const Word* b)
 {
@@ -645,12 +685,13 @@ inline int move_class(const Word* a, const Word* b)
     return alpha_bits == 2 && beta_bits == 2 ? kMixed : -1;
 }
 
-
 template <std::size_t W>
-inline std::vector<std::pair<std::int64_t, std::int64_t>> brute_force_pairs(const KeyStore<W>& store, const int cls)
+inline std::vector<std::pair<std::int64_t, std::int64_t>>
+brute_force_pairs(const KeyStore<W>& store, const int cls)
 {
     const std::int64_t n = store.num_rows();
-    std::vector<std::vector<std::pair<std::int64_t, std::int64_t>>> parts(static_cast<std::size_t>(max_threads()));
+    std::vector<std::vector<std::pair<std::int64_t, std::int64_t>>> parts(
+        static_cast<std::size_t>(max_threads()));
 #pragma omp parallel
     {
 #ifdef _OPENMP
@@ -679,15 +720,13 @@ inline std::vector<std::pair<std::int64_t, std::int64_t>> brute_force_pairs(cons
     return pairs;
 }
 
-
 inline constexpr int kSizeBuckets = 7;
-
 
 inline int size_bucket(const std::int64_t members)
 {
-    return std::min(kSizeBuckets - 1, 62 - __builtin_clzll(static_cast<unsigned long long>(members)));
+    return std::min(kSizeBuckets - 1,
+                    62 - __builtin_clzll(static_cast<unsigned long long>(members)));
 }
-
 
 struct ClassStats
 {
@@ -699,7 +738,6 @@ struct ClassStats
     std::array<std::int64_t, kSizeBuckets> size_groups{};
     std::array<std::int64_t, kSizeBuckets> size_members{};
 };
-
 
 template <std::size_t W>
 inline ClassStats class_stats(const KeyStore<W>& store, const GroupStore& groups, const int cls)
@@ -722,7 +760,8 @@ inline ClassStats class_stats(const KeyStore<W>& store, const GroupStore& groups
             const Word* out = store.alpha(c.members[static_cast<std::size_t>(first + k)]);
             for(std::int64_t s = first; s < last; s++)
             {
-                if(s != first + k && pair_counts<W>(cls, out, store.alpha(c.members[static_cast<std::size_t>(s)])))
+                if(s != first + k &&
+                   pair_counts<W>(cls, out, store.alpha(c.members[static_cast<std::size_t>(s)])))
                 {
                     pairs++;
                 }
@@ -733,7 +772,8 @@ inline ClassStats class_stats(const KeyStore<W>& store, const GroupStore& groups
     stats.largest = largest;
     for(std::int64_t g = 0; g < c.num_groups(); g++)
     {
-        const std::int64_t size = c.member_start[static_cast<std::size_t>(g) + 1] - c.member_start[static_cast<std::size_t>(g)];
+        const std::int64_t size = c.member_start[static_cast<std::size_t>(g) + 1] -
+                                  c.member_start[static_cast<std::size_t>(g)];
         const std::size_t bucket = static_cast<std::size_t>(size_bucket(size));
         stats.size_groups[bucket]++;
         stats.size_members[bucket] += size;
@@ -741,9 +781,9 @@ inline ClassStats class_stats(const KeyStore<W>& store, const GroupStore& groups
     return stats;
 }
 
-
 template <std::size_t W>
-inline std::array<ClassStats, kNumClasses> sliced_stats(const KeyStore<W>& store, const GroupKinds& kinds, const int num_slices)
+inline std::array<ClassStats, kNumClasses>
+sliced_stats(const KeyStore<W>& store, const GroupKinds& kinds, const int num_slices)
 {
     std::array<ClassStats, kNumClasses> total{};
     for(int index = 0; index < num_slices; index++)
@@ -760,12 +800,14 @@ inline std::array<ClassStats, kNumClasses> sliced_stats(const KeyStore<W>& store
             sum.largest = std::max(sum.largest, part.largest);
             for(int bucket = 0; bucket < kSizeBuckets; bucket++)
             {
-                sum.size_groups[static_cast<std::size_t>(bucket)] += part.size_groups[static_cast<std::size_t>(bucket)];
-                sum.size_members[static_cast<std::size_t>(bucket)] += part.size_members[static_cast<std::size_t>(bucket)];
+                sum.size_groups[static_cast<std::size_t>(bucket)] +=
+                    part.size_groups[static_cast<std::size_t>(bucket)];
+                sum.size_members[static_cast<std::size_t>(bucket)] +=
+                    part.size_members[static_cast<std::size_t>(bucket)];
             }
         }
     }
     return total;
 }
 
-}
+} // namespace fq::full_strs

@@ -103,12 +103,14 @@ public:
         if(use_all_blocks)
         {
             const bool occupied = map.size() != 0;
-            if(!map.reserve(num_items, true) || occupied) map.set_bucket_occupancy();
+            if(!map.reserve(num_items, true) || occupied)
+                map.set_bucket_occupancy();
         }
         else
         {
             const bool occupied = map2.size() != 0;
-            if(!map2.reserve(num_items, true) || occupied) map2.set_bucket_occupancy();
+            if(!map2.reserve(num_items, true) || occupied)
+                map2.set_bucket_occupancy();
         }
     }
 

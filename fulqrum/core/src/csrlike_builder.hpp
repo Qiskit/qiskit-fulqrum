@@ -17,10 +17,10 @@
 #include <mutex>
 #include <vector>
 
-#include "checked_size.hpp"
 #include "base.hpp"
 #include "bitset_hashmap.hpp"
 #include "bitset_utils.hpp"
+#include "checked_size.hpp"
 #include "constants.hpp"
 #include "element_evaluator.hpp"
 #include "elements.hpp"

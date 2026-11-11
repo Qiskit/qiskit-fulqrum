@@ -32,10 +32,10 @@ def to_gpu_arrays(FulqrumSpMV spmv, bint skip_diag=False):
     cdef double complex c
     cdef double[::1] mv_term_coeffs_re
     cdef np.int8_t[::1] mv_term_real_phase
-    cdef np.uint8_t[::1] mv_term_num_ops
+    cdef np.uint16_t[::1] mv_term_num_ops
     cdef np.uint8_t[:, ::1] mv_term_inds
     cdef np.uint8_t[:, ::1] mv_term_vals
-    cdef np.uint8_t[::1] mv_term_num_proj
+    cdef np.uint16_t[::1] mv_term_num_proj
     cdef np.uint8_t[:, ::1] mv_term_proj_inds
     cdef np.uint8_t[:, ::1] mv_term_proj_bits
     cdef np.uint8_t[::1] mv_grp_offdiag_sizes
@@ -78,8 +78,11 @@ def to_gpu_arrays(FulqrumSpMV spmv, bint skip_diag=False):
         if spmv.group_offdiag_inds[kk].size() > max_offdiag:
             max_offdiag = spmv.group_offdiag_inds[kk].size()
 
-    if max_inds > 255 or max_proj > 255 or max_offdiag > 255:
-        raise ValueError("GPU term and group lengths must fit in uint8")
+    if max_inds > spmv.width or max_proj > spmv.width:
+        raise ValueError("GPU term lengths must not exceed the operator width")
+    if max_offdiag > 255:
+        raise ValueError("GPU group lengths must fit in uint8")
+    count_dtype = np.uint8 if max(max_inds, max_proj) <= 255 else np.uint16
     if any(length > 255 for length in spmv.group_rowint_length):
         raise ValueError("GPU row integer lengths must fit in uint8")
     if any(pointer > np.iinfo(np.uint32).max for pointer in spmv.group_ladder_ptrs):
@@ -91,10 +94,10 @@ def to_gpu_arrays(FulqrumSpMV spmv, bint skip_diag=False):
 
     term_coeffs_re = np.empty(T,              dtype=np.float64)
     term_real_phase = np.empty(T,              dtype=np.int8)
-    term_num_ops = np.empty(T,              dtype=np.uint8)
+    term_num_ops = np.empty(T,              dtype=np.uint16)
     term_inds = np.zeros((T, max_inds),  dtype=np.uint8)
     term_vals = np.zeros((T, max_inds),  dtype=np.uint8)
-    term_num_proj = np.empty(T,              dtype=np.uint8)
+    term_num_proj = np.empty(T,              dtype=np.uint16)
     term_proj_inds = np.zeros((T, max_proj),  dtype=np.uint8)
     term_proj_bits = np.zeros((T, max_proj),  dtype=np.uint8)
 
@@ -112,12 +115,12 @@ def to_gpu_arrays(FulqrumSpMV spmv, bint skip_diag=False):
         mv_term_coeffs_re[kk]  = c.real
         mv_term_real_phase[kk] = <np.int8_t>spmv.oper.terms[kk].real_phase
         sz = spmv.oper.terms[kk].indices.size()
-        mv_term_num_ops[kk] = <np.uint8_t>sz
+        mv_term_num_ops[kk] = <np.uint16_t>sz
         for j in range(sz):
             mv_term_inds[kk, j] = <np.uint8_t>spmv.oper.terms[kk].indices[j]
             mv_term_vals[kk, j] = spmv.oper.terms[kk].values[j]
         sz = spmv.oper.terms[kk].proj_indices.size()
-        mv_term_num_proj[kk] = <np.uint8_t>sz
+        mv_term_num_proj[kk] = <np.uint16_t>sz
         for j in range(sz):
             mv_term_proj_inds[kk, j] = <np.uint8_t>spmv.oper.terms[kk].proj_indices[j]
             mv_term_proj_bits[kk, j] = <np.uint8_t>spmv.oper.terms[kk].proj_bits[j]
@@ -137,10 +140,10 @@ def to_gpu_arrays(FulqrumSpMV spmv, bint skip_diag=False):
     return {
         "term_coeffs_re": term_coeffs_re,
         "term_real_phase": term_real_phase,
-        "term_num_ops": term_num_ops,
+        "term_num_ops": term_num_ops.astype(count_dtype),
         "term_inds": term_inds,
         "term_vals": term_vals,
-        "term_num_proj": term_num_proj,
+        "term_num_proj": term_num_proj.astype(count_dtype),
         "term_proj_inds": term_proj_inds,
         "term_proj_bits": term_proj_bits,
         "grp_offdiag_inds": grp_offdiag_inds,

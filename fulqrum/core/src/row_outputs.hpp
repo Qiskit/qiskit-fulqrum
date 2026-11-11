@@ -19,8 +19,8 @@
 #include <string>
 #include <vector>
 
-#include "constants.hpp"
 #include "checked_size.hpp"
+#include "constants.hpp"
 #include "csr_utils.hpp"
 
 /**
@@ -50,7 +50,8 @@ void csr_from_rows(const std::size_t num_rows,
                    const int compute_values)
 {
     checked_add(num_rows, 1);
-    if(num_rows) checked_index<I>(num_rows - 1);
+    if(num_rows)
+        checked_index<I>(num_rows - 1);
     if(!compute_values)
     {
         bool overflow = false;
@@ -73,11 +74,13 @@ void csr_from_rows(const std::size_t num_rows,
                 indptr[row + 1] = static_cast<I>(count);
             }
         }
-        if(overflow) throw std::overflow_error("CSR row count exceeds the index type.");
+        if(overflow)
+            throw std::overflow_error("CSR row count exceeds the index type.");
         indptr[0] = 0;
         for(std::size_t row = 0; row < num_rows; row++)
         {
-            indptr[row + 1] = checked_index<I>(checked_add(static_cast<std::size_t>(indptr[row + 1]), static_cast<std::size_t>(indptr[row])));
+            indptr[row + 1] = checked_index<I>(checked_add(
+                static_cast<std::size_t>(indptr[row + 1]), static_cast<std::size_t>(indptr[row])));
         }
         return;
     }
@@ -114,7 +117,8 @@ void csr_from_rows(const std::size_t num_rows,
     }
     if(mismatch)
     {
-        throw std::runtime_error("The CSR fill found a different number of elements than the count.");
+        throw std::runtime_error(
+            "The CSR fill found a different number of elements than the count.");
     }
 }
 
@@ -138,7 +142,8 @@ void csrlike_from_rows(const std::size_t num_rows,
                        std::vector<std::vector<I>>& cols,
                        std::vector<std::vector<T>>& data)
 {
-    if(num_rows) checked_index<I>(num_rows - 1);
+    if(num_rows)
+        checked_index<I>(num_rows - 1);
     checked_multiply(num_rows, sizeof(std::vector<I>) + sizeof(std::vector<T>));
     cols.assign(num_rows, std::vector<I>());
     data.assign(num_rows, std::vector<T>());

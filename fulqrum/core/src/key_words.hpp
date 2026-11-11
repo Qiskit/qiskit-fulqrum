@@ -238,9 +238,8 @@ inline std::uint64_t mix_bits(std::uint64_t value)
  * @param num_words The number of words in the key.
  * @return The hash value.
  */
-inline std::uint64_t hash_high_part(const KeyWord* key,
-                                    const std::size_t split_bit,
-                                    const std::size_t num_words)
+inline std::uint64_t
+hash_high_part(const KeyWord* key, const std::size_t split_bit, const std::size_t num_words)
 {
     std::uint64_t hash = 0x9e3779b97f4a7c15ULL;
     for(std::size_t word = split_bit / KEY_WORD_BITS; word < num_words; word++)

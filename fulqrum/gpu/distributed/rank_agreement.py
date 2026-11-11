@@ -22,27 +22,52 @@ ERROR_TYPES = {
 
 def raise_on_every_rank(comm, error, error_type=ValueError, what="check"):
 
-
     errors = comm.allgather(error)
     found = [f"rank {rank}: {text}" for rank, text in enumerate(errors) if text]
     if found:
         raise error_type(f"{what} failed: " + "; ".join(found))
 
 
-def run_on_every_rank(comm, what, function):
+_BASE_ORDER = ("MemoryError", "ValueError", "RuntimeError")
 
+
+def _base_name(error):
+
+    for name in _BASE_ORDER:
+        if isinstance(error, ERROR_TYPES[name]):
+            return name
+    return "RuntimeError"
+
+
+def _report(error):
+
+    name = _base_name(error)
+    if type(error) is ERROR_TYPES[name]:
+        return name, str(error)
+    return name, f"{error} ({type(error).__name__})"
+
+
+def run_on_every_rank(comm, what, function):
 
     result, error = None, None
     try:
         result = function()
-    except tuple(ERROR_TYPES.values()) as exc:
+    except Exception as exc:  # noqa: BLE001
         error = exc
-    reports = comm.allgather(
-        None if error is None else (type(error).__name__, str(error))
-    )
+    reports = comm.allgather(None if error is None else _report(error))
     found = [(rank, report) for rank, report in enumerate(reports) if report]
     if found:
         error_type = ERROR_TYPES[found[0][1][0]]
         message = "; ".join(f"rank {rank}: {text}" for rank, (_name, text) in found)
         raise error_type(f"{what} failed: {message}") from error
     return result
+
+
+def check_same_choice(comm, choice, detail, what):
+
+    reports = comm.allgather((choice, detail))
+    if len({c for c, _ in reports}) > 1:
+        raise RuntimeError(
+            f"{what} differs across ranks: "
+            + "; ".join(f"rank {rank}: {d}" for rank, (_c, d) in enumerate(reports))
+        )

@@ -17,126 +17,163 @@ import time
 import cupy
 import numpy as np
 
+from ..common.wide import check_width, popcount_w
+from ..distributed.rank_agreement import raise_on_every_rank, run_on_every_rank
 from .device import DeviceLayout
-from .host import HostOperator
+from .host_words import host_module, key_rows
 from .plan import LayoutPlan, agree
+from .tile_dispatch import ENGINES
+
+MAX_KEY_WORDS = 2
 
 DEFAULT_NUM_SLICES = 4
 logger = logging.getLogger(__name__)
 
 
-class FullStrsHamiltonian:
+class FullStrsGPUHamiltonian:
     """GPU-backed real type-2 Hamiltonian on an explicit set of full determinants.
 
     Use with ``distributed_primme_eigsh`` to solve eigenvalue problems on one or
-    more ranks. Each rank uses its current CUDA device; select it before
-    construction and use that device context for subsequent calls.
-    The operator must use block spin ordering, with alpha in the
-    low bits and beta in the high bits, equal sector widths of 1–64 orbitals,
-    fixed sector electron counts and supported spin-conserving terms through
-    two-body order. Unsupported operator groups are rejected.
+    more ranks. Full determinants must use block spin ordering, with alpha in the
+    low bits and beta in the high bits, equal sector widths of 1–128 orbitals,
+    fixed sector electron counts and supported spin-conserving terms.
+    Unsupported operator groups are rejected.
 
-    Input ``keys`` has dtype uint64 and shape ``(n, 2)``. Each row contains the
-    alpha word followed by the beta word; bit k is orbital k's occupation in that
-    sector. The determinant set need not be a complete tensor-product subspace.
-    Inputs may be unsorted or contain duplicates. Construction deduplicates,
-    sorts and redistributes keys according to the selected layout. Afterwards,
-    ``keys`` gives this rank's final key order, ``n_local`` its owned row count,
-    and ``row_start`` its position in the distributed ordering. Local vectors
-    and ``diag_local`` use that same order: amplitude i belongs to ``keys[i]``.
+    ``keys`` is a uint64 array of shape ``(n, 2W)``. W is 1 for up to 64
+    orbitals per spin sector and 2 for 65 to 128. Each key holds the W alpha
+    words, then the W beta words, low word first. Bit k of word w is set when
+    orbital 64w + k is occupied. The determinants need not form a complete
+    tensor-product subspace.
 
-    Construction, matvecs and RDM calculations are collective over ``comm``.
-    All ranks must participate with matching operator and shared options, while
-    supplying their own input keys or local amplitudes. ``shape`` is the global
-    square shape, ``dtype`` is float64 and ``supports_device_matvec`` is True.
-    The solver uses ``_matvec(v_local, out=buffer)``, ``n_local`` and ``_comm``.
-    Its device inputs and optional output buffer are local CuPy float64 arrays.
-
-    Public ``matvec(x)`` requires shape ``(n_local,)``. NumPy input returns a host
-    NumPy vector; CuPy input returns a device vector. Device work is asynchronous
-    but ordered on the caller's current CUDA stream. RDM calls return full host
-    NumPy arrays on every rank, using the supplied amplitudes without normalization.
-    RDM return forms and tensor indices follow PySCF ``make_rdm12s(reorder=True)``.
+    The keys can be unsorted and can contain duplicates. The constructor
+    removes duplicates, sorts the keys and distributes them for the selected
+    layout. After construction, ``keys`` holds this rank's keys in their final
+    order, ``n_local`` is the number of determinants this rank owns, and
+    ``row_start`` is the global index of its first determinant. Local vectors
+    and ``diag_local`` use the same order: entry i belongs to ``keys[i]``.
 
     Args:
         operator: Real type-2 ``QubitOperator`` in the block layout above.
-        keys: This rank's input determinant pairs, uint64 shape ``(n, 2)``.
+        keys: This rank's input determinants, uint64 shape ``(n, 2W)``.
             Input assignment and order may change during construction.
         comm: MPI or ``LocalComm`` communicator for all participating ranks.
             ``None`` uses ``MPI.COMM_SELF``.
-        num_slices: Positive number of group-data slices; defaults to 4.
-        binned: Select matvec kernels by group-size bins; defaults to True.
-            False uses the uniform group kernel.
-        residency: ``"resident"`` keeps group slices on the GPU; ``"streamed"``
-            transfers slices from host memory as needed; ``"auto"`` (default)
-            chooses residency using the device budget.
-        device_budget_bytes: Byte budget for automatic device-storage planning.
-            ``None`` derives it from free GPU memory minus reserve and buffer costs.
-        alpha_kind, beta_kind: Optional group representations, ``"intersection"``
-            or ``"union"``, independently for each spin sector. ``None`` chooses
-            automatically from the key occupations.
-        recut: Request membership-based row repartitioning with True, or ordinary
-            row cuts with False. ``None`` selects automatic load balancing for
-            distributed row-group layouts. A supplied plan controls the actual cut.
-        exchange: ``"stepped"`` (default), ``"grouped"`` or ``"two_level"``
-            source-vector exchange. Two-level exchange requires one copy per block.
-        copies: Ranks sharing a replicated connection-data block. Defaults to 1;
-            ``"auto"`` chooses a layout. An explicit positive count must divide
-            communicator size. Vector rows remain partitioned among ranks.
-        plan: Optional ``LayoutPlan`` or its dictionary representation. Overrides
-            copies, num_slices, exchange and the row-cut policy; all ranks must agree.
-        fixed_reduce: Precompute fixed row-reduction plans; defaults to True.
-            Atomic reduction disables these plans.
-        release_host_copies: Release redundant host group/halo copies after upload
-            in distributed layouts; defaults to True. Streamed data is retained.
-        domain_size: Optional positive number of contiguous ranks per two-level
-            communication domain. ``None`` uses detected node membership.
-        groups: ``"by_rows"`` (default) or ``"by_key"`` group ownership. By-key
-            grouping requires one copy and uses ordinary row cuts without a plan.
-        atomic_reduce: Accumulate contributions with GPU atomic additions;
-            defaults to False. Can change floating-point accumulation order.
-        vectors: ``"halo"`` (default) exchanges required remote amplitudes;
-            ``"full"`` exchanges the full vector internally and enables atomic
-            reduction. Full-vector mode requires by-key grouping and one copy.
-            Caller inputs still contain only ``n_local`` amplitudes.
+        engine: ``"auto"`` (default), ``"tile"`` or ``"general"``.
+            ``"tile"`` uses the faster ``TileGPUResidentHamiltonian`` and
+            needs a Cartesian-product subspace: the keys must hold every
+            alpha string paired with every beta string. ``"general"`` works
+            for any set of keys. ``"auto"`` uses ``"tile"`` when it can, and
+            ``"general"`` otherwise. ``"tile"`` raises an error when it cannot
+            run. The ``engine`` attribute shows the engine in use. Both
+            engines use the same key order. For only a few matvecs, use
+            ``"general"``: the tile engine can take longer to build at high
+            orbital counts.
 
     Raises:
-        ValueError: Keys, operator terms, storage options or layout combinations
-            are unsupported.
+        ValueError: Keys, operator terms or the engine are unsupported.
         ImportError: CuPy or required native components are unavailable.
         MemoryError: GPU allocations cannot fit in available device memory.
         RuntimeError: Device or communication setup fails.
     """
 
-    def __init__(
-        self,
-        operator,
-        keys,
-        *,
-        comm=None,
-        num_slices=DEFAULT_NUM_SLICES,
-        binned=True,
-        residency="auto",
-        device_budget_bytes=None,
-        alpha_kind=None,
-        beta_kind=None,
-        recut=None,
-        exchange="stepped",
-        copies=1,
-        plan=None,
-        fixed_reduce=True,
-        release_host_copies=True,
-        domain_size=None,
-        groups="by_rows",
-        atomic_reduce=False,
-        vectors="halo",
-    ):
+    _DEFAULT_OPTIONS = {
+        "num_slices": DEFAULT_NUM_SLICES,
+        "binned": True,
+        "residency": "auto",
+        "device_budget_bytes": None,
+        "alpha_kind": None,
+        "beta_kind": None,
+        "recut": None,
+        "exchange": "stepped",
+        "copies": 1,
+        "plan": None,
+        "fixed_reduce": True,
+        "release_host_copies": True,
+        "domain_size": None,
+        "groups": "by_rows",
+        "atomic_reduce": False,
+        "vectors": "halo",
+    }
+
+    def __init__(self, operator, keys, *, comm=None, engine="auto", _options=None):
         started = time.perf_counter()
+        options = dict(self._DEFAULT_OPTIONS)
+        unknown = sorted(set(_options or {}) - set(options))
+        if unknown:
+            raise ValueError(f"unknown options: {', '.join(unknown)}")
+        options.update(_options or {})
+
+        num_slices = options["num_slices"]
+        binned = options["binned"]
+        residency = options["residency"]
+        device_budget_bytes = options["device_budget_bytes"]
+        alpha_kind = options["alpha_kind"]
+        beta_kind = options["beta_kind"]
+        recut = options["recut"]
+        exchange = options["exchange"]
+        copies = options["copies"]
+        plan = options["plan"]
+        fixed_reduce = options["fixed_reduce"]
+        release_host_copies = options["release_host_copies"]
+        domain_size = options["domain_size"]
+        groups = options["groups"]
+        atomic_reduce = options["atomic_reduce"]
+        vectors = options["vectors"]
+
+        if engine not in ENGINES:
+            raise ValueError(f"engine must be one of {ENGINES}, got {engine!r}")
         if comm is None:
             from mpi4py import MPI  # noqa: PLC0415
 
             comm = MPI.COMM_SELF
         self._comm = comm
+        num_orbitals, electrons = run_on_every_rank(
+            comm, "operator width", lambda: _orbitals_and_electrons(operator, keys)
+        )
+        check_width(
+            comm,
+            (num_orbitals, num_orbitals),
+            "FullStrsGPUHamiltonian",
+            electrons,
+            max_words=MAX_KEY_WORDS,
+        )
+        keys = run_on_every_rank(
+            comm, "input keys", lambda: key_rows(keys, num_orbitals)
+        )
+        self._key_words = np.shape(keys)[1] // 2
+        self._tile = None
+        self._block = None
+        self._copies = None
+        self._full = None
+        self.engine = "general"
+        defaults = (
+            num_slices == DEFAULT_NUM_SLICES
+            and binned is True
+            and residency == "auto"
+            and device_budget_bytes is None
+            and alpha_kind is None
+            and beta_kind is None
+            and recut is None
+            and exchange == "stepped"
+            and copies == 1
+            and plan is None
+            and fixed_reduce is True
+            and release_host_copies is True
+            and domain_size is None
+            and groups == "by_rows"
+            and atomic_reduce is False
+            and vectors == "halo"
+        )
+        if engine == "tile" and not defaults:
+            raise ValueError(
+                "engine='tile' takes no general-engine options; leave them at their defaults"
+            )
+        if (
+            engine != "general"
+            and defaults
+            and self._init_tile(operator, keys, num_orbitals, engine, started)
+        ):
+            return
         self._binned = bool(binned)
         self._block = None
         self._copies = None
@@ -245,7 +282,7 @@ class FullStrsHamiltonian:
             return
         self._is_primary = True
         self.row_start = 0
-        self._host = HostOperator(
+        self._host = host_module(self._key_words).HostOperator(
             operator, keys, alpha_kind, beta_kind, num_slices=int(num_slices)
         )
         self._layout = DeviceLayout(
@@ -264,6 +301,72 @@ class FullStrsHamiltonian:
         self.supports_device_matvec = True
         self.diag_local = np.array(self._host.diagonal_view(), dtype=np.float64)
         self._log_ready(started)
+
+    def _init_tile(self, operator, keys, num_orbitals, engine, started):
+
+        from ..distributed.dist_matvec_tile_resident import (  # noqa: PLC0415
+            TileGPUResidentHamiltonian,
+        )
+        from .distribute import distribute_keys, redistribute  # noqa: PLC0415
+        from .tile_dispatch import beta_cuts, prepare  # noqa: PLC0415
+
+        comm = self._comm
+        block = distribute_keys(comm, keys, num_orbitals)
+        prepared, reason = prepare(comm, operator, block, self._key_words, num_orbitals)
+        if prepared is None:
+            if engine == "tile":
+                raise ValueError(f"engine='tile' cannot run: {reason}")
+            if comm.Get_rank() == 0:
+                logger.debug(
+                    "Full-string GPU Hamiltonian uses the general engine: %s",
+                    reason,
+                    extra={"gpu_rank": 0},
+                )
+            return False
+        hsub, alpha, beta = prepared
+        block = redistribute(
+            comm, block, beta_cuts(len(alpha), len(beta), comm.Get_size())
+        )
+        self._tile = TileGPUResidentHamiltonian(
+            hsub,
+            alpha,
+            beta,
+            comm=comm,
+            process_grid=(1, comm.Get_size()),
+            gpu_ids=(int(cupy.cuda.runtime.getDevice()),),
+        )
+        tile = self._tile
+        raise_on_every_rank(
+            comm,
+            None
+            if tile.n_local == block.n_local
+            else f"the tile holds {tile.n_local} rows, the key block {block.n_local}",
+            RuntimeError,
+            "tile engine layout",
+        )
+        self.engine = "tile"
+        self._is_primary = True
+        self._tile_keys = block.keys
+        self._host = _TileHost(num_orbitals)
+        self.n_local = block.n_local
+        self.row_start = block.row_start
+        self.shape = (block.num_rows, block.num_rows)
+        self.dtype = np.dtype(np.float64)
+        self.supports_device_matvec = True
+        self.diag_local = np.array(tile.diag_local, dtype=np.float64)
+        self.plan = LayoutPlan(copies=1, num_slices=DEFAULT_NUM_SLICES)
+        self.plan.share_starts = [int(v) for v in block.block_starts]
+        self.plan.measured["engine"] = "tile"
+        if comm.Get_rank() == 0:
+            logger.debug(
+                "Full-string GPU Hamiltonian uses the tile engine: grid=1x%d alpha=%d beta=%d",
+                comm.Get_size(),
+                len(alpha),
+                len(beta),
+                extra={"gpu_rank": 0},
+            )
+        self._log_ready(started)
+        return True
 
     def _log_ready(self, started):
 
@@ -296,12 +399,13 @@ class FullStrsHamiltonian:
         exchange,
     ):
 
-
         from fulqrum.gpu.distributed.rank_agreement import run_on_every_rank  # noqa: PLC0415
 
         from .distribute import build_distributed_groups  # noqa: PLC0415
         from .halo import HaloExchange  # noqa: PLC0415
-        from .host import RankOperator, block_reference  # noqa: PLC0415
+
+        host = host_module(self._key_words)
+        RankOperator, block_reference = host.RankOperator, host.block_reference
 
         comm = self._comm
         num_orbitals = run_on_every_rank(
@@ -350,9 +454,7 @@ class FullStrsHamiltonian:
 
             domain_comm, domains = exchange_domains(comm, self._domain_size)
             extend_to_domain_union(comm, domain_comm, domains, block, receiver)
-            fetch_halo_keys(
-                comm, block, receiver
-            )
+            fetch_halo_keys(comm, block, receiver)
         reference = comm.bcast(
             block_reference(block.keys, num_orbitals) if comm.Get_rank() == 0 else None,
             root=0,
@@ -421,11 +523,12 @@ class FullStrsHamiltonian:
         self, operator, block, receiver, num_orbitals, residency, device_budget_bytes
     ):
 
-
         from fulqrum.gpu.distributed.rank_agreement import run_on_every_rank  # noqa: PLC0415
 
         from .full_vectors import FullVectorExchange  # noqa: PLC0415
-        from .host import RankOperator, block_reference  # noqa: PLC0415
+
+        host = host_module(self._key_words)
+        RankOperator, block_reference = host.RankOperator, host.block_reference
 
         comm = self._comm
         size, rank = comm.Get_size(), comm.Get_rank()
@@ -439,21 +542,20 @@ class FullStrsHamiltonian:
         exchange = FullVectorExchange(comm, stride, block.n_local)
         stream = cupy.cuda.Stream(non_blocking=True)
 
-
+        row_words = 2 * self._key_words
         with stream:
-            keys = cupy.zeros(2 * size * stride, dtype=np.uint64)
-        keys[2 * rank * stride : 2 * (rank * stride + block.n_local)].set(
+            keys = cupy.zeros(row_words * size * stride, dtype=np.uint64)
+        first = row_words * rank * stride
+        keys[first : first + row_words * block.n_local].set(
             np.ascontiguousarray(block.keys).reshape(-1), stream=stream
         )
-        exchange.allgather(keys.view(np.float64), stream, width=2)
+        exchange.allgather(keys.view(np.float64), stream, width=row_words)
         stream.synchronize()
         self._block = block
         self._receiver = receiver
         self._host = _FullHost(rank_host, receiver, num_orbitals, size * stride)
         self._halo = exchange
-        reserve = (
-            self._host.num_rows - self._host.num_own
-        )
+        reserve = self._host.num_rows - self._host.num_own
         self._layout = run_on_every_rank(
             comm,
             "device layout",
@@ -501,12 +603,13 @@ class FullStrsHamiltonian:
         exchange,
     ):
 
-
         from fulqrum.gpu.distributed.rank_agreement import run_on_every_rank  # noqa: PLC0415
 
         from .distribute import plan_copy_groups  # noqa: PLC0415
         from .halo import CopyExchange, HaloExchange  # noqa: PLC0415
-        from .host import RankOperator, block_reference  # noqa: PLC0415
+
+        host = host_module(self._key_words)
+        RankOperator, block_reference = host.RankOperator, host.block_reference
 
         comm = self._comm
         num_orbitals = run_on_every_rank(
@@ -582,8 +685,10 @@ class FullStrsHamiltonian:
 
     @property
     def keys(self):
-        """Return this rank's post-distribution keys as a uint64 ``(n_local, 2)`` copy, alpha then
-        beta, sorted by ``(beta, alpha)``."""
+        """Return this rank's post-distribution keys as a uint64 ``(n_local, 2W)`` copy, alpha
+        words then beta words, sorted by ``(beta, alpha)``."""
+        if self._tile is not None:
+            return self._tile_keys.copy()
         if self._block is not None:
             return self._block.keys.copy()
         return self._host.sorted_keys()
@@ -601,16 +706,19 @@ class FullStrsHamiltonian:
     @property
     def num_streamed_slices(self):
         """The number of key slices streamed from host memory at every matvec."""
-        return self._layout.num_streamed
+        return 0 if self._tile is not None else self._layout.num_streamed
 
     @property
     def device_bytes(self):
         """The device memory of the stored groups, tables, keys, diagonal and matvec buffers, in bytes."""
+        if self._tile is not None:
+            return dict(self._tile.predicted_hbm_bytes)
         return self._layout.device_bytes()
 
     def _matvec(self, x, out=None):
 
-
+        if self._tile is not None:
+            return self._tile._matvec(x, out=out)
         if out is None:
             out = cupy.empty(self.n_local, dtype=np.float64)
         caller = cupy.cuda.get_current_stream()
@@ -668,7 +776,6 @@ class FullStrsHamiltonian:
 
     def _rdm_input(self, x):
 
-
         if self._block is None:
             return x
         if self._copies is not None:
@@ -699,7 +806,8 @@ class FullStrsHamiltonian:
             first = self._comm.Get_rank() * self._full[1]
         else:
             first = 0
-        return self._layout.keys[2 * first : 2 * (first + self.n_local)]
+        row_words = 2 * self._key_words
+        return self._layout.keys[row_words * first : row_words * (first + self.n_local)]
 
     def compute_rdms(self, x, *, rank=1, spin_summed=False):
         """Collectively compute RDMs from this rank's NumPy or CuPy state slice, shape
@@ -707,6 +815,8 @@ class FullStrsHamiltonian:
         device work and collectives complete; ``rank`` selects the RDM order (1 or 2), and no
         normalization is applied. Spin blocks, spin-summed forms, and conventions follow PySCF
         ``make_rdm12s(reorder=True)``."""
+        if self._tile is not None:
+            return self._tile.compute_rdms(x, rank=rank, spin_summed=spin_summed)
         from .rdm import compute_rdms_full_strs  # noqa: PLC0415
 
         return compute_rdms_full_strs(self, x, rank=rank, spin_summed=spin_summed)
@@ -725,6 +835,24 @@ class FullStrsHamiltonian:
         return cupy.asnumpy(y)
 
 
+def _key_electrons(keys):
+
+    keys = np.asarray(keys)
+    if keys.ndim != 2 or keys.shape[0] == 0 or keys.shape[1] % 2:
+        return (None, None)
+    half = keys.shape[1] // 2
+    words = np.ascontiguousarray(keys, dtype=np.uint64)
+    return (
+        int(popcount_w(words[:, :half]).max()),
+        int(popcount_w(words[:, half:]).max()),
+    )
+
+
+def _orbitals_and_electrons(operator, keys):
+
+    return _orbitals(operator), _key_electrons(keys)
+
+
 def _orbitals(operator):
 
     width = int(operator.width)
@@ -735,9 +863,13 @@ def _orbitals(operator):
     return width // 2
 
 
+class _TileHost:
+    def __init__(self, num_orbitals):
+
+        self.num_orbitals = int(num_orbitals)
+
+
 class _RankHost:
-
-
     def __init__(self, rank_host, receiver, num_orbitals):
 
         self.rank_host = rank_host
@@ -774,8 +906,6 @@ class _RankHost:
 
 
 class _KeyHost(_RankHost):
-
-
     def chunk_kinds(self):
 
         return [(0, self.num_rows, 0, self.num_rows, 0, self.num_rows)]
@@ -786,8 +916,6 @@ class _KeyHost(_RankHost):
 
 
 class _FullHost(_RankHost):
-
-
     def __init__(self, rank_host, receiver, num_orbitals, num_rows):
 
         super().__init__(rank_host, receiver, num_orbitals)
@@ -803,8 +931,6 @@ class _FullHost(_RankHost):
 
 
 class _CopyHost:
-
-
     def __init__(self, rank_host, pieces, num_orbitals, share_begin, share_end):
 
         self.rank_host = rank_host

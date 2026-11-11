@@ -12,7 +12,6 @@
  * that they have been altered from the originals.
  */
 
-
 #include <cuda_runtime.h>
 #include <omp.h>
 
@@ -40,7 +39,6 @@ double g_register_seconds = 0.0;
 double g_registered_bytes = 0.0;
 int g_registered_arrays = 0;
 int g_failed_arrays = 0;
-
 
 void first_touch(char* p, size_t bytes, long long n_local)
 {
@@ -71,7 +69,6 @@ void first_touch(char* p, size_t bytes, long long n_local)
     }
 }
 
-
 void warn_once(cudaError_t e, size_t bytes)
 {
     cudaGetLastError();
@@ -89,8 +86,7 @@ void warn_once(cudaError_t e, size_t bytes)
     std::fflush(stderr);
 }
 
-}
-
+} // namespace
 
 extern "C" void fq_primme_host_pinned_set(int enabled)
 {
@@ -101,8 +97,8 @@ extern "C" void fq_primme_host_pinned_set(int enabled)
     g_failed_arrays = 0;
 }
 
-
-extern "C" void fq_primme_host_pinned_stats(double* seconds, double* gib, int* registered, int* failed)
+extern "C" void
+fq_primme_host_pinned_stats(double* seconds, double* gib, int* registered, int* failed)
 {
     *seconds = g_register_seconds;
     *gib = g_registered_bytes / double(1ULL << 30);
@@ -110,14 +106,15 @@ extern "C" void fq_primme_host_pinned_stats(double* seconds, double* gib, int* r
     *failed = g_failed_arrays;
 }
 
-
-extern "C" int fq_primme_host_basis_malloc(void** x, size_t bytes, long long nLocal, int maxBasisSize)
+extern "C" int
+fq_primme_host_basis_malloc(void** x, size_t bytes, long long nLocal, int maxBasisSize)
 {
     if(!g_enabled || nLocal <= 0 || maxBasisSize <= 0)
     {
         return 1;
     }
-    if(static_cast<long double>(bytes) < static_cast<long double>(nLocal) * maxBasisSize * sizeof(double))
+    if(static_cast<long double>(bytes) <
+       static_cast<long double>(nLocal) * maxBasisSize * sizeof(double))
     {
         return 1;
     }
@@ -153,12 +150,12 @@ extern "C" int fq_primme_host_basis_malloc(void** x, size_t bytes, long long nLo
         g_failed_arrays++;
         warn_once(e, bytes);
     }
-    g_register_seconds += std::chrono::duration<double>(std::chrono::steady_clock::now() - started).count();
+    g_register_seconds +=
+        std::chrono::duration<double>(std::chrono::steady_clock::now() - started).count();
     g_records[slot] = Record{p, bytes, registered};
     *x = p;
     return 0;
 }
-
 
 extern "C" int fq_primme_host_basis_free(void* x)
 {

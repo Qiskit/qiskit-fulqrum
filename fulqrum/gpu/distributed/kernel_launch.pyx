@@ -17,6 +17,10 @@
 from libc.string cimport memset
 from libc.stdint cimport int8_t, int32_t, int64_t, uint8_t, uint32_t, uint64_t, uintptr_t
 
+from ..cuda_runtime import check_cuda_runtime
+
+check_cuda_runtime()
+
 
 cdef extern from "../kernels/formats/params.hpp":
     cdef struct FqTileGeometry:
@@ -211,10 +215,10 @@ cdef extern from "../kernels/formats/params.hpp":
         const uint32_t* ladder_offsets
         const int8_t* oper_elems
         const uint32_t* pair_keys
-        const int32_t* pair_values
+        const uint32_t* pair_values
         const uint32_t* pair_empty
         const uint64_t* quad_keys
-        const int32_t* quad_values
+        const uint32_t* quad_values
         const uint64_t* quad_empty
         const uint64_t* alpha_strings
         const uint64_t* beta_strings
@@ -869,10 +873,10 @@ cdef FqTermTables _terms(tuple values) except *:
     terms.ladder_offsets = <const uint32_t*> <uintptr_t> values[4]
     terms.oper_elems = <const int8_t*> <uintptr_t> values[5]
     terms.pair_keys = <const uint32_t*> <uintptr_t> values[6]
-    terms.pair_values = <const int32_t*> <uintptr_t> values[7]
+    terms.pair_values = <const uint32_t*> <uintptr_t> values[7]
     terms.pair_empty = <const uint32_t*> <uintptr_t> values[8]
     terms.quad_keys = <const uint64_t*> <uintptr_t> values[9]
-    terms.quad_values = <const int32_t*> <uintptr_t> values[10]
+    terms.quad_values = <const uint32_t*> <uintptr_t> values[10]
     terms.quad_empty = <const uint64_t*> <uintptr_t> values[11]
     terms.alpha_strings = <const uint64_t*> <uintptr_t> values[12]
     terms.beta_strings = <const uint64_t*> <uintptr_t> values[13]

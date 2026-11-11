@@ -16,8 +16,6 @@ from dataclasses import dataclass
 
 @dataclass
 class ArmPairTablesPayload:
-
-
     aa_sell_off: int = 0
     aa_sell_len: int = 0
     aa_sell_pack: int = 0
@@ -36,7 +34,6 @@ class ArmPairTablesPayload:
 
 
 def pair_payload_error(payload: ArmPairTablesPayload, n_b_rows: int, n_a_columns: int):
-
 
     errors = []
     if payload.aa_enable:
@@ -72,7 +69,6 @@ def pair_payload_error(payload: ArmPairTablesPayload, n_b_rows: int, n_a_columns
 
 def pair_table_options(environ):
 
-
     aa = environ.get("FQ_AA_PAIR_TABLE", "1")
     bb = environ.get("FQ_BB_PAIR_TABLE", "1")
     if aa not in ("0", "1") or bb not in ("0", "1"):
@@ -92,21 +88,12 @@ def pair_id(p, q, n):
 
 def between_parity_sign(bra, p, q):
 
-    import numpy as np
+    from ..common.wide import between_parity_w
 
-    lo = np.minimum(p, q).astype(np.uint64)
-    hi = np.maximum(p, q).astype(np.uint64)
-    mask = ((np.uint64(1) << hi) - np.uint64(1)) ^ (
-        (np.uint64(1) << (lo + np.uint64(1))) - np.uint64(1)
-    )
-    x = np.asarray(bra, dtype=np.uint64) & mask
-    for s in (32, 16, 8, 4, 2, 1):
-        x ^= x >> np.uint64(s)
-    return np.where((x & np.uint64(1)) != 0, -1, 1).astype(np.int8)
+    return between_parity_w(bra, p, q)
 
 
 def derive_pair_table(cpb, sign, pairs, n_pairs, n_other):
-
 
     import numpy as np
 
@@ -136,7 +123,6 @@ def derive_pair_table(cpb, sign, pairs, n_pairs, n_other):
 
 def merge_pair_tables(d_base, present_base, d_new, present_new):
 
-
     if not tables_agree(d_base, present_base, d_new, present_new):
         return None
     d = d_base.copy()
@@ -155,12 +141,17 @@ def tables_agree(d1, present1, d2, present2):
 
 def occupation_bits(strings, n_orb):
 
-
     import numpy as np
 
+    from ..common.wide import WORD_BITS
+
     s = np.asarray(strings, dtype=np.uint64)
-    shifts = np.arange(n_orb, dtype=np.uint64)
-    return ((s[:, None] >> shifts[None, :]) & np.uint64(1)).astype(np.float64)
+    orbitals = np.arange(n_orb, dtype=np.int64)
+    shifts = (orbitals % WORD_BITS).astype(np.uint64)
+    if s.ndim == 1:
+        return ((s[:, None] >> shifts[None, :]) & np.uint64(1)).astype(np.float64)
+    words = s[:, orbitals // WORD_BITS]
+    return ((words >> shifts[None, :]) & np.uint64(1)).astype(np.float64)
 
 
 def aa_table(d, bra_beta, n_beta):

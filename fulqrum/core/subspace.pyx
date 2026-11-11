@@ -393,12 +393,20 @@ cdef class Subspace():
         return [self.subspace.half_string(1, i) for i in range(self.subspace.half_size(1))]
 
     def to_alpha_beta_arrays(self):
+        return self._alpha_beta_words(2)
+
+    def _alpha_beta_words(self, max_words):
+        from ..gpu.common.wide import pack_strings
+
         if not self.subspace.product:
             raise FulqrumError("to_alpha_beta_arrays() requires a half-string Subspace")
-        if self.subspace.alpha_width > 64 or self.subspace.num_qubits - self.subspace.alpha_width > 64:
-            raise FulqrumError("Each GPU half must have at most 64 qubits")
-        return (np.array([int(s, 2) for s in self.alpha_strs], dtype=np.uint64),
-                np.array([int(s, 2) for s in self.beta_strs], dtype=np.uint64))
+        alpha_width = self.subspace.alpha_width
+        beta_width = self.subspace.num_qubits - alpha_width
+        limit = 64 * int(max_words)
+        if alpha_width > limit or beta_width > limit:
+            raise FulqrumError(f"Each GPU half must have at most {limit} qubits")
+        return (pack_strings(self.alpha_strs, alpha_width),
+                pack_strings(self.beta_strs, beta_width))
 
     def _storage_state(self):
         return {"map_materialized": self.subspace.map_materialized,

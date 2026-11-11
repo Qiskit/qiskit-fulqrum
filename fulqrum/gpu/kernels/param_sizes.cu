@@ -77,7 +77,6 @@ namespace
 constexpr int kProbeChains = 8;
 constexpr int kProbeThreads = 256;
 
-
 __global__ void __launch_bounds__(kProbeThreads) probe_mma_kernel(const int iterations, double* out)
 {
     const int lane = threadIdx.x & 31;
@@ -95,9 +94,10 @@ __global__ void __launch_bounds__(kProbeThreads) probe_mma_kernel(const int iter
 #pragma unroll
         for(int c = 0; c < kProbeChains; ++c)
         {
-            asm volatile("mma.sync.aligned.m8n8k4.row.col.f64.f64.f64.f64 {%0,%1}, {%2}, {%3}, {%0,%1};"
-                         : "+d"(y[c][0]), "+d"(y[c][1])
-                         : "d"(a), "d"(b));
+            asm volatile(
+                "mma.sync.aligned.m8n8k4.row.col.f64.f64.f64.f64 {%0,%1}, {%2}, {%3}, {%0,%1};"
+                : "+d"(y[c][0]), "+d"(y[c][1])
+                : "d"(a), "d"(b));
         }
     }
     double sum = 0.0;
@@ -109,8 +109,8 @@ __global__ void __launch_bounds__(kProbeThreads) probe_mma_kernel(const int iter
     out[blockIdx.x * blockDim.x + threadIdx.x] = sum;
 }
 
-
-__global__ void __launch_bounds__(kProbeThreads) probe_scalar_kernel(const int iterations, double* out)
+__global__ void __launch_bounds__(kProbeThreads)
+    probe_scalar_kernel(const int iterations, double* out)
 {
     const int lane = threadIdx.x & 31;
     const double a = 1.0 + 1e-9 * lane;
@@ -142,7 +142,6 @@ __global__ void __launch_bounds__(kProbeThreads) probe_scalar_kernel(const int i
     out[blockIdx.x * blockDim.x + threadIdx.x] = sum;
 }
 
-
 __global__ void probe_mma_check_kernel(double* out)
 {
     const int lane = threadIdx.x;
@@ -172,18 +171,19 @@ __global__ void probe_mma_check_kernel(double* out)
     out[4 * lane + 3] = want[1];
 }
 
-
-__global__ void __launch_bounds__(kProbeThreads) probe_copy_kernel(const double2* in, double2* out, const long long n)
+__global__ void __launch_bounds__(kProbeThreads)
+    probe_copy_kernel(const double2* in, double2* out, const long long n)
 {
     const long long stride = static_cast<long long>(gridDim.x) * blockDim.x;
-    for(long long i = static_cast<long long>(blockIdx.x) * blockDim.x + threadIdx.x; i < n; i += stride)
+    for(long long i = static_cast<long long>(blockIdx.x) * blockDim.x + threadIdx.x; i < n;
+        i += stride)
     {
         out[i] = in[i];
     }
 }
 
-
-cudaError_t time_copy(const int blocks, const double2* in, double2* out, const long long n, float* ms)
+cudaError_t
+time_copy(const int blocks, const double2* in, double2* out, const long long n, float* ms)
 {
     cudaEvent_t start;
     cudaEvent_t stop;
@@ -213,10 +213,10 @@ cudaError_t time_copy(const int blocks, const double2* in, double2* out, const l
     cudaEventDestroy(start);
     return status;
 }
-
 
 template <typename Kernel>
-cudaError_t time_probe(Kernel kernel, const int blocks, const int iterations, double* out, float* ms)
+cudaError_t
+time_probe(Kernel kernel, const int blocks, const int iterations, double* out, float* ms)
 {
     cudaEvent_t start;
     cudaEvent_t stop;
@@ -247,13 +247,18 @@ cudaError_t time_probe(Kernel kernel, const int blocks, const int iterations, do
     return status;
 }
 
-}
+} // namespace
 
 extern "C"
 {
 
-    int fq_probe_fp64_mma(const int iterations, float* mma_ms, float* scalar_ms, float* copy_ms, double* flops,
-                          double* copy_bytes, int* exact)
+    int fq_probe_fp64_mma(const int iterations,
+                          float* mma_ms,
+                          float* scalar_ms,
+                          float* copy_ms,
+                          double* flops,
+                          double* copy_bytes,
+                          int* exact)
     {
         int device = 0;
         int sms = 0;
@@ -317,7 +322,8 @@ extern "C"
                 int same = 1;
                 for(int lane = 0; lane < 32; ++lane)
                 {
-                    if(host[4 * lane] != host[4 * lane + 2] || host[4 * lane + 1] != host[4 * lane + 3])
+                    if(host[4 * lane] != host[4 * lane + 2] ||
+                       host[4 * lane + 1] != host[4 * lane + 3])
                     {
                         same = 0;
                     }

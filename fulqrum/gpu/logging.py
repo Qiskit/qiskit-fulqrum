@@ -54,10 +54,12 @@ def configure_gpu_logging(
     """Configure GPU log output and return the installed stream handler.
 
     Modes control which records this handler displays:
-        - ``quiet``: warnings and errors only.
-        - ``summary``: INFO messages, warnings and errors.
-        - ``detailed``: also normal DEBUG messages.
-        - ``trace``: also records from ``fulqrum.gpu.diagnostics``.
+
+    - ``quiet``: warnings and errors only.
+    - ``summary``: INFO messages, warnings and errors.
+    - ``detailed``: also normal DEBUG messages.
+    - ``trace``: also records from ``fulqrum.gpu.diagnostics``.
+
     Warning and error records bypass rank filtering in every mode. Timing and
     debug configuration flags are unchanged.
 
@@ -127,7 +129,6 @@ def _json_value(value):
         return value if math.isfinite(value) else None
     if value is None or isinstance(value, (str, int, bool)):
         return value
-
 
     if type(value).__module__.split(".")[0] == "numpy":
         return _json_value(value.tolist())

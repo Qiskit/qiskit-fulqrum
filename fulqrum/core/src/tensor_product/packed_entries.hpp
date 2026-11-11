@@ -80,14 +80,13 @@ inline double single_jw_sign(const std::uint64_t packed_entry)
  * @param index The string index in that half.
  * @param row The full-width row, store.num_words() words. The function sets it.
  */
-inline void embed_half_string(const HalfKeyView& store,
-                              const int half,
-                              const std::size_t index,
-                              KeyWord* row)
+inline void
+embed_half_string(const HalfKeyView& store, const int half, const std::size_t index, KeyWord* row)
 {
     std::fill_n(row, store.num_words(), KeyWord(0));
     const std::size_t shift = half == 0 ? 0 : store.split_bit();
-    or_shifted_key(store.half_key(half, index), store.half_words(half), shift, row, store.num_words());
+    or_shifted_key(
+        store.half_key(half, index), store.half_words(half), shift, row, store.num_words());
 }
 
 /**

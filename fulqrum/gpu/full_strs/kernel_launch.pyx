@@ -17,6 +17,10 @@
 from libc.stdint cimport int32_t, int64_t, uint16_t, uint32_t, uint64_t, uintptr_t
 from libc.string cimport memset
 
+from ..cuda_runtime import check_cuda_runtime
+
+check_cuda_runtime()
+
 
 cdef extern from "../kernels/full_strs/params.hpp":
     cdef struct FsKeys:
@@ -24,7 +28,7 @@ cdef extern from "../kernels/full_strs/params.hpp":
         const uint64_t* halo_keys
         int64_t num_rows
         int32_t num_orbitals
-        int32_t reserved
+        int32_t key_words
 
     cdef struct FsTables:
         const double* single_value
@@ -238,6 +242,7 @@ cdef _launch_groups(uintptr_t keys, uintptr_t halo_keys, int64_t num_rows, dict 
     key_struct.halo_keys = <const uint64_t*>halo_keys
     key_struct.num_rows = num_rows
     key_struct.num_orbitals = tables["num_orbitals"]
+    key_struct.key_words = tables.get("key_words", 1)
     cdef FsTables table_struct = _tables(tables)
     cdef FsGroups group_struct
     memset(&group_struct, 0, sizeof(group_struct))
@@ -338,7 +343,7 @@ def launch_gather_runs(uintptr_t perm, uintptr_t run_rows, uintptr_t run_starts,
 
 def launch_rdm_groups(uintptr_t keys, uintptr_t halo_keys, int64_t num_rows, int num_orbitals, uintptr_t members,
                       uintptr_t offsets, int64_t first_group, int64_t num_groups, int cls, tuple ranges, uintptr_t x,
-                      dict rdm, uintptr_t stream=0, int bucket=-1, int half=0):
+                      dict rdm, uintptr_t stream=0, int bucket=-1, int half=0, int key_words=1):
 
 
     if not -1 <= bucket <= 6:
@@ -351,6 +356,7 @@ def launch_rdm_groups(uintptr_t keys, uintptr_t halo_keys, int64_t num_rows, int
     key_struct.halo_keys = <const uint64_t*>halo_keys
     key_struct.num_rows = num_rows
     key_struct.num_orbitals = num_orbitals
+    key_struct.key_words = key_words
     cdef FsGroups group_struct
     memset(&group_struct, 0, sizeof(group_struct))
     group_struct.members = <const uint32_t*>members
@@ -384,7 +390,7 @@ def launch_rdm_groups(uintptr_t keys, uintptr_t halo_keys, int64_t num_rows, int
 
 
 def launch_pair_occupation(uintptr_t keys, int64_t num_rows, uintptr_t x, uintptr_t occupation, int sectors,
-                           int num_orbitals, uintptr_t stream=0):
+                           int num_orbitals, uintptr_t stream=0, int key_words=1):
 
 
     if sectors not in (0, 1, 2):
@@ -394,6 +400,7 @@ def launch_pair_occupation(uintptr_t keys, int64_t num_rows, uintptr_t x, uintpt
     key_struct.keys = <const uint64_t*>keys
     key_struct.num_rows = num_rows
     key_struct.num_orbitals = num_orbitals
+    key_struct.key_words = key_words
     cdef int status
     with nogil:
         status = fs_launch_pair_occupation(&key_struct, <const double*>x, <double*>occupation, sectors, num_orbitals,

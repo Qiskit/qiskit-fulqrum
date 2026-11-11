@@ -18,6 +18,7 @@ import hashlib
 import json
 import io
 import importlib.machinery
+import importlib.util
 import os
 from pathlib import Path
 import re
@@ -157,6 +158,47 @@ def _nvcc():
     raise RuntimeError(
         "CUDA compiler nvcc not found; install the CUDA toolkit or set CUDA_HOME. See GPU_INSTALL.md"
     )
+
+
+_NVCC_RELEASE = re.compile(r"release (\d+)\.(\d+)")
+CUDA_RECORD = "cuda_build.json"
+
+
+def parse_nvcc_version(text):
+    """Return the CUDA toolkit version ``"major.minor"`` from ``nvcc --version`` output."""
+    found = _NVCC_RELEASE.search(text)
+    if found is None:
+        raise RuntimeError(f"cannot read the CUDA version from nvcc output:\n{text}")
+    return f"{found.group(1)}.{found.group(2)}"
+
+
+def toolkit_version():
+    """Return the CUDA toolkit version of the nvcc used for the build."""
+    return parse_nvcc_version(
+        subprocess.check_output([_nvcc(), "--version"], text=True)
+    )
+
+
+def _cuda_runtime_module():
+    """Load fulqrum/gpu/cuda_runtime.py by path, without importing the package."""
+    spec = importlib.util.spec_from_file_location(
+        "_fulqrum_cuda_runtime", ROOT / "fulqrum" / "gpu" / "cuda_runtime.py"
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _check_build_cupy(toolkit):
+    """Fail early when the build environment's CuPy uses another CUDA major version."""
+    module = _cuda_runtime_module()
+    try:
+        runtime = module.runtime_version()
+    except Exception:  # noqa: BLE001
+        return
+    error = module.mismatch_error(toolkit, runtime)
+    if error is not None:
+        raise RuntimeError(f"Stopping the GPU build: {error}")
 
 
 def _build_cuda_library(output_dir, library_name, sources, label, *, verbose=False):
@@ -632,11 +674,15 @@ PRIMME_REVISION = "aa98cd27c13b2dbd41daa25d574c8837b0779a11"
 
 
 def copy_primme_sources(destination):
-    """Export the pinned upstream source, preserving local submodule edits."""
+    """Export the pinned upstream revision.
+
+    Git checkouts ignore local submodule edits; an sdist copies its bundled export.
+    """
     source = ROOT / "third-party/primme"
     destination = Path(destination)
     destination.mkdir(parents=True, exist_ok=True)
     if (source / ".git").exists():
+        _warn_ignored_primme_edits(source)
         data = subprocess.check_output(
             ["git", "-C", str(source), "archive", PRIMME_REVISION]
         )
@@ -667,17 +713,58 @@ def copy_primme_sources(destination):
         )
 
 
+# The PRIMME files an sdist ships to build the library; MANIFEST.in selects the same set.
+PRIMME_SDIST_PATHS = (
+    "makefile",
+    "Make_flags",
+    "include",
+    "src",
+    "COPYING.txt",
+    "README.rst",
+)
+
+
+def keep_primme_build_sources(destination):
+    """Remove everything but ``PRIMME_SDIST_PATHS`` from a PRIMME export."""
+    for path in Path(destination).iterdir():
+        if path.name in PRIMME_SDIST_PATHS:
+            continue
+        if path.is_dir() and not path.is_symlink():
+            shutil.rmtree(path)
+        else:
+            path.unlink()
+
+
+def _warn_ignored_primme_edits(source):
+    head = subprocess.run(
+        ["git", "-C", str(source), "rev-parse", "HEAD"], capture_output=True, text=True
+    )
+    dirty = subprocess.run(
+        ["git", "-C", str(source), "status", "--porcelain"],
+        capture_output=True,
+        text=True,
+    )
+    if head.stdout.strip() != PRIMME_REVISION or dirty.stdout.strip():
+        print(
+            f"WARNING: third-party/primme differs from {PRIMME_REVISION[:12]}; "
+            "the build uses the pinned revision plus patches/primme/*.patch and "
+            "ignores local submodule edits",
+            flush=True,
+        )
+
+
 def _primme_build_key(source, cuda_root, blas_path):
     digest = hashlib.sha256()
-    for path in sorted(source.rglob("*")):
-        if (
-            path.is_file()
-            and ".git" not in path.parts
-            and path.suffix not in (".o", ".a", ".so")
-            and "lib" not in path.relative_to(source).parts
-        ):
-            digest.update(str(path.relative_to(source)).encode())
-            digest.update(path.read_bytes())
+    if not (source / ".git").exists():
+        for path in sorted(source.rglob("*")):
+            if (
+                path.is_file()
+                and ".git" not in path.parts
+                and path.suffix not in (".o", ".a", ".so")
+                and "lib" not in path.relative_to(source).parts
+            ):
+                digest.update(str(path.relative_to(source)).encode())
+                digest.update(path.read_bytes())
     for path in sorted((ROOT / "patches/primme").glob("*.patch")):
         digest.update(path.name.encode())
         digest.update(path.read_bytes())
@@ -870,7 +957,12 @@ def prepare_native_build(command):
                 + probe.stderr
             )
         targets = _nvcc_arch_flags()
-        print(f"[fulqrum] CUDA: {cuda_root}; targets: {' '.join(targets)}", flush=True)
+        toolkit = toolkit_version()
+        _check_build_cupy(toolkit)
+        print(
+            f"[fulqrum] CUDA {toolkit}: {cuda_root}; targets: {' '.join(targets)}",
+            flush=True,
+        )
     for tool in ("make", "git"):
         if not shutil.which(tool):
             raise RuntimeError(
@@ -907,6 +999,9 @@ def prepare_native_build(command):
         _build_dist_cuda_lib(output)
         _build_full_strs_cuda_lib(output)
         _build_rdm_cuda_lib(output)
+        (output / CUDA_RECORD).write_text(
+            json.dumps({"cuda_toolkit": toolkit}, indent=1) + "\n"
+        )
         copies = [
             ("distributed", "libdist_matvec_cuda.so"),
             ("full_strs", "libfull_strs_cuda.so"),
@@ -916,6 +1011,7 @@ def prepare_native_build(command):
             _build_kernel_test_lib(output)
             copies.append(("kernels/tests", "libfq_kernel_tests.so"))
         copies.append(("distributed", "kernel_resources.json"))
+        copies.append(("", CUDA_RECORD))
         for subdir, name in copies:
             targets = [Path(command.build_lib) / "fulqrum/gpu" / subdir]
             if command.inplace:
@@ -942,6 +1038,7 @@ def prune_inplace_native(extensions):
             "full_strs/libfull_strs_cuda.so",
             "rdm/librdm_cuda.so",
             "kernels/tests/libfq_kernel_tests.so",
+            CUDA_RECORD,
         ):
             (ROOT / "fulqrum/gpu" / relative).unlink(missing_ok=True)
 
@@ -987,6 +1084,13 @@ def gpu_extensions(root, include_dirs, compile_args, link_args, define_macros):
         _ext(
             f"{root}.gpu.full_strs.host",
             f"{root}/gpu/full_strs/host.pyx",
+        )
+    )
+    exts.append(
+        _ext(
+            f"{root}.gpu.full_strs.host_w2",
+            f"{root}/gpu/full_strs/host_w2.pyx",
+            define_macros=list(define_macros) + [("FQ_W", "2")],
         )
     )
     exts.append(

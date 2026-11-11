@@ -335,6 +335,25 @@ def test_a_memory_refusal_on_one_rank_raises_on_every_rank(monkeypatch):
         text,
     )
 
+    def patch_both(mp, module):
+        mp.setattr(module, "FIT_SHARE", 0.0)
+        mp.setattr(module, "BUDGET_FLOOR", 0)
+        mp.setattr(module, "BUDGET_VECTORS", 0)
+
+    text = raised_on_every_rank(monkeypatch, patch_both, MemoryError)
+    agreed("RDM memory check failed" in text, text)
+
+
+def test_a_host_memory_refusal_raises_on_every_rank(monkeypatch):
+
+    def patch(mp, module):
+        mp.setattr(module, "_host_available", lambda: 1)
+
+    text = raised_on_every_rank(monkeypatch, patch, MemoryError)
+    agreed(
+        "RDM host memory check failed" in text and "GiB of host memory" in text, text
+    )
+
 
 IN_PROCESS_GRIDS = [(2, 2), (1, 4), (4, 1), (3, 2)]
 
@@ -461,7 +480,7 @@ def keyed_state(keys):
 
 def full_strs_rdms(operator, keys, ranks=1, **options):
     from fulqrum.gpu.distributed.local_comm import LocalComm, run_ranks  # noqa: PLC0415
-    from fulqrum.gpu.full_strs.hamiltonian import FullStrsHamiltonian  # noqa: PLC0415
+    from fulqrum.gpu.full_strs.hamiltonian import FullStrsGPUHamiltonian  # noqa: PLC0415
 
     amplitude = keyed_state(keys)
     m = operator.width // 2
@@ -478,7 +497,9 @@ def full_strs_rdms(operator, keys, ranks=1, **options):
         )
 
     if ranks == 1:
-        h = FullStrsHamiltonian(operator, keys, num_slices=3, **options)
+        h = FullStrsGPUHamiltonian(
+            operator, keys, _options={"num_slices": 3, **options}
+        )
         return h.compute_rdms(state_of(h), rank=2), oracle
     parts = np.array_split(
         keys[np.random.default_rng(ranks).permutation(keys.shape[0])], ranks
@@ -486,8 +507,11 @@ def full_strs_rdms(operator, keys, ranks=1, **options):
 
     def body(comm):
         cupy.cuda.Device(0).use()
-        h = FullStrsHamiltonian(
-            operator, parts[comm.Get_rank()], comm=comm, num_slices=3, **options
+        h = FullStrsGPUHamiltonian(
+            operator,
+            parts[comm.Get_rank()],
+            comm=comm,
+            _options={"num_slices": 3, **options},
         )
         return h.compute_rdms(state_of(h), rank=2)
 
@@ -564,7 +588,7 @@ def test_full_strs_rdms_on_in_process_ranks_match_the_oracle(ranks, mode):
 )
 def test_full_strs_half_visits_equal_both_visits(fe4s4, monkeypatch):
     from fulqrum.gpu.full_strs import rdm as fs_rdm  # noqa: PLC0415
-    from fulqrum.gpu.full_strs.hamiltonian import FullStrsHamiltonian  # noqa: PLC0415
+    from fulqrum.gpu.full_strs.hamiltonian import FullStrsGPUHamiltonian  # noqa: PLC0415
 
     op, half_strings, *_ = fe4s4
     keys = product_keys(half_strings[:40], half_strings[:40])
@@ -575,7 +599,7 @@ def test_full_strs_half_visits_equal_both_visits(fe4s4, monkeypatch):
             )
         )
     ]
-    h = FullStrsHamiltonian(op, keys, num_slices=3)
+    h = FullStrsGPUHamiltonian(op, keys, _options={"num_slices": 3})
     amplitude = keyed_state(keys)
     x = np.array([amplitude[(int(a), int(b))] for a, b in h.keys], dtype=np.float64)
     assert fs_rdm._half_visits(h) == 2
@@ -604,7 +628,7 @@ def test_full_strs_half_visits_equal_both_visits(fe4s4, monkeypatch):
 def test_full_strs_half_visits_only_where_outputs_are_sources(mode, half):
     from fulqrum.gpu.distributed.local_comm import LocalComm, run_ranks  # noqa: PLC0415
     from fulqrum.gpu.full_strs import rdm as fs_rdm  # noqa: PLC0415
-    from fulqrum.gpu.full_strs.hamiltonian import FullStrsHamiltonian  # noqa: PLC0415
+    from fulqrum.gpu.full_strs.hamiltonian import FullStrsGPUHamiltonian  # noqa: PLC0415
 
     op, alpha, beta = chain_qubit_operator(5, 1)
     keys = product_keys(alpha, beta)
@@ -613,8 +637,11 @@ def test_full_strs_half_visits_only_where_outputs_are_sources(mode, half):
     def body(comm):
         cupy.cuda.Device(0).use()
         return fs_rdm._half_visits(
-            FullStrsHamiltonian(
-                op, parts[comm.Get_rank()], comm=comm, num_slices=3, **mode
+            FullStrsGPUHamiltonian(
+                op,
+                parts[comm.Get_rank()],
+                comm=comm,
+                _options={"num_slices": 3, **mode},
             )
         )
 
@@ -637,7 +664,6 @@ def test_relay_route_model_and_lent_buffers():
     from fulqrum.gpu.distributed import rdm_cart  # noqa: PLC0415
 
     class One:
-
         def Get_rank(self):
             return 5
 
@@ -656,12 +682,125 @@ def test_relay_route_model_and_lent_buffers():
     assert rdm_cart._lent_elems([10], []) == 0
 
 
-def test_an_rdm_over_the_eigensolver_peak_raises_on_every_rank(monkeypatch):
+def test_an_rdm_over_the_planning_target_still_runs(monkeypatch):
     from fulqrum.gpu.distributed import rdm_cart  # noqa: PLC0415
 
-    monkeypatch.setattr(rdm_cart, "BUDGET_FLOOR", 0)
-    monkeypatch.setattr(rdm_cart, "BUDGET_VECTORS", 0)  # no plan fits a zero budget
     hsub, alpha, beta, *_ = chain_hamiltonian(5, 1)
     grid = grids_for(COMM.Get_size())[0]
-    with pytest.raises(MemoryError, match="RDM memory budget"):
-        distributed_rdms(hsub, alpha, beta, grid, rank=2)
+    expected, *_ = distributed_rdms(hsub, alpha, beta, grid, rank=2)
+    monkeypatch.setattr(rdm_cart, "BUDGET_FLOOR", 0)
+    monkeypatch.setattr(rdm_cart, "BUDGET_VECTORS", 0)  # no plan fits a zero target
+    got, *_ = distributed_rdms(hsub, alpha, beta, grid, rank=2)
+    # The zero target makes the planner pick the smallest relay plan, so the two
+    # runs use different exchange plans and atomic sums in a different order.
+    scale = max(
+        float(np.abs(np.asarray(b)).max()) for b in (*expected[0], *expected[1])
+    )
+    error = largest_error(got, expected)
+    agreed(error <= 1e-12 * scale, f"relaxed-target RDMs differ by {error}")
+
+
+def clustered_keys_with_an_isolated_block(size, seed):
+    from fulqrum.gpu.full_strs.distribute import sort_unique  # noqa: PLC0415
+
+    def sector(orbitals, electrons):
+        return [sum(1 << o for o in occ) for occ in combinations(orbitals, electrons)]
+
+    small_sector = sector(range(0, 5), 3)
+    big_sector = sector(range(5, 12), 3)
+    small = [(a, b) for b in small_sector for a in small_sector]
+    pairs = [(a, b) for b in big_sector for a in big_sector]
+    pick = np.random.default_rng(seed).choice(
+        len(pairs), size=(size - 1) * 100, replace=False
+    )
+    big = [pairs[i] for i in pick]
+    return sort_unique(np.array(small + big, dtype=np.uint64))
+
+
+@pytest.mark.skipif(
+    COMM.Get_size() > 1, reason="full-string RDM tests run in the one-process suite"
+)
+def test_full_strs_rdms_with_a_halo_free_rank_match_one_rank():
+    from fulqrum.gpu.distributed.local_comm import LocalComm, run_ranks  # noqa: PLC0415
+    from fulqrum.gpu.full_strs.hamiltonian import FullStrsGPUHamiltonian  # noqa: PLC0415
+    from fulqrum.test.test_full_strs_coefficients import random_operator  # noqa: PLC0415
+
+    size = 3
+    operator = random_operator(12, 9)
+    keys = clustered_keys_with_an_isolated_block(size, 11 + size)
+    x = np.random.default_rng(6).normal(size=keys.shape[0])
+    x /= np.linalg.norm(x)
+    index = {(int(a), int(b)): i for i, (a, b) in enumerate(keys)}
+
+    def run(ranks):
+        parts = np.array_split(keys, ranks)
+
+        def body(comm):
+            cupy.cuda.Device(0).use()
+            h = FullStrsGPUHamiltonian(
+                operator,
+                parts[comm.Get_rank()],
+                comm=comm,
+                _options={"num_slices": 2, "recut": False},
+            )
+            local = np.array([x[index[(int(a), int(b))]] for a, b in h.keys])
+            return h.num_halo, h.compute_rdms(local, rank=2)
+
+        return run_ranks(LocalComm.create(ranks, timeout=300.0), body)
+
+    ((_, reference),) = run(1)
+    results = run(size)
+    halos = [num_halo for num_halo, _ in results]
+    assert 0 in halos and any(num_halo > 0 for num_halo in halos), halos
+    for _, rdms in results:
+        assert largest_error(rdms, reference) < TOLERANCE
+
+
+DELAY_SIZE = 2048
+DELAY_SECONDS = 0.05
+
+
+def _delay_gemms(delay):
+
+    delay @ delay
+    start, end = cupy.cuda.Event(), cupy.cuda.Event()
+    start.record()
+    delay @ delay
+    end.record()
+    end.synchronize()
+    seconds = cupy.cuda.get_elapsed_time(start, end) / 1e3
+    return max(1, int(np.ceil(DELAY_SECONDS / max(seconds, 1e-6))))
+
+
+@pytest.mark.skipif(
+    COMM.Get_size() > 1, reason="full-string RDM tests run in the one-process suite"
+)
+def test_full_strs_rdms_wait_for_the_caller_stream():
+    from fulqrum.gpu.full_strs.distribute import sort_unique  # noqa: PLC0415
+    from fulqrum.gpu.full_strs.hamiltonian import FullStrsGPUHamiltonian  # noqa: PLC0415
+    from fulqrum.test.test_full_strs_coefficients import random_operator  # noqa: PLC0415
+
+    norb = 10
+    sector = [sum(1 << o for o in occ) for occ in combinations(range(norb), 3)]
+    keys = sort_unique(np.array([(a, b) for b in sector for a in sector], np.uint64))
+    h = FullStrsGPUHamiltonian(random_operator(norb, 3), keys, engine="general")
+    x_host = np.random.default_rng(1).normal(size=h.n_local).astype(np.float32)
+    x_host /= np.linalg.norm(x_host)
+    reference = np.asarray(
+        h.compute_rdms(cupy.asarray(x_host), rank=1, spin_summed=True)
+    )
+    caller = cupy.cuda.Stream(non_blocking=True)
+    delay = cupy.random.standard_normal((DELAY_SIZE, DELAY_SIZE), dtype=cupy.float32)
+    gemms = _delay_gemms(delay)
+    cupy.cuda.Device().synchronize()
+    for _ in range(20):
+        with caller:
+            target = cupy.full(h.n_local, np.float32(np.nan))
+            for _ in range(gemms):
+                delay = delay @ delay
+                delay /= cupy.abs(delay).max()
+            target[...] = cupy.asarray(x_host)
+            got = np.asarray(h.compute_rdms(target, rank=1, spin_summed=True))
+        caller.synchronize()
+        assert np.isfinite(got).all()
+        assert np.abs(got - reference).max() < TOLERANCE

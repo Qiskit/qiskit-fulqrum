@@ -29,8 +29,6 @@ Tile = tuple[int, int, int, int, int, int]
 
 @dataclass(frozen=True)
 class TileGrid:
-
-
     p_alpha: int
     p_beta: int
     alpha_ranges: tuple[Range, ...]
@@ -40,7 +38,6 @@ class TileGrid:
     def build(
         cls, p_alpha: int, p_beta: int, alpha_strings, beta_strings
     ) -> "TileGrid":
-
 
         n_a, n_b = len(alpha_strings), len(beta_strings)
         return cls(
@@ -91,8 +88,6 @@ class TileGrid:
 
 @dataclass(frozen=True)
 class GridComms:
-
-
     world: object
     alpha: object
     beta: object
@@ -111,8 +106,6 @@ class GridComms:
 
 @dataclass(frozen=True)
 class SourceSet:
-
-
     sources: dict
     mixed_sources: list
     mixed_destinations: list
@@ -128,8 +121,6 @@ class SourceSet:
 
 @dataclass(frozen=True)
 class _ScanInput:
-
-
     grid: TileGrid
     rank: int
     alpha_strings: np.ndarray
@@ -151,7 +142,6 @@ class _ScanInput:
 
 
 def _scan(scan: _ScanInput, items: list) -> dict:
-
 
     if not items:
         return {}
@@ -190,6 +180,13 @@ def _signatures(scan: _ScanInput) -> tuple[int, int]:
         (beta_bra, scan.beta_strings, ("beta2", "beta4")),
     ):
         value = 0
+        if np.ndim(bra) > 1:
+            if any(scan.flip_masks.get(key) for key in keys):
+                raise ValueError(
+                    "flip masks are single-word; multi-word strings use dense discovery"
+                )
+            signature.append(value)
+            continue
         for key in keys:
             for mask, _positions in scan.flip_masks.get(key, []):
                 flipped = bra.astype(np.uint64) ^ np.uint64(mask)
@@ -269,7 +266,6 @@ def discover_sources(
     threads: int,
     cross_check_max_ranks: int,
 ) -> SourceSet:
-
 
     rank = comms.world.Get_rank()
     scan = _ScanInput(

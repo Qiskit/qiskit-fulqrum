@@ -199,6 +199,14 @@ def test_hbm_fit_error_reports_only_when_the_prediction_exceeds_the_limit():
     assert "predicted=86 B" in message and "'b': 46" in message
 
 
+def test_hbm_fit_error_checks_only_pending_bytes_against_free_memory():
+    resident = {"operator": 150}
+    assert hbm_fit_error(resident, 40, 200, 1.0, {"scratch": 40}) is None
+    message = hbm_fit_error(resident, 40, 200, 1.0, {"scratch": 41})
+    assert "pending=41 B" in message and "resident=150 B" in message
+    assert hbm_fit_error(resident, 100, 200, 1.0, {"scratch": 51}) is not None
+
+
 def test_values_on_edges_follow_the_gpu_edge_order():
     gpu_ptr, gpu_columns = np.array([0, 3, 4]), np.array([2, 0, 1, 1])
     host_offsets, host_columns, host_values = (

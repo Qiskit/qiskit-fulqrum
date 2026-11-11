@@ -23,8 +23,9 @@ namespace
 constexpr int kDiagonalThreads = 256;
 constexpr std::int64_t kMaxDiagonalBlocks = 65535 * 32;
 
-
-__device__ double diagonal_element(const FqTileGeometry& geometry, const FqDiagonalTables& tables, const int a,
+__device__ double diagonal_element(const FqTileGeometry& geometry,
+                                   const FqDiagonalTables& tables,
+                                   const int a,
                                    const int b)
 {
     if(tables.diag_Mb == nullptr)
@@ -35,11 +36,11 @@ __device__ double diagonal_element(const FqTileGeometry& geometry, const FqDiago
     double cross = 0.0;
     for(int p = 0; p < tables.num_alpha; ++p)
     {
-        cross += (1.0 - 2.0 * double((alpha >> p) & 1ull)) * tables.diag_Mb[std::int64_t(p) * geometry.n_b_bra + b];
+        cross += (1.0 - 2.0 * double((alpha >> p) & 1ull)) *
+                 tables.diag_Mb[std::int64_t(p) * geometry.n_b_bra + b];
     }
     return tables.diag_alpha[a] + tables.diag_beta[b] + cross;
 }
-
 
 __global__ void __launch_bounds__(kDiagonalThreads) diagonal_kernel(const FqTileGeometry geometry,
                                                                     const FqVectors vectors,
@@ -58,13 +59,14 @@ __global__ void __launch_bounds__(kDiagonalThreads) diagonal_kernel(const FqTile
         {
             continue;
         }
-        const double value = diagonal_element(geometry, tables, a, b) *
-                             vectors.src_in[fq::device::tile_index(b_slot, geometry.n_alpha_src_compact, a_slot)];
+        const double value =
+            diagonal_element(geometry, tables, a, b) *
+            vectors.src_in[fq::device::tile_index(b_slot, geometry.n_alpha_src_compact, a_slot)];
         vectors.out_local[i] += value;
     }
 }
 
-}
+} // namespace
 
 extern "C"
 {
@@ -81,8 +83,10 @@ extern "C"
             return int(cudaSuccess);
         }
         const std::int64_t blocks = (n + kDiagonalThreads - 1) / kDiagonalThreads;
-        const unsigned int grid = static_cast<unsigned int>(blocks < kMaxDiagonalBlocks ? blocks : kMaxDiagonalBlocks);
-        diagonal_kernel<<<grid, kDiagonalThreads, 0, static_cast<cudaStream_t>(stream)>>>(*geometry, *vectors, *tables);
+        const unsigned int grid =
+            static_cast<unsigned int>(blocks < kMaxDiagonalBlocks ? blocks : kMaxDiagonalBlocks);
+        diagonal_kernel<<<grid, kDiagonalThreads, 0, static_cast<cudaStream_t>(stream)>>>(
+            *geometry, *vectors, *tables);
         return int(cudaGetLastError());
     }
 }

@@ -295,3 +295,158 @@ def tile_has_popcount(
                     break
 
     return found_mv[0] != 0
+
+
+cdef inline int _words_popcount(
+    const np.uint64_t* a, const np.uint64_t* b, int words
+) noexcept nogil:
+
+    cdef int w, total = 0
+    for w in range(words):
+        total = total + __builtin_popcountll(a[w] ^ b[w])
+    return total
+
+
+def _word_rows(object strings, str name):
+
+    array = np.ascontiguousarray(strings, dtype=np.uint64)
+    if array.ndim != 2 or array.shape[1] < 1:
+        raise ValueError(f"{name} must have shape (N, words); got {np.shape(array)}")
+    return array
+
+
+@cython.boundscheck(False)
+@cython.wraparound(False)
+def build_tile_flip_csr_dense_words(
+    object bra_strings,
+    object src_strings,
+    int popcount,
+    int nthreads,
+):
+
+
+    bra_arr = _word_rows(bra_strings, "bra strings")
+    src_arr = _word_rows(src_strings, "source strings")
+    if bra_arr.shape[1] != src_arr.shape[1]:
+        raise ValueError("bra and source strings must have the same number of words")
+    cdef np.uint64_t[:, ::1] bra = bra_arr
+    cdef np.uint64_t[:, ::1] src = src_arr
+    cdef int words = bra.shape[1]
+    cdef Py_ssize_t n_bra = bra.shape[0]
+    cdef Py_ssize_t n_src = src.shape[0]
+    cdef Py_ssize_t r, s, pos, nnz
+    cdef unsigned long long xx
+    cdef int cnt, w, k, pc = popcount
+    cdef np.int64_t running = 0
+    cdef np.int32_t c
+    cdef np.int64_t[::1] mv_ptr
+    cdef np.int32_t[::1] mv_j, counts
+    cdef np.uint8_t[::1] mv_p0, mv_p1, mv_p2, mv_p3
+
+    checked_index[np.int32_t](n_src)
+    checked_multiply(checked_add(n_bra, 1), sizeof(np.int64_t))
+    ptr_arr = np.zeros(checked_index[Py_ssize_t](checked_add(n_bra, 1)), dtype=np.int64)
+    if n_bra == 0 or n_src == 0:
+        return _empty_payload(ptr_arr)
+    if nthreads < 1:
+        nthreads = 1
+
+    mv_ptr = ptr_arr
+    counts_arr = np.zeros(n_bra, dtype=np.int32)
+    counts = counts_arr
+
+    for r in prange(n_bra, nogil=True, schedule="static", num_threads=nthreads):
+        cnt = 0
+        for s in range(n_src):
+            if _words_popcount(&src[s, 0], &bra[r, 0], words) == pc:
+                cnt = cnt + 1
+        counts[r] = cnt
+
+    for r in range(n_bra):
+        c = counts[r]
+        mv_ptr[r] = running
+        running = checked_index[np.int64_t](checked_add(running, c))
+    mv_ptr[n_bra] = running
+    nnz = running
+    if nnz == 0:
+        return _empty_payload(ptr_arr)
+
+    checked_multiply(nnz, sizeof(np.int32_t) + 4 * sizeof(np.uint8_t))
+    j_arr = np.empty(nnz, dtype=np.int32)
+    p_arr = np.zeros((4, nnz), dtype=np.uint8)
+    mv_j = j_arr
+    mv_p0 = p_arr[0]
+    mv_p1 = p_arr[1]
+    mv_p2 = p_arr[2]
+    mv_p3 = p_arr[3]
+
+    for r in prange(n_bra, nogil=True, schedule="static", num_threads=nthreads):
+        pos = mv_ptr[r]
+        for s in range(n_src):
+            if _words_popcount(&src[s, 0], &bra[r, 0], words) == pc:
+                mv_j[pos] = <np.int32_t>s
+                k = 0
+                for w in range(words):
+                    xx = src[s, w] ^ bra[r, w]
+                    while xx != 0 and k < 4:
+                        if k == 0:
+                            mv_p0[pos] = <np.uint8_t>(__builtin_ctzll(xx) + 64 * w)
+                        elif k == 1:
+                            mv_p1[pos] = <np.uint8_t>(__builtin_ctzll(xx) + 64 * w)
+                        elif k == 2:
+                            mv_p2[pos] = <np.uint8_t>(__builtin_ctzll(xx) + 64 * w)
+                        else:
+                            mv_p3[pos] = <np.uint8_t>(__builtin_ctzll(xx) + 64 * w)
+                        xx = xx & (xx - 1)
+                        k = k + 1
+                pos = pos + 1
+
+    return (
+        ptr_arr,
+        j_arr,
+        np.ascontiguousarray(p_arr[0]),
+        np.ascontiguousarray(p_arr[1]),
+        np.ascontiguousarray(p_arr[2]),
+        np.ascontiguousarray(p_arr[3]),
+    )
+
+
+@cython.boundscheck(False)
+@cython.wraparound(False)
+def tile_has_popcount_words(
+    object bra_strings,
+    object src_strings,
+    int popcount,
+    int nthreads,
+):
+
+
+    bra_arr = _word_rows(bra_strings, "bra strings")
+    src_arr = _word_rows(src_strings, "source strings")
+    if bra_arr.shape[1] != src_arr.shape[1]:
+        raise ValueError("bra and source strings must have the same number of words")
+    cdef np.uint64_t[:, ::1] bra = bra_arr
+    cdef np.uint64_t[:, ::1] src = src_arr
+    cdef int words = bra.shape[1]
+    cdef Py_ssize_t n_bra = bra.shape[0]
+    cdef Py_ssize_t n_src = src.shape[0]
+    cdef Py_ssize_t r, s
+    cdef int pc = popcount
+    cdef np.int32_t[::1] found_mv
+
+    if n_bra == 0 or n_src == 0:
+        return False
+    if nthreads < 1:
+        nthreads = 1
+
+    found_arr = np.zeros(1, dtype=np.int32)
+    found_mv = found_arr
+
+    for r in prange(n_bra, nogil=True, schedule="dynamic", num_threads=nthreads):
+        if found_mv[0] == 0:
+            for s in range(n_src):
+                if _words_popcount(&src[s, 0], &bra[r, 0], words) == pc:
+                    found_mv[0] = 1
+                    break
+
+    return found_mv[0] != 0

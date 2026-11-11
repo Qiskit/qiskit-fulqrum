@@ -22,6 +22,8 @@ except ImportError:
 
 from fulqrum.gpu.distributed import _collective as col
 
+from .conftest import gpu_available, run_local_ranks
+
 
 def _has_cupy() -> bool:
     return cupy is not None
@@ -222,51 +224,45 @@ def test_diagonal_kernel_full_v_matches_dense_Hv():
     np.testing.assert_allclose(full, (M_dense @ v_host).ravel(), atol=1e-10, rtol=1e-10)
 
 
-@pytest.mark.skipif(not _has_cupy(), reason="cupy required")
-def test_diagonal_construction_4rank_resolves_self_source():
-    pytest.importorskip("mpi4py")
-    from mpi4py import MPI
-
+@pytest.mark.gpu
+@pytest.mark.skipif(not gpu_available(), reason="GPU build / CUDA device unavailable")
+def test_diagonal_construction_4rank_resolves_self_source(monkeypatch):
     from fulqrum.gpu.distributed.dist_matvec import TileClass
     from fulqrum.gpu.distributed.dist_matvec_tile_resident import (
         TileGPUResidentHamiltonian,
     )
 
-    comm = MPI.COMM_WORLD
-    rank = comm.Get_rank()
-    nranks = comm.Get_size()
-    if nranks != 4:
-        pytest.skip(f"test requires 4 ranks, got {nranks}")
-
-    col.reset_for_testing()
+    monkeypatch.setenv("FQ_DIAG_RECOMPUTE", "0")
     hsub, alpha_strs, beta_strs, _qop = _make_h2_hsub()
 
-    H = TileGPUResidentHamiltonian(
-        hsub,
-        alpha_strs,
-        beta_strs,
-        process_grid=(2, 2),
-        comm=comm,
-        comm_backend="host_mpi",
-    )
+    def body(comm):
+        rank = comm.Get_rank()
+        H = TileGPUResidentHamiltonian(
+            hsub,
+            alpha_strs,
+            beta_strs,
+            process_grid=(2, 2),
+            comm=comm,
+            comm_backend="inproc",
+        )
+        assert H._sources_2d.get(rank) is TileClass.DIAGONAL, (
+            f"rank {rank}: expected self-source DIAGONAL, got {H._sources_2d.get(rank)}"
+        )
+        assert H._d_alpha_uniq is not None, f"rank {rank}: strings not uploaded"
+        tables = H._tile_tables.sources[rank].launch_view
+        assert tables["d_alpha2_ptr"] is not None, f"rank {rank}: alpha2 CSR not built"
+        assert tables["d_beta2_ptr"] is not None, f"rank {rank}: beta2 CSR not built"
+        assert H._d_diag_local is not None, f"rank {rank}: diag_local not uploaded"
 
-    assert H._sources_2d.get(rank) is TileClass.DIAGONAL, (
-        f"rank {rank}: expected self-source DIAGONAL, got {H._sources_2d.get(rank)}"
-    )
+        v_zero = cupy.zeros(H.n_local, dtype=cupy.float64)
+        out = cupy.zeros(H.n_local, dtype=cupy.float64)
+        H._launch_diagonal(d_v_local=v_zero, d_out_local=out)
+        cupy.cuda.Stream.null.synchronize()
+        np.testing.assert_array_equal(
+            cupy.asnumpy(out),
+            np.zeros(H.n_local, dtype=np.float64),
+            err_msg=f"rank {rank}: zero-v should yield zero out_local",
+        )
+        return rank
 
-    assert H._d_alpha_uniq is not None, f"rank {rank}: strings not uploaded"
-    tables = H._tile_tables.sources[rank].launch_view
-    assert tables["d_alpha2_ptr"] is not None, f"rank {rank}: alpha2 CSR not built"
-    assert tables["d_beta2_ptr"] is not None, f"rank {rank}: beta2 CSR not built"
-    assert H._d_diag_local is not None, f"rank {rank}: diag_local not uploaded"
-
-    v_zero = cupy.zeros(H.n_local, dtype=cupy.float64)
-    out = cupy.zeros(H.n_local, dtype=cupy.float64)
-    H._launch_diagonal(d_v_local=v_zero, d_out_local=out)
-    cupy.cuda.Stream.null.synchronize()
-
-    np.testing.assert_array_equal(
-        cupy.asnumpy(out),
-        np.zeros(H.n_local, dtype=np.float64),
-        err_msg=f"rank {rank}: zero-v should yield zero out_local",
-    )
+    assert run_local_ranks(4, body) == [0, 1, 2, 3]

@@ -26,7 +26,6 @@ WORD_BITS = 64
 
 def exchange_domains(comm, domain_size=None):
 
-
     rank = comm.Get_rank()
     error = (
         None
@@ -87,7 +86,6 @@ def _copy_bit_range(target, source, low, high):
 
 def extend_to_domain_union(comm, domain_comm, domains, block, receiver):
 
-
     from fulqrum.gpu.distributed.rank_agreement import run_on_every_rank  # noqa: PLC0415
 
     rank = comm.Get_rank()
@@ -109,8 +107,6 @@ def extend_to_domain_union(comm, domain_comm, domains, block, receiver):
 
 
 class TwoLevelExchange:
-
-
     def __init__(self, comm, block, halo_rows, domains):
         self.mode = "two_level"
         self.comm = comm
@@ -219,7 +215,6 @@ class TwoLevelExchange:
                 else:
                     receives.append((d, displ, count))
 
-
         steps = []
         sends, receives = [], []
         for p in own_domain:
@@ -243,7 +238,6 @@ class TwoLevelExchange:
             steps.append((sends, receives))
         self.steps = [self._arrays(sends, receives) for sends, receives in steps]
         self._check_pairing(comm, steps)
-
 
         self.send_segments = [send_at[p] for p in order if send_at[p][1]]
         temporary = self.num_halo + self.num_send
@@ -293,7 +287,6 @@ class TwoLevelExchange:
 
     def reverse(self, y_own, y_halo, stream):
 
-
         import cupyx  # noqa: PLC0415
 
         if y_halo.size < self.num_halo + self.reverse_tail_elements:
@@ -332,7 +325,6 @@ class TwoLevelExchange:
     @staticmethod
     def _arrays(sends, receives):
 
-
         def pack(entries):
             return (
                 np.array([e[2] for e in entries], dtype=np.int64),
@@ -362,7 +354,6 @@ class TwoLevelExchange:
         )
 
     def run(self, x_own, x_halo, stream):
-
 
         if x_halo.size < self.num_halo + self.num_send:
             raise ValueError(

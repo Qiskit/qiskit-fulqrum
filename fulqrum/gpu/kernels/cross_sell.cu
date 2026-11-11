@@ -25,16 +25,15 @@
 namespace
 {
 
-
 __device__ double beta_pair_sign(const std::uint64_t beta, const int low, const int high)
 {
     return (__popcll(beta & fq::pair_index::between_mask(low, high)) & 1) ? -1.0 : 1.0;
 }
 
-
-__global__ void __launch_bounds__(fq::launch::kArmThreads, 4) cross_sell_kernel(const FqTileGeometry geometry,
-                                                                                const FqVectors vectors,
-                                                                                const FqCrossSellTables tables)
+__global__ void __launch_bounds__(fq::launch::kArmThreads, 4)
+    cross_sell_kernel(const FqTileGeometry geometry,
+                      const FqVectors vectors,
+                      const FqCrossSellTables tables)
 {
     const int row = int(fq::device::block_row());
     const int b = geometry.b_start + row;
@@ -47,7 +46,8 @@ __global__ void __launch_bounds__(fq::launch::kArmThreads, 4) cross_sell_kernel(
     const std::uint64_t beta = tables.beta_strings[geometry.bra_b0 + b];
     const std::int64_t alpha_pairs = fq::pair_index::num_pairs(tables.num_alpha);
     const auto* words = reinterpret_cast<const unsigned long long*>(tables.sell_words);
-    const fq::device::SellRow alpha_row = fq::device::SellRow::at(tables.sell_offsets, tables.sell_lengths, a);
+    const fq::device::SellRow alpha_row =
+        fq::device::SellRow::at(tables.sell_offsets, tables.sell_lengths, a);
     fq::device::RowAccumulator<1> sum;
     const std::int64_t first_edge = tables.beta_row_offsets[b];
     const int row_edges = int(tables.beta_row_offsets[b + 1] - first_edge);
@@ -62,14 +62,19 @@ __global__ void __launch_bounds__(fq::launch::kArmThreads, 4) cross_sell_kernel(
         const int low = tables.beta_low[edge];
         const int high = tables.beta_high[edge];
         const double* coefficients =
-            tables.coefficients + std::int64_t(fq::pair_index::gpu_pair(low, high, tables.num_beta)) * alpha_pairs;
-        const double* source = vectors.src_in + std::int64_t(beta_slot) * geometry.n_alpha_src_compact;
-        fq::arms::add_cross_row(sum, alpha_row, words, coefficients, beta_pair_sign(beta, low, high), source);
+            tables.coefficients +
+            std::int64_t(fq::pair_index::gpu_pair(low, high, tables.num_beta)) * alpha_pairs;
+        const double* source =
+            vectors.src_in + std::int64_t(beta_slot) * geometry.n_alpha_src_compact;
+        fq::arms::add_cross_row(
+            sum, alpha_row, words, coefficients, beta_pair_sign(beta, low, high), source);
     }
-    sum.flush(0, vectors.out_local + fq::device::tile_index(row, geometry.a_stop - geometry.a_start, column));
+    sum.flush(0,
+              vectors.out_local +
+                  fq::device::tile_index(row, geometry.a_stop - geometry.a_start, column));
 }
 
-}
+} // namespace
 
 extern "C"
 {
@@ -83,7 +88,9 @@ extern "C"
         {
             return int(cudaSuccess);
         }
-        cross_sell_kernel<<<fq::launch::alpha_column_grid<1>(*geometry), geometry->threads_per_block, 0,
+        cross_sell_kernel<<<fq::launch::alpha_column_grid<1>(*geometry),
+                            geometry->threads_per_block,
+                            0,
                             static_cast<cudaStream_t>(stream)>>>(*geometry, *vectors, *tables);
         return int(cudaGetLastError());
     }

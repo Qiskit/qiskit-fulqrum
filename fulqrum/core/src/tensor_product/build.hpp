@@ -29,7 +29,7 @@
  * The tensor-product engine: connection lists of both sectors, the cross-sector
  * coefficient table, and the groups that the generic tier must still evaluate.
  *
- * The cross-sector table has one row per beta slot and two columns per alpha slot.
+ * The cross-sector table has one row per beta row id and two columns per alpha column id.
  * In formed mode the engine keeps a copy of the half strings of both sectors.
  */
 template <typename T>
@@ -45,7 +45,7 @@ struct TensorProductEngine
     std::array<UpperConnections<T>, 2> upper;
     std::array<SectorCrossValues<T>, 2> cross;
     std::array<std::vector<KeyWord>, 2> half_keys;
-    std::vector<T> cross_sector_table;
+    CrossSectorTable<T> cross_sector_table;
     CrossSlotBatches cross_batches;
     SparseCrossTable<T> sparse_cross;
     std::vector<std::uint8_t> generic_groups;
@@ -60,7 +60,10 @@ struct TensorProductEngine
  * @param other The other-sector string index.
  */
 template <typename T>
-T cross_value(const TensorProductEngine<T>& tier, const int sector, const std::uint32_t slot, const std::size_t other)
+T cross_value(const TensorProductEngine<T>& tier,
+              const int sector,
+              const std::uint32_t slot,
+              const std::size_t other)
 {
     const SectorCrossValues<T>& cross = tier.cross[sector];
 
@@ -103,8 +106,12 @@ template <typename T>
 std::size_t tensor_product_engine_bytes(const TensorProductEngine<T>& tier)
 {
     std::size_t bytes = 0;
-    const auto add = [&bytes](const auto& values) { bytes = checked_add(bytes, vector_bytes(values)); };
-    add(tier.cross_sector_table);
+    const auto add = [&bytes](const auto& values) {
+        bytes = checked_add(bytes, vector_bytes(values));
+    };
+    add(tier.cross_sector_table.values);
+    add(tier.cross_sector_table.row_of_slot);
+    add(tier.cross_sector_table.column_of_slot);
     add(tier.generic_groups);
     const CrossSlotBatches& batches = tier.cross_batches;
     add(batches.block_first_batch);
@@ -197,7 +204,8 @@ TensorProductEngine<T> build_tensor_product_engine(const OperatorTables& tables,
 
     for(int sector = 0; sector < 2; sector++)
     {
-        tier.sectors[sector] = build_sector_connections<T>(tables, store, groups, sector, tier.num_pairs);
+        tier.sectors[sector] =
+            build_sector_connections<T>(tables, store, groups, sector, tier.num_pairs);
         tier.upper[sector] = upper_connections(tier.sectors[sector]);
     }
 
@@ -205,7 +213,8 @@ TensorProductEngine<T> build_tensor_product_engine(const OperatorTables& tables,
 
     for(int sector = 0; sector < 2 && tier.cross_formed; sector++)
     {
-        tier.cross_formed = build_cross_entries<T>(tables, groups, sector, tier.sectors[sector], tier.cross[sector]);
+        tier.cross_formed = build_cross_entries<T>(
+            tables, groups, sector, tier.sectors[sector], tier.cross[sector]);
     }
 
     for(int sector = 0; sector < 2; sector++)
@@ -217,13 +226,16 @@ TensorProductEngine<T> build_tensor_product_engine(const OperatorTables& tables,
 
             for(std::size_t string = 0; string < tier.num_strings[sector]; string++)
             {
-                std::copy_n(store.half_key(sector, string), words, tier.half_keys[sector].data() + string * words);
+                std::copy_n(store.half_key(sector, string),
+                            words,
+                            tier.half_keys[sector].data() + string * words);
             }
         }
         else
         {
             tier.cross[sector] = SectorCrossValues<T>();
-            tier.cross[sector].table = build_stored_cross_table<T>(tables, store, groups, sector, tier.sectors[sector]);
+            tier.cross[sector].table =
+                build_stored_cross_table<T>(tables, store, groups, sector, tier.sectors[sector]);
         }
     }
 
@@ -232,13 +244,17 @@ TensorProductEngine<T> build_tensor_product_engine(const OperatorTables& tables,
     if constexpr(std::is_same_v<T, double>)
     {
         tier.sparse_cross = build_sparse_cross_entries<T>(tables, tier.sectors[0], tier.sectors[1]);
-        const double cells = double(tier.sectors[0].slot_pair.size()) * double(tier.sectors[1].slot_pair.size());
+        const double cells =
+            double(tier.sectors[0].slot_pair.size()) * double(tier.sectors[1].slot_pair.size());
 
         if(cells > 0 && tier.sparse_cross.value.size() >= CROSS_BATCH_MIN_DENSITY * cells)
         {
             tier.sparse_cross = SparseCrossTable<T>();
-            tier.cross_sector_table = build_slot_cross_sector_table<T>(tables, tier.sectors[0], tier.sectors[1]);
-            tier.cross_batches = build_cross_slot_batches(tier.sectors[0], tier.sectors[1], max_threads());
+            tier.cross_sector_table =
+                build_slot_cross_sector_table<T>(tables, tier.sectors[0], tier.sectors[1]);
+            remap_cross_arm_columns(tier.cross_sector_table.column_of_slot, tier.sectors[0]);
+            tier.cross_batches =
+                build_cross_slot_batches(tier.sectors[0], tier.sectors[1], max_threads());
         }
         else
         {
@@ -247,7 +263,9 @@ TensorProductEngine<T> build_tensor_product_engine(const OperatorTables& tables,
     }
     else
     {
-        tier.cross_sector_table = build_slot_cross_sector_table<T>(tables, tier.sectors[0], tier.sectors[1]);
+        tier.cross_sector_table =
+            build_slot_cross_sector_table<T>(tables, tier.sectors[0], tier.sectors[1]);
+        remap_cross_arm_columns(tier.cross_sector_table.column_of_slot, tier.sectors[0]);
     }
 
     tier.generic_groups.assign(tables.num_groups(), 0);

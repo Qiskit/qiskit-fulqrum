@@ -16,7 +16,6 @@
 
 #include <cstdint>
 
-
 struct FqTileGeometry
 {
     std::int32_t bra_a0;
@@ -35,7 +34,6 @@ struct FqTileGeometry
     std::int32_t threads_per_block;
 };
 
-
 struct FqVectors
 {
     const double* src_in;
@@ -43,7 +41,6 @@ struct FqVectors
     const std::int32_t* alpha_src_slot;
     const std::int32_t* beta_src_slot;
 };
-
 
 struct FqDiagonalTables
 {
@@ -55,7 +52,6 @@ struct FqDiagonalTables
     std::int32_t num_alpha;
     std::int32_t reserved;
 };
-
 
 struct FqAlphaSinglePairTables
 {
@@ -70,7 +66,6 @@ struct FqAlphaSinglePairTables
     std::int32_t reserved;
 };
 
-
 struct FqAlphaSingleDeltaTables
 {
     const std::int64_t* row_offsets;
@@ -81,7 +76,6 @@ struct FqAlphaSingleDeltaTables
     std::int32_t num_beta;
     std::int32_t rows_per_thread;
 };
-
 
 struct FqBetaSinglePairTables
 {
@@ -96,7 +90,6 @@ struct FqBetaSinglePairTables
     std::int32_t hoist_loads;
 };
 
-
 struct FqBetaSingleDeltaTables
 {
     const std::int64_t* row_offsets;
@@ -107,7 +100,6 @@ struct FqBetaSingleDeltaTables
     std::int32_t num_alpha;
     std::int32_t alphas_per_thread;
 };
-
 
 struct FqAlphaDoubleTables
 {
@@ -121,7 +113,6 @@ struct FqAlphaDoubleTables
     std::int32_t block_group;
 };
 
-
 struct FqBetaDoubleTables
 {
     const std::int64_t* row_offsets;
@@ -130,7 +121,6 @@ struct FqBetaDoubleTables
     std::int32_t alphas_per_thread;
     std::int32_t block_group;
 };
-
 
 struct FqBetaDoubleClassTables
 {
@@ -144,7 +134,6 @@ struct FqBetaDoubleClassTables
     std::int32_t alpha_group;
 };
 
-
 struct FqAlphaDoubleClassTables
 {
     FqBetaDoubleClassTables classes;
@@ -155,7 +144,6 @@ struct FqAlphaDoubleClassTables
     FqBetaDoubleTables leftover;
     const std::int32_t* slab_identity;
 };
-
 
 struct FqCrossSellTables
 {
@@ -172,7 +160,6 @@ struct FqCrossSellTables
     std::int32_t num_beta;
 };
 
-
 struct FqCrossDirectTables
 {
     const std::int64_t* sell_offsets;
@@ -187,7 +174,6 @@ struct FqCrossDirectTables
     std::int32_t num_rows;
     std::int32_t gated;
 };
-
 
 struct FqCrossCliqueTables
 {
@@ -215,7 +201,6 @@ struct FqCrossCliqueTables
     std::int32_t reserved;
 };
 
-
 struct FqCrossLbgTables
 {
     const std::uint64_t* edge_words;
@@ -227,7 +212,6 @@ struct FqCrossLbgTables
     std::int32_t num_segments;
     std::int32_t out_stride;
 };
-
 
 struct FqCrossRslTables
 {
@@ -248,7 +232,6 @@ struct FqCrossRslTables
     std::int32_t members_per_clique;
 };
 
-
 struct FqTermTables
 {
     const double* term_header;
@@ -258,10 +241,10 @@ struct FqTermTables
     const std::uint32_t* ladder_offsets;
     const std::int8_t* oper_elems;
     const std::uint32_t* pair_keys;
-    const std::int32_t* pair_values;
+    const std::uint32_t* pair_values;
     const std::uint32_t* pair_empty;
     const std::uint64_t* quad_keys;
-    const std::int32_t* quad_values;
+    const std::uint32_t* quad_values;
     const std::uint64_t* quad_empty;
     const std::uint64_t* alpha_strings;
     const std::uint64_t* beta_strings;
@@ -273,7 +256,6 @@ struct FqTermTables
     std::int32_t num_alpha;
     std::int32_t num_beta;
 };
-
 
 struct FqSinglesBuildTables
 {
@@ -288,7 +270,6 @@ struct FqSinglesBuildTables
     std::int32_t* error;
 };
 
-
 struct FqDoublesBuildTables
 {
     const std::int64_t* row_offsets;
@@ -302,7 +283,6 @@ struct FqDoublesBuildTables
     const std::int32_t* beta_slot;
     double* values;
 };
-
 
 enum FqParamStruct : int
 {

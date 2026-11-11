@@ -18,18 +18,15 @@
 namespace fq::device
 {
 
-
 __device__ __forceinline__ std::int64_t block_row()
 {
     return std::int64_t(blockIdx.z) * gridDim.y + blockIdx.y;
 }
 
-
 __device__ __forceinline__ std::int64_t thread_column()
 {
     return std::int64_t(blockIdx.x) * blockDim.x + threadIdx.x;
 }
-
 
 struct BlockXY
 {
@@ -38,10 +35,12 @@ struct BlockXY
     bool valid;
 };
 
-
-__device__ __forceinline__ BlockXY grouped_block(const std::int64_t n_x, const std::int64_t n_y, const int group)
+__device__ __forceinline__ BlockXY grouped_block(const std::int64_t n_x,
+                                                 const std::int64_t n_y,
+                                                 const int group)
 {
-    const std::int64_t id = (std::int64_t(blockIdx.z) * gridDim.y + blockIdx.y) * gridDim.x + blockIdx.x;
+    const std::int64_t id =
+        (std::int64_t(blockIdx.z) * gridDim.y + blockIdx.y) * gridDim.x + blockIdx.x;
     if(id >= n_x * n_y)
     {
         return BlockXY{0, 0, false};
@@ -54,12 +53,10 @@ __device__ __forceinline__ BlockXY grouped_block(const std::int64_t n_x, const s
     return BlockXY{first + (in_group - y * width), y, true};
 }
 
-
-__device__ __forceinline__ std::int64_t tile_index(const std::int64_t row,
-                                                   const std::int64_t width,
-                                                   const std::int64_t column)
+__device__ __forceinline__ std::int64_t
+tile_index(const std::int64_t row, const std::int64_t width, const std::int64_t column)
 {
     return row * width + column;
 }
 
-}
+} // namespace fq::device

@@ -21,6 +21,7 @@ from typing import Any, Optional
 
 import numpy as np
 
+from ..common.wide import between_parity_w
 from .construction import _build_axis_connection_tables
 from .tile_tables import (
     CROSS_MAX_PAIR,
@@ -33,8 +34,6 @@ from .tile_tables import (
 
 @dataclass(frozen=True)
 class Csr:
-
-
     ptr: Any
     j: Any
     positions: tuple
@@ -42,8 +41,6 @@ class Csr:
 
 @dataclass(frozen=True)
 class SinglesSell:
-
-
     off: Any
     length: Any
     j: Any
@@ -54,8 +51,6 @@ class SinglesSell:
 
 @dataclass(frozen=True)
 class DoublesSell:
-
-
     off: Any
     length: Any
     j: Any
@@ -64,8 +59,6 @@ class DoublesSell:
 
 @dataclass(frozen=True)
 class AlphaTables:
-
-
     singles: Csr
     doubles: Csr
     apid: Any = None
@@ -80,16 +73,12 @@ class AlphaTables:
 
 @dataclass(frozen=True)
 class BetaTables:
-
-
     singles: Csr
     doubles: Csr
 
 
 @dataclass(frozen=True)
 class ArmCacheLengths:
-
-
     aaaa: int
     bbbb: int
     aa: int
@@ -98,8 +87,6 @@ class ArmCacheLengths:
 
 @dataclass(frozen=True)
 class SourceTables:
-
-
     alpha: AlphaTables
     beta: BetaTables
 
@@ -146,7 +133,6 @@ class SourceTables:
         self, same_alpha: bool, same_beta: bool, doubles_sell: bool, skip_unread: bool
     ) -> ArmCacheLengths:
 
-
         doubles = self.alpha.doubles_sell.j if doubles_sell else self.alpha.doubles.j
         aaaa, aa = int(doubles.size), int(self.alpha.singles.j.size)
         bbbb, bb = int(self.beta.doubles.j.size), int(self.beta.singles.j.size)
@@ -159,8 +145,6 @@ class SourceTables:
 
 @dataclass(frozen=True)
 class TileTables:
-
-
     alpha: dict
     beta: dict
     sources: dict
@@ -179,8 +163,6 @@ class TileTables:
 
 @dataclass(frozen=True)
 class TableOptions:
-
-
     num_alpha: int
     factored: bool
 
@@ -196,7 +178,6 @@ def build_tile_tables(
     flip_masks: dict,
     options: TableOptions,
 ) -> tuple:
-
 
     started = time.perf_counter()
     coord_alpha, coord_beta = coords
@@ -230,7 +211,6 @@ def build_tile_tables(
 def alpha_tables(
     singles: tuple, doubles: tuple, row_alpha, options: TableOptions
 ) -> AlphaTables:
-
 
     a2_ptr, a2_j, a2_p0, a2_p1 = singles[:4]
     a4_ptr, a4_j, a4_p0, a4_p1, a4_p2, a4_p3 = doubles
@@ -286,7 +266,6 @@ def array_bytes(value) -> int:
 
 def arm_cache_sizes(lengths: ArmCacheLengths, num_alpha: int, num_beta: int) -> dict:
 
-
     return dict(
         aaaa=lengths.aaaa,
         bbbb=lengths.bbbb,
@@ -298,23 +277,35 @@ def arm_cache_sizes(lengths: ArmCacheLengths, num_alpha: int, num_beta: int) -> 
 
 
 def hbm_fit_error(
-    predicted: dict, free_bytes: int, total_bytes: int, fraction: float
+    predicted: dict,
+    free_bytes: int,
+    total_bytes: int,
+    fraction: float,
+    pending: Optional[dict] = None,
 ) -> Optional[str]:
 
-
-    total = sum(predicted.values())
-    if total <= fraction * free_bytes:
+    if pending is None:
+        total = sum(predicted.values())
+        if total <= fraction * free_bytes:
+            return None
+        return (
+            f"predicted={total} B exceeds {fraction:.0%} of free_bytes={free_bytes} B "
+            f"(total={total_bytes} B). Breakdown: {predicted}."
+        )
+    resident = sum(predicted.values())
+    later = sum(pending.values())
+    if later <= fraction * free_bytes and resident + later <= total_bytes:
         return None
     return (
-        f"predicted={total} B exceeds {fraction:.0%} of free_bytes={free_bytes} B "
-        f"(total={total_bytes} B). Breakdown: {predicted}."
+        f"pending={later} B (to allocate) against {fraction:.0%} of "
+        f"free_bytes={free_bytes} B, resident={resident} B, "
+        f"total={total_bytes} B. Pending: {pending}. Resident: {predicted}."
     )
 
 
 def values_on_edges(
     gpu_ptr, gpu_columns, host_offsets, host_columns, host_values
 ) -> np.ndarray:
-
 
     width = (
         int(
@@ -345,7 +336,6 @@ def values_on_edges(
 
 def pair_table(factors: np.ndarray, orbitals: int, tolerance: float) -> np.ndarray:
 
-
     num_pairs = orbitals * (orbitals - 1) // 2
     table = np.zeros((factors.shape[0], num_pairs))
     if num_pairs == 0 or factors.size == 0:
@@ -360,10 +350,55 @@ def pair_table(factors: np.ndarray, orbitals: int, tolerance: float) -> np.ndarr
     return table
 
 
+PAIR_TABLE_CHUNK_BYTES = 1 << 30
+
+
+def pair_table_rows(num_pairs: int, chunk_bytes: int = PAIR_TABLE_CHUNK_BYTES) -> int:
+
+    return max(1, int(chunk_bytes) // max(1, 8 * 2 * int(num_pairs) * 8))
+
+
+def chunked_pair_table(
+    factors_of,
+    rows: int,
+    orbitals: int,
+    tolerance: float,
+    chunk_rows: int,
+    transpose: bool = False,
+) -> np.ndarray:
+
+    num_pairs = orbitals * (orbitals - 1) // 2
+    shape = (num_pairs, rows) if transpose else (rows, num_pairs)
+    table = np.zeros(shape)
+    if num_pairs == 0 or rows == 0:
+        return table
+    gpu, core = _pair_ids(orbitals)
+    largest = asymmetry = None
+    for start in range(0, rows, max(1, int(chunk_rows))):
+        stop = min(rows, start + max(1, int(chunk_rows)))
+        factors = factors_of(start, stop)
+        forward, backward = factors[:, 0::2], factors[:, 1::2]
+        if factors.size and largest is None:
+            largest = np.abs(factors).max()
+            asymmetry = np.abs(forward - backward).max()
+        elif factors.size:
+            largest = np.maximum(largest, np.abs(factors).max())
+            asymmetry = np.maximum(asymmetry, np.abs(forward - backward).max())
+        if transpose:
+            table[gpu, start:stop] = forward[:, core].T
+        else:
+            table[start:stop, gpu] = forward[:, core]
+        del factors, forward, backward
+    if largest is not None and asymmetry > tolerance * max(largest, 1.0):
+        raise ValueError(
+            "a same-sector cross factor depends on the excitation direction"
+        )
+    return table
+
+
 def aabb_coefficients(
     cross_sector: np.ndarray, num_alpha: int, num_beta: int
 ) -> np.ndarray:
-
 
     alpha_pairs = num_alpha * (num_alpha - 1) // 2
     beta_pairs = num_beta * (num_beta - 1) // 2
@@ -411,19 +446,7 @@ def _host(array, dtype) -> np.ndarray:
     return host
 
 
-def _popcount_u64(x):
-
-    x = x.astype(np.uint64)
-    x = x - ((x >> np.uint64(1)) & np.uint64(0x5555555555555555))
-    x = (x & np.uint64(0x3333333333333333)) + (
-        (x >> np.uint64(2)) & np.uint64(0x3333333333333333)
-    )
-    x = (x + (x >> np.uint64(4))) & np.uint64(0x0F0F0F0F0F0F0F0F)
-    return ((x * np.uint64(0x0101010101010101)) >> np.uint64(56)).astype(np.uint8)
-
-
 def _alpha2_apid_asign(a2_ptr, a2_p0, a2_p1, row_alpha_dets, num_alpha):
-
 
     p0 = np.asarray(a2_p0, dtype=np.int64)
     p1 = np.asarray(a2_p1, dtype=np.int64)
@@ -433,18 +456,10 @@ def _alpha2_apid_asign(a2_ptr, a2_p0, a2_p1, row_alpha_dets, num_alpha):
     counts = np.diff(ptr)
     row = np.repeat(np.arange(len(ptr) - 1, dtype=np.int64), counts)
     a_val = np.asarray(row_alpha_dets, dtype=np.uint64)[row]
-    up0 = p0.astype(np.uint64)
-    up1 = p1.astype(np.uint64)
-    mask = ((np.uint64(1) << up1) - np.uint64(1)) ^ (
-        (np.uint64(1) << (up0 + np.uint64(1))) - np.uint64(1)
-    )
-    odd = _popcount_u64(a_val & mask) & np.uint8(1)
-    asign = np.where(odd, np.int8(-1), np.int8(1)).astype(np.int8)
-    return apid, asign
+    return apid, between_parity_w(a_val, p0, p1)
 
 
 def _sell_layout(ptr, warp=SELL_SLICE_ROWS):
-
 
     ptr = np.ascontiguousarray(ptr, dtype=np.int64)
     n_rows = len(ptr) - 1
@@ -467,7 +482,6 @@ def _sell_layout(ptr, warp=SELL_SLICE_ROWS):
 
 
 def _alpha2_sell(a2_ptr, a2_j, apid, asign, warp=SELL_SLICE_ROWS):
-
 
     off, row_len, dst = _sell_layout(a2_ptr, warp)
     total = int(off[-1])
@@ -508,7 +522,6 @@ def _alpha2_sell(a2_ptr, a2_j, apid, asign, warp=SELL_SLICE_ROWS):
 
 
 def _alpha4_sell(a4_ptr, a4_j, a4_p0, a4_p1, a4_p2, a4_p3, warp=SELL_SLICE_ROWS):
-
 
     off, row_len, dst = _sell_layout(a4_ptr, warp)
     total = int(off[-1])

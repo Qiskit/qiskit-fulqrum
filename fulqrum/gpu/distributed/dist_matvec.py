@@ -16,8 +16,6 @@ import numpy as np
 
 
 class TileClass(IntEnum):
-
-
     DIAGONAL = 0
     ALPHA_ONLY = 1
     BETA_ONLY = 2
@@ -92,18 +90,16 @@ def DistributedMPIGPUHamiltonian(
     layout: str = "tile_resident",
     **kwargs,
 ):
-    """Create a GPU-backed Hamiltonian for distributed MPI eigenvalue solves.
+    """Wrapper for distributed GPU-backed real type-2 Hamiltonian implementations.
 
-    Returns a ``TileGPUResidentHamiltonian`` using the alpha and beta strings
-    stored in ``hsub``. Construct it on every communicator rank with matching
-    Hamiltonian and shared settings; each rank may select a different GPU.
-    Construction, matvecs and RDM calls are collective. Use the returned operator
-    with ``distributed_primme_eigsh``; it supplies this rank's local vector tile,
-    while its SciPy ``shape`` describes the full problem.
+    Supports one implementation, ``TileGPUResidentHamiltonian``
+    (``layout="tile_resident"``) currently. Returns a ``TileGPUResidentHamiltonian``
+    using the alpha and beta strings stored in ``hsub``. Use the returned operator
+    with ``distributed_primme_eigsh`` for distributed eigensolving.
 
     The subspace must be ``fq.Subspace([alpha_strs, beta_strs])``, a tensor product,
     subspace with alpha in the low qubits and beta in the high qubits. Each spin-sector
-    supports 1–64 orbitals and must have a fixed electron count. Use at least two occupied
+    supports 1–128 orbitals and must have a fixed electron count. Use at least two occupied
     orbitals per half string; smaller occupations are outside verified GPU support and may
     give incorrect results. Operator groups must pass the GPU compatibility checks.
 

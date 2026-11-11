@@ -27,8 +27,6 @@ DEFAULT_TIMEOUT_S = 3600.0
 
 @dataclass(frozen=True)
 class _Op:
-
-
     name: str
     function: object
 
@@ -62,7 +60,6 @@ class LocalCommAborted(RuntimeError):
 
 def mpi_namespace(comm):
 
-
     if isinstance(comm, LocalComm):
         return LOCAL_MPI
     from mpi4py import MPI  # noqa: PLC0415
@@ -71,10 +68,7 @@ def mpi_namespace(comm):
 
 
 class _Group:
-
-
     def __init__(self, size: int, timeout: float):
-
 
         self.size = size
         self.timeout = timeout
@@ -97,6 +91,17 @@ class _Group:
         for child in children:
             child.abort()
 
+    def reset(self) -> None:
+
+        with self.condition:
+            self.aborted = False
+            self.mailboxes = {}
+            self.slots = [None] * self.size
+            self.barrier = threading.Barrier(self.size, timeout=self.timeout)
+            children = list(self.children.values())
+        for child in children:
+            child.reset()
+
     def wait(self) -> None:
 
         if self.aborted:
@@ -111,8 +116,6 @@ class _Group:
 
 
 class LocalComm:
-
-
     mpi_constants = LOCAL_MPI
 
     def __init__(self, group: _Group, rank: int):
@@ -123,7 +126,6 @@ class LocalComm:
 
     @classmethod
     def create(cls, size: int, timeout: float = DEFAULT_TIMEOUT_S) -> list:
-
 
         if size < 1:
             raise ValueError(
@@ -179,7 +181,6 @@ class LocalComm:
 
     def Allreduce(self, sendbuf, recvbuf, op=SUM) -> None:  # noqa: N802
 
-
         recv = _buffer(recvbuf)
         send = recv if sendbuf is LOCAL_MPI.IN_PLACE else _buffer(sendbuf)
         arrays = self.allgather(np.array(send, copy=True))
@@ -203,7 +204,6 @@ class LocalComm:
             recv_blocks[source] = blocks[source][self._rank]
 
     def Split(self, color: int = 0, key: int = 0):  # noqa: N802
-
 
         self._splits += 1
         members = self.allgather((int(color), int(key), self._rank))
@@ -245,13 +245,12 @@ class LocalComm:
             )
             if group.aborted:
                 raise LocalCommAborted("a rank of the in-process group failed")
-            if not ready:
-                group.aborted = True
-                group.condition.notify_all()
-                raise LocalCommAborted(
-                    f"rank {self._rank} timed out waiting for a message from rank {source}"
-                )
-            return group.mailboxes[key].popleft()
+            if ready:
+                return group.mailboxes[key].popleft()
+        group.abort()
+        raise LocalCommAborted(
+            f"rank {self._rank} timed out waiting for a message from rank {source}"
+        )
 
 
 def _buffer(spec):
@@ -263,14 +262,12 @@ def _buffer(spec):
 
 def run_ranks(comms, function) -> list:
 
-
     if len(comms) == 1:
         return [function(comms[0])]
     results: list = [None] * len(comms)
     errors: list = [None] * len(comms)
 
     def body(rank: int) -> None:
-
 
         try:
             results[rank] = function(comms[rank])
@@ -286,6 +283,12 @@ def run_ranks(comms, function) -> list:
         thread.start()
     for thread in threads:
         thread.join()
+    if any(e is not None for e in errors):
+        for group in {id(comm._group): comm._group for comm in comms}.values():
+            group.reset()
+        splits = max(comm._splits for comm in comms)
+        for comm in comms:
+            comm._splits = splits
     first = next(
         (e for e in errors if e is not None and not isinstance(e, LocalCommAborted)),
         None,

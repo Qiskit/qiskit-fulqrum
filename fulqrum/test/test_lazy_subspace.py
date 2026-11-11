@@ -83,7 +83,10 @@ def test_empty_singleton_and_export_limits():
     np.testing.assert_array_equal(b, [2])
     a[0] = 0
     np.testing.assert_array_equal(space.to_alpha_beta_arrays()[0], [1])
-    wide = fq.Subspace([["1" * 65], ["0"]])
+    two_words = fq.Subspace([["1" * 65], ["0"]])
+    a, b = two_words.to_alpha_beta_arrays()
+    assert a.shape == (1, 2) and a.tolist() == [[2**64 - 1, 1]]
+    wide = fq.Subspace([["1" * 129], ["0"]])
     with pytest.raises(FulqrumError):
         wide.to_alpha_beta_arrays()
 

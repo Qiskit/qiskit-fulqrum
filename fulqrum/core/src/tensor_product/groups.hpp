@@ -20,8 +20,8 @@
 
 #include "../checked_size.hpp"
 #include "../operator_tables.hpp"
-#include "packed_entries.hpp"
 #include "../tier_utils.hpp"
+#include "packed_entries.hpp"
 
 /**
  * Maps a key to a group with open addressing. Its size follows the number of keys.
@@ -184,7 +184,8 @@ inline SectorGroupIndex index_sector_groups(const OperatorTables& tables,
     for(int sector = 0; sector < 2; sector++)
     {
         index.single[sector].assign(num_pairs[sector], NO_GROUP);
-        index.double_excitation[sector].reserve(checked_multiply(num_pairs[sector], num_pairs[sector]), num_doubles[sector]);
+        index.double_excitation[sector].reserve(
+            checked_multiply(num_pairs[sector], num_pairs[sector]), num_doubles[sector]);
     }
 
     const std::vector<width_t>& rank = tables.layout().rank_in_sector;

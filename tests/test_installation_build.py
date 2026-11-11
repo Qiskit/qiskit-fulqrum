@@ -156,6 +156,42 @@ def test_primme_copy_keeps_source_and_uses_configured_jobs(monkeypatch, tmp_path
     assert (destination / "include/primme.h").read_text() == "patched"
 
 
+def test_primme_sdist_keeps_only_the_build_sources(tmp_path):
+    for name in ("makefile", "Make_flags", "COPYING.txt", "README.rst", "readme.txt"):
+        (tmp_path / name).write_text(name)
+    for name in ("include", "src/tools", "doc", "tests", "Python"):
+        (tmp_path / name).mkdir(parents=True)
+        (tmp_path / name / "file").write_text(name)
+    gpu_build.keep_primme_build_sources(tmp_path)
+    assert sorted(p.name for p in tmp_path.iterdir()) == sorted(
+        gpu_build.PRIMME_SDIST_PATHS
+    )
+    assert (tmp_path / "src/tools/file").is_file()
+
+
+def test_manifest_selects_the_primme_sdist_paths(monkeypatch):
+    from setuptools._distutils.filelist import FileList
+
+    primme = ROOT / "third-party/primme"
+    if not (primme / "include/primme.h").is_file():
+        pytest.skip("third-party/primme is not initialized")
+    monkeypatch.chdir(ROOT)
+    files = FileList()
+    files.findall("third-party/primme")
+    for line in (ROOT / "MANIFEST.in").read_text().splitlines():
+        if line.split()[1:2] and line.split()[1].startswith("third-party/primme"):
+            files.process_template_line(line)
+    selected = {Path(f).relative_to("third-party/primme") for f in files.files}
+    assert {p.parts[0] for p in selected} == set(gpu_build.PRIMME_SDIST_PATHS)
+    kept = {
+        p.relative_to(primme)
+        for name in gpu_build.PRIMME_SDIST_PATHS
+        for p in [primme / name, *(primme / name).rglob("*")]
+        if p.is_file()
+    }
+    assert selected == kept
+
+
 def test_setup_metadata_has_no_native_build_side_effects(tmp_path):
     result = subprocess.run(
         [sys.executable, str(ROOT / "setup.py"), "--name"],
@@ -237,6 +273,7 @@ def test_gpu_registration_preserves_every_native_source(monkeypatch):
         "fulqrum.gpu.distributed.tile_build",
         "fulqrum.gpu.distributed.kernel_launch",
         "fulqrum.gpu.full_strs.host",
+        "fulqrum.gpu.full_strs.host_w2",
         "fulqrum.gpu.full_strs.kernel_launch",
         "fulqrum.gpu.rdm.kernel_launch",
         "fulqrum.gpu.eigensolver._primme_mpi",

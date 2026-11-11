@@ -18,18 +18,15 @@
 namespace fq::device
 {
 
-
 __device__ __forceinline__ cooperative_groups::thread_block_tile<32> this_warp()
 {
     return cooperative_groups::tiled_partition<32>(cooperative_groups::this_thread_block());
 }
 
-
 __device__ __forceinline__ bool warp_any(const bool predicate)
 {
     return this_warp().any(predicate);
 }
-
 
 template <typename T>
 __device__ __forceinline__ T warp_broadcast(const T value, const int lane)
@@ -37,4 +34,4 @@ __device__ __forceinline__ T warp_broadcast(const T value, const int lane)
     return this_warp().shfl(value, lane);
 }
 
-}
+} // namespace fq::device

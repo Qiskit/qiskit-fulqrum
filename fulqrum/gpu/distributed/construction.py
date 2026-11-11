@@ -25,13 +25,16 @@ def _build_axis_connection_tables(
     masks_4: list,
 ) -> dict:
 
-
     n_bra = len(bra_vals)
-    if not masks_2 and not masks_4:
+    if not masks_2 and not masks_4 and np.ndim(bra_vals) == 1:
         empty = _empty_csr_table(n_bra)
         return {"csr2": empty, "csr4": empty}
 
-    src_ht = _build_hash_table_simple(src_vals.astype(np.uint64))
+    src_ht = (
+        _build_hash_table_simple(src_vals.astype(np.uint64))
+        if np.ndim(src_vals) == 1
+        else None
+    )
     return {
         "csr2": _build_tile_flip_csr_hybrid(bra_vals, src_vals, masks_2, 2, src_ht),
         "csr4": _build_tile_flip_csr_hybrid(bra_vals, src_vals, masks_4, 4, src_ht),

@@ -1,10 +1,10 @@
 diff --git a/src/linalg/cublas_wrapper.c b/src/linalg/cublas_wrapper.c
-index 153fe76..f0d47a3 100644
+index 153fe76..9795579 100644
 --- a/src/linalg/cublas_wrapper.c
 +++ b/src/linalg/cublas_wrapper.c
-@@ -253,6 +253,14 @@ int Num_check_pointer_Sprimme(void *x) {
-    return 0;
- }
+@@ -75,8 +75,22 @@
+ #define XGEMV     CONCAT(GPU_SELECT(cublas,hipblas),ARITH( , , Sgemv , Cgemv , Dgemv , Zgemv , , ))
+ #define XTRSM     CONCAT(GPU_SELECT(cublas,hipblas),ARITH( , , Strsm , Ctrsm , Dtrsm , Ztrsm , , ))
  
 +#if defined(PRIMME_WITH_CUBLAS) && !defined(CHECK_TEMPLATE)
 +/* Fulqrum: hooks for a managed-memory basis, see managed_basis.cpp.
@@ -14,10 +14,18 @@ index 153fe76..f0d47a3 100644
 +extern void fq_primme_gpu_basis_free(void *x) __attribute__((weak));
 +#endif
 +
- /******************************************************************************
-  * Function Num_malloc - Allocate a vector of scalars
-  *
-@@ -275,7 +283,19 @@ int Num_malloc_Sprimme(PRIMME_INT n, SCALAR **x, primme_context ctx) {
+ static int free_fn_dummy (void *p, primme_context ctx) {
+    (void)ctx;
++#if defined(PRIMME_WITH_CUBLAS) && !defined(CHECK_TEMPLATE)
++   /* Fulqrum: give back the HBM budget of a managed basis array on error paths too. */
++   if (fq_primme_gpu_basis_free) {
++      fq_primme_gpu_basis_free(p);
++   }
++#endif
+    return GPU_SYMBOL(Free)(p) == GPU_SYMBOL(Success) ? 0 : PRIMME_MALLOC_FAILURE;
+ }
+ 
+@@ -275,7 +289,19 @@ int Num_malloc_Sprimme(PRIMME_INT n, SCALAR **x, primme_context ctx) {
  
     /* Allocate memory */
  
@@ -37,7 +45,7 @@ index 153fe76..f0d47a3 100644
  
     /* Register the allocation */
  
-@@ -307,6 +327,12 @@ int Num_free_Sprimme(SCALAR *x, primme_context ctx) {
+@@ -307,6 +333,12 @@ int Num_free_Sprimme(SCALAR *x, primme_context ctx) {
  
     /* Free pointer */
  

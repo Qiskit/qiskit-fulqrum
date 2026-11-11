@@ -27,13 +27,12 @@
 namespace fq::full_strs
 {
 
-
 template <std::size_t W>
-inline std::array<Word, 2 * W> block_reference(const Word* input, const std::int64_t num_rows, const int num_orbitals)
+inline std::array<Word, 2 * W>
+block_reference(const Word* input, const std::int64_t num_rows, const int num_orbitals)
 {
     return store_spec(build_key_store<W>(input, num_rows, num_orbitals)).reference;
 }
-
 
 template <std::size_t W, typename T>
 class RankOperator
@@ -43,7 +42,6 @@ public:
     OperatorTerms<W> terms;
     CoefficientTables<W, T> tables;
     std::vector<T> diagonal;
-
 
     RankOperator(const QubitOperator& op,
                  const Word* own_keys,
@@ -66,4 +64,4 @@ public:
     }
 };
 
-}
+} // namespace fq::full_strs

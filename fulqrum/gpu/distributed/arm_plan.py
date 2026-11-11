@@ -16,6 +16,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 BASELINE = "baseline"
+DIRECT = "direct"
 CLIQUE = "clique"
 TRANSPOSED_CLIQUE = "transposed_clique"
 REMOTE_BETA_CLIQUE = "clique"
@@ -25,18 +26,15 @@ REMOTE_CLIQUE = 2
 
 @dataclass(frozen=True)
 class ArmSettings:
-
-
     factored: bool
     parent: bool
     remote_beta: str
     remote_alpha: bool
+    wide: bool = False
 
 
 @dataclass(frozen=True)
 class SourceFacts:
-
-
     is_bra: bool
     same_alpha: bool
     same_beta: bool
@@ -54,8 +52,6 @@ class SourceFacts:
 
 @dataclass(frozen=True)
 class ArmPlan:
-
-
     aabb_mode: int
     aabb_path: str
     remote_beta: int
@@ -64,21 +60,26 @@ class ArmPlan:
 
 def plan_arms(facts: SourceFacts, settings: ArmSettings) -> ArmPlan:
 
-
     if facts.same_beta and facts.doubles_edges and not facts.doubles_sell:
         raise ValueError(
             "a same-beta source tile has alpha double edges but no SELL form of them; "
             "its padded SELL size exceeds int32, so use more ranks"
         )
+    if settings.wide and not settings.factored:
+        raise ValueError(
+            "sectors wider than 64 orbitals need the factored mixed-spin tables"
+        )
     mode = aabb_mode(facts, settings)
     remote = _remote_beta(facts, settings, mode)
-    return ArmPlan(
-        mode, _aabb_path(facts, settings, mode, remote), remote, facts.doubles_sell
-    )
+    path = _aabb_path(facts, settings, mode, remote)
+    if settings.wide and mode == 12 and path == BASELINE:
+        raise ValueError(
+            "sectors wider than 64 orbitals cannot use the mixed-spin SELL kernel"
+        )
+    return ArmPlan(mode, path, remote, facts.doubles_sell)
 
 
 def aabb_mode(facts: SourceFacts, settings: ArmSettings) -> int:
-
 
     if settings.factored and facts.singles_edges and not facts.singles_sell:
         raise ValueError(
@@ -127,4 +128,6 @@ def _aabb_path(
         and mode == 12
     ):
         return TRANSPOSED_CLIQUE
+    if settings.wide and mode == 12:
+        return DIRECT
     return BASELINE

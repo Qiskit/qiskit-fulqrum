@@ -13,10 +13,19 @@
 
 from dataclasses import dataclass, field
 
+FACTOR_MAX_ORBITALS = 64
+
 
 def address(array) -> int:
 
     return 0 if array is None else int(array.data.ptr)
+
+
+def single_word_strings(array, kernel: str) -> int:
+
+    if array is not None and array.ndim != 1:
+        raise ValueError(f"the {kernel} kernel reads single-word strings only")
+    return address(array)
 
 
 def offsets(array) -> int:
@@ -32,8 +41,6 @@ def offsets(array) -> int:
 
 @dataclass(frozen=True)
 class CliqueCross:
-
-
     residual_off: object
     residual_lengths: object
     residual_pack: object
@@ -68,9 +75,14 @@ class CliqueCross:
 
 
 @dataclass(frozen=True)
+class DirectCross:
+    beta_words: object
+    tasks: object
+    num_tasks: int
+
+
+@dataclass(frozen=True)
 class BetaDoubleClass:
-
-
     blocks: object
     block_offsets: object
     tile_info: object
@@ -86,8 +98,6 @@ class BetaDoubleClass:
 
 @dataclass(frozen=True)
 class AlphaDoubleClass:
-
-
     classes: object
     xt: object
     yt: object
@@ -100,8 +110,6 @@ class AlphaDoubleClass:
 
 @dataclass
 class SourceLaunch:
-
-
     geometry: tuple
     src_in: int
     out: int
@@ -128,7 +136,6 @@ class SourceLaunch:
 
 
 def _check(launch_call, arm: str, launch=None) -> None:
-
 
     if launch is None or launch.arm_events is None:
         try:
@@ -288,7 +295,7 @@ def _alpha_singles(k, launch: SourceLaunch) -> None:
             address(view["d_alpha2_j"]),
             address(caches["aa_c0"]),
             address(caches["aa_cpb"]),
-            address(launch.beta_strings),
+            single_word_strings(launch.beta_strings, "alpha singles delta"),
             launch.num_beta,
             launch.rows["aa"],
             launch.stream,
@@ -416,7 +423,7 @@ def _beta_singles(k, launch: SourceLaunch) -> None:
             address(view["d_beta2_j"]),
             address(caches["bb_c0"]),
             address(caches["bb_cpb"]),
-            address(launch.alpha_strings),
+            single_word_strings(launch.alpha_strings, "beta singles delta"),
             launch.num_alpha,
             launch.rows["bb"],
             launch.stream,
@@ -480,7 +487,6 @@ def _clique_tuple(
 
 
 def _cross_lbg(k, launch: SourceLaunch, clique: CliqueCross, geometry: tuple) -> None:
-
 
     from .aabb_lbg import RSL_ROWS_PER_JOB  # noqa: PLC0415
 
@@ -692,6 +698,25 @@ def _cross(k, launch: SourceLaunch) -> None:
     _record(launch, "source_start")
     if isinstance(launch.cross, CliqueCross):
         _cross_clique(k, launch, launch.cross)
+    elif isinstance(launch.cross, DirectCross):
+        _check(
+            lambda: k.launch_cross_direct(
+                launch.geometry,
+                launch.src_in,
+                launch.out,
+                offsets(view["d_alpha2_sell_off"]),
+                address(view["d_alpha2_sell_len"]),
+                address(view["d_alpha2_sell_pack"]),
+                address(launch.cross.beta_words),
+                address(launch.cross.tasks),
+                address(launch.coefficients),
+                launch.num_alpha * (launch.num_alpha - 1) // 2,
+                launch.cross.num_tasks,
+                launch.stream,
+            ),
+            "cross direct",
+            launch,
+        )
     else:
         _check(
             lambda: k.launch_cross_sell(
@@ -703,7 +728,7 @@ def _cross(k, launch: SourceLaunch) -> None:
                 address(view["d_beta2_j"]),
                 address(view["d_beta2_p0"]),
                 address(view["d_beta2_p1"]),
-                address(launch.beta_strings),
+                single_word_strings(launch.beta_strings, "cross SELL"),
                 address(launch.coefficients),
                 offsets(view["d_alpha2_sell_off"]),
                 address(view["d_alpha2_sell_len"]),
@@ -720,7 +745,6 @@ def _cross(k, launch: SourceLaunch) -> None:
 
 def launch_steady_arms(launch: SourceLaunch) -> None:
 
-
     from . import kernel_launch  # noqa: PLC0415
 
     _alpha_doubles(kernel_launch, launch)
@@ -732,7 +756,6 @@ def launch_steady_arms(launch: SourceLaunch) -> None:
 
 def launch_cross(launch: SourceLaunch) -> None:
 
-
     from . import kernel_launch  # noqa: PLC0415
 
     _cross(kernel_launch, launch)
@@ -741,6 +764,16 @@ def launch_cross(launch: SourceLaunch) -> None:
 def cross_ready(launch: SourceLaunch) -> bool:
 
     return _cross_ready(launch)
+
+
+def check_factor_orbitals(terms: tuple) -> None:
+
+    widest = max(int(terms[-2]), int(terms[-1]))
+    if widest > FACTOR_MAX_ORBITALS:
+        raise ValueError(
+            f"the GPU cache build holds at most {FACTOR_MAX_ORBITALS} orbitals per "
+            f"sector, got {widest}"
+        )
 
 
 def build_source_caches(
@@ -756,9 +789,9 @@ def build_source_caches(
     stream: int,
 ) -> None:
 
-
     from . import kernel_launch  # noqa: PLC0415
 
+    check_factor_orbitals(terms)
     if (
         same_beta
         and caches.get("aaaa") is not None

@@ -3,24 +3,39 @@
 
 # Fulqrum
 
-![GitHub Release](https://img.shields.io/github/v/release/Qiskit/fulqrum)
+![GitHub Release](https://img.shields.io/github/v/release/Qiskit/qiskit-fulqrum)
 ![PyPI Downloads](https://img.shields.io/pypi/dm/fulqrum)
-![GitHub License](https://img.shields.io/github/license/Qiskit/fulqrum)
+![GitHub License](https://img.shields.io/github/license/Qiskit/qiskit-fulqrum)
 
-A generalized framework for quantum subspace eigensolving.
+A generalized framework for quantum subspace sparse linear algebra
 
-Fulqrum is a set of tools for enabling the solution to large-scale Hamiltonian subspace eigenproblems over extended alphabets.  Fulqrum was designed specifically with the goals of: (1) Providing a unified code base for solving both spin and fermionic systems. (2) Working for arbitrary numbers of qubits. (3) Reducing memory consumption, as compared to existing methods. And finally, (4) Decoupling operator construction from eigensolving itself.  In addition to satisfying these goals, Fulqrum is performant, and beats other eigensolvers in terms of total runtime.
+Fulqrum is a set of tools for enabling the solution to large-scale Hamiltonian subspace sparse linear algebra problems over extended alphabets.  Fulqrum was designed specifically with the goals of: (1) Providing a unified code base for solving both spin and fermionic systems. (2) Working for arbitrary numbers of qubits. (3) Reducing memory consumption, as compared to existing methods. And finally, in the case of eigenvalue problems, decoupling operator construction from eigensolving itself.
 
-In addition to eigensolving itself, Fulqrum provides tools for generating compact subspaces that yield accurate solutions while potentially  using orders of magnitude fewer bit-strings than standard quantum subspace methods alone.
+Fulqrum also provides tools for generating compact subspaces that yield accurate solutions to quantum chemistry applications while potentially using orders of magnitude fewer bit-strings than standard quantum subspace methods alone.
+
+Fulqrum can utilize both CPU and GPU (Nvidia only) computing resources. However, at present, not all features are supported across all computing modes.  See the table below for current feature availability:
+
+| Feature | CPU-compatible | GPU-compatible |
+| --- | --- | --- |
+| Distributed (multi-node)| ✗ | ✓ |
+| Max. qubits | 65,536 | 256 |
+| Cartesian Subspace (TPB) | ✓ | ✓ |
+| General Subspace (GDB) | ✓ | ✓ |
+| 1-RDM and 2-RDM | ✗ | ✓ |
+| Spin penality | ✗ | ✗ |
+| Complex values | ✓ | ✗ |
+| Generic qubit operators | ✓ | ✗ |
+| Sample-based Quantum Diagonalization (SQD) compatible | ✓ | ✓ |
 
 
 ## Documentation
 
-Docs: https://qiskit.github.io/fulqrum
+Docs: https://qiskit.github.io/qiskit-fulqrum/
 
 
 ## Installation
 
+The steps below install the CPU version. For distributed GPU support, see [GPU_INSTALL.md](GPU_INSTALL.md).
 
 ### Requirements
 
@@ -30,18 +45,18 @@ Required Boost header files are included in the ``third-party/boost`` directory,
 
 ### Git submodule
 
-Fulqrum uses [`qiskit-addon-sqd-hpc`](https://github.com/Qiskit/qiskit-addon-sqd-hpc) as a Git submodule. Therefore, we can do either of the following to get actual and required files from that repo:
+Fulqrum uses [`qiskit-addon-sqd-hpc`](https://github.com/Qiskit/qiskit-addon-sqd-hpc) and [`primme`](https://github.com/primme/primme) as Git submodules. Therefore, we can do either of the following to get actual and required files from those repos:
 
 Clone Fulqrum with `--recurse-submodules` flag, and it will also clone files from the submodule.
 ```bash
-git clone --recurse-submodules https://github.com/Qiskit/fulqrum.git
+git clone --recurse-submodules https://github.com/Qiskit/qiskit-fulqrum.git
 ```
 
 OR
 
 After cloning Fulqrum normally, do a submodule update.
 ```bash
-git clone https://github.com/Qiskit/fulqrum.git
+git clone https://github.com/Qiskit/qiskit-fulqrum.git
 cd fulqrum
 git submodule update --init --recursive
 ```
@@ -119,10 +134,6 @@ Example: run a workload with a larger row block and finer ladder bucketing:
 FQ_BLK=256 FQ_LADDER_WIDTH=4 python your_workload.py
 ```
 
-## Running benchmarks
-
-See the README.md in the `benchmarks` directory.
-
 
 ## Notes on `Subspace` input format
 
@@ -134,3 +145,83 @@ one represents _beta_ strings. Internally, `fulqrum` will sort each list and per
 2. **Full-string mode:** In this mode, `subspace_strs` has to be length-1 `tuple[list[str]]`. In this mode, no Cartesian product is taken internally, and the supplied _full_ bitstrings are used as is after sorting.
 
 **Note:** There is no special flag to denote half-string vs. full-string mode. `Fulqrum` will compute the length of the input `subspace_strs` and detect half-string or full-string mode automatically to construct the subspace. If `subspace_strs` has a different length other than 1 or 2 or its element(s) is not `list[str]`, it will throw an `TypeError`.
+
+
+## Benchmarks
+
+Benchmarks for select quantum chemistry problems comparing the performance of Fulqrum to [`Dice`](https://github.com/sanshar/Dice) and [`SBD`](https://github.com/r-ccs-cms/sbd).
+
+Benchmarks target finding the ground-state energy within the given subspace dimension.  Solvers configured so that they return the same energy to a relative tolerance of 1E-7.  Here both Fulqrum and SBD are used in matrix-free mode.
+
+### CPU results
+
+#### Fe4S4 (36 orbitals, 54 electrons) (arXiv:2405.05068)
+
+12-core, 24-thread AMD 7900, 128 Gb memory
+
+| Solver | Subspace dimension | Runtime (s) | Memory (Gb) | Speedup |
+| --- | --- | --- | --- | --- |
+| Dice | 1E6 | 93.6 | 47.4 | |
+| Fulqrum - primme | 1E6 | 7.4 | 3.8 | 11x |
+| Fulqrum - scipy | 1E6 | 8.1 | 3.8 | 10x |
+| SBD | 1E6 | 82.2 | 1.2 |  |
+| --- | --- | --- | --- | --- |
+| Dice | 1E8 | - | OOM | |
+| Fulqrum - primme | 1E8 | 405 | 13.4 | 99x |
+| Fulqrum - scipy | 1E8 | 527 | 24.6 | 76x |
+| SBD | 1E8 | 40225 | 82.2 |  | 
+
+
+Dual-socket Intel Xeon Platinum 8474C (48-core, 96 threads), 2 TB memory
+
+| Solver | Subspace dimension | Runtime (s) | Memory (Gb) | Speedup |
+| --- | --- | --- | --- | --- |
+| Dice | 1.6E7 | 589 | 436 | |
+| Fulqrum - primme | 1.6E7 | 45 | 5 | 13x |
+| SBD | 1.6E7 | 754 | 3 | |
+| --- | --- | --- | --- | --- |
+| Dice | 1E8 | - | OOM | |
+| Fulqrum - primme | 1E8 | 149 | 12 | 38x |
+| SBD | 1E8 | 5705 | 20 | |
+
+
+### GPU results
+
+Results run on GB200 cluster; 4-GPUs per node
+
+#### Molten salt molecules (arXiv:2606.30402)
+
+| Molecule | (norb, nelec) | Subspace dimension | Fulqrum time (s) | SBD time (s) | Speedup |
+| --- | --- | --- | --- | --- | --- |
+| conf3-clust0021 | (30, 12) | 2E9 | 40.7 | 237.8 | 5.8x |
+| conf5-clust0015 | (29, 10) | 5.8E9 | 110.3 | 1305.4 | 11.9x |
+| conf8-clust0017 | (29, 10) | 5.8E9 | 127 | 2393 | 18.8x |
+| FLiBe | (29, 10) | 5.4E8 | 60.2 | 1200 | 19.9x |
+
+#### Lysozyme fragments (arXiv:2605.01138)
+
+| Molecule | (norb, nelec) | Subspace dimension | Fulqrum time (s) | SBD time (s) | Speedup |
+| --- | --- | --- | --- | --- | --- |
+| atom_10 | (38, 26) | 8.9E9 | 93.9 | 422.4 | 4.5x |
+| atom_17 | (38, 24) | 4.7E9 | 68.4 | 172.4 | 2.5x |
+| atom_19 | (39, 24) | 5.5E9 | 74.4 | 218.3 | 2.9x |
+| atom_83 | (34, 36) | 7.6E9 | 80 | 461.5 | 5.8x |
+| atom_333 | (34, 36) | 7.6E9 | 78.7 | 499.1 | 6.3x |
+| atom_444 | (34, 36) | 7.9E9 | 81.6 | 439.4 | 5.4x |
+| atom_1590 | (34, 34) | 5.1E9 | 63 | 243.6 | 3.9x |
+| atom_1795 | (35, 24) | 6.5E9 | 74.3 | 287.5 | 3.9x |
+| atom_1799 | (35, 26) | 7.2E9 | 77.5 | 326.4 | 4.2x |
+| atom_1859 | (37, 24) | 4.5E9 | 63.6 | 148.9 | 2.3x |
+| atom_2014 | (34, 36) | 1.6E10 | 147.8 | 1207.4 | 8.2x |
+| atom_2023 | (34, 36) | 1.4E10 | 130.9 | 947.8 | 7.2x |
+| atom_2200 | (35, 38) | 1.6E10 | 150.3 | 1237.2 | 8.2x |
+| atom_2209 | (35, 38) | 1.8E10 | 157.5 | 1316 | 8.4x |
+| atom_2219 | (34, 36) | 7.7E9 | 80.7 | 489.5 | 6.1x |
+| atom_2436 | (34, 36) | 6.6E9 | 75 | 359.2 | 4.8x |
+| atom_2457 | (37, 26) | 9.4E9 | 96.6 | 512.3 | 5.3x |
+| atom_2539 | (34, 36) | 1.5E10 | 134.5 | 1038.5 | 7.7x |
+| atom_2548 | (35, 38) | 1.7E10 | 150.1 | 1314.3 | 8.8x |
+| atom_2580 | (35, 38) | 9.2E9 | 89.8 | 621.5 | 6.9x |
+| atom_1752 | (45, 46) | 3.5E9 | 90 | 582.3 | 6.5x |
+
+* SBD numbers used commit [95bf45a](https://github.com/r-ccs-cms/sbd/commit/95bf45a5be9ffd977fac7b0aaa359833caf3401a) or earlier.

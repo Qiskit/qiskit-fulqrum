@@ -14,18 +14,46 @@ PRIMME's BLAS integer width and symbol convention are fixed by the build:
   A driver or CuPy wheel alone does not provide the complete build toolkit.
 - A CUDA-compatible C++17 compiler with OpenMP support, a C compiler, GNU Make,
   Git (for applying PRIMME patches).
-- Open MPI and a matching mpi4py installation and `mpirun` launcher.
+- An MPI implementation with its launcher (`mpirun` or `srun`), and mpi4py built
+  against it. Any MPI that mpi4py supports should work; the instructions below
+  use Open MPI, the tested implementation.
+- CuPy matching your CUDA toolkit. The `gpu` extra installs it for CUDA 13.
 - OpenBLAS ILP64 with LAPACK and the `_64_` symbol convention. Ordinary LP64 BLAS
   and private NumPy/SciPy wheel libraries are not compatible replacements.
 
 The `gpu` extra installs `cupy-cuda13x>=14,<15`. Install `mpi4py>=4.1,<5`
-separately against your Open MPI installation, as shown below.
+separately against your MPI installation, as shown below.
 The local reference stack is CUDA 13.3, CuPy 14.1, mpi4py 4.1, OpenBLAS ILP64
 0.3.34, and H100 (`sm_90`). This reference is not a guarantee for every platform
 or driver combination. For CUDA 12, install a compatible `cupy-cuda12x` explicitly
 and install Fulqrum without the `gpu` extra; never install both CuPy variants.
 The build filters its fallback targets against the selected toolkit's supported
 architectures. NVIDIA HPC SDK split toolkit/math-library layouts are detected.
+
+## Installing from PyPI
+
+Fulqrum is published on PyPI as a source distribution, so `pip` compiles it on
+your machine. The source distribution includes the pinned PRIMME sources and
+Fulqrum's patches, so no Git checkout or submodules are needed. With the
+requirements above in place (for example in the conda environment below):
+
+```bash
+FQ_BUILD_GPU=1 python -m pip install "fulqrum[gpu]"
+```
+
+Without `FQ_BUILD_GPU=1`, `pip install fulqrum` builds the CPU modules only.
+
+You can also install from a GitHub branch, for example `main`.
+`pip` fetches the required submodules itself:
+
+```bash
+FQ_BUILD_GPU=1 python -m pip install \
+  "fulqrum[gpu] @ git+https://github.com/qiskit-community/fulqrum.git@main"
+```
+
+To build from a local checkout instead, see the next section. Once installed,
+run the checks in [Verification](#verification), and see
+[`examples/gpu`](examples/gpu) for a multi-node example.
 
 ## Recommended environment with conda or mamba
 
@@ -177,6 +205,31 @@ backend as the intended job. Follow your scheduler's GPU-per-rank assignment.
 
 The first run compiles CuPy kernels once and caches them in
 `~/.cupy/kernel_cache` (default); later runs reuse them. If your home directory is not persistent or not shared across nodes, set `CUPY_CACHE_DIR` to a directory that is.
+
+## Running the tests
+
+The tests are installed with the package. With `pytest` installed, run them from a directory outside the source checkout, so that the installed build is the one imported:
+
+```bash
+python -m pytest --pyargs fulqrum.test
+```
+
+On a machine without a GPU, the GPU tests are skipped. On a GPU node the same command also runs them, including the multi-rank checks, which use in-process ranks sharing one GPU.
+
+Tests that need several MPI processes are marked `mpi` and are skipped in a single process. Run them with four ranks, one GPU per rank:
+
+```bash
+mpirun -n 4 python -m pytest -m mpi --pyargs fulqrum.test
+```
+
+One node with four GPUs is the tested layout.
+
+The device-level unit tests of the CUDA building blocks
+(`test_gpu_kernel_primitives.py`) need a small test library that is built only with `FQ_BUILD_GPU_TESTS=1` at install time; without it they are skipped. Build with it when changing the GPU kernels:
+
+```bash
+FQ_BUILD_GPU=1 FQ_BUILD_GPU_TESTS=1 python -m pip install ".[gpu]"
+```
 
 ## Optional build controls
 

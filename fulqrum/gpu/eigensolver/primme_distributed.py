@@ -22,18 +22,13 @@ from dataclasses import dataclass
 import numpy as np
 
 from .. import config
+from ..distributed.rank_agreement import check_same_choice, run_on_every_rank
 
 logger = logging.getLogger(__name__)
 __all__ = ["distributed_primme_eigsh", "is_primme_mpi_available"]
 
 
-def _env_flag(name: str) -> bool:
-
-    return os.environ.get(name, "").strip().lower() in ("1", "true", "yes", "on")
-
-
 def _load_backend():
-
 
     alt = os.environ.get("FQ_PRIMME_MPI_SO", "").strip()
     if alt:
@@ -100,20 +95,6 @@ def distributed_primme_eigsh(
     resnorm_cap: float = 1e-2,
 ):
     """Compute eigenpairs of a distributed real Hermitian operator with PRIMME.
-
-    Uses Fulqrum's native PRIMME MPI extension. Every solver rank in ``H._comm``
-    must participate with the same solver options; starting vectors and
-    preconditioner data are local to each rank. ``TileGPUResidentHamiltonian``
-    is one supported operator. Operators with separate worker ranks restrict
-    solver calls to their primary ranks; workers use the operator's worker API.
-
-    ``H`` must expose global square ``shape``, local length ``n_local``, an MPI
-    communicator ``_comm`` and ``_matvec(v_local)`` returning the local product
-    in the same row order as its input. The distributed solver calls this local
-    interface directly. Inherited SciPy ``LinearOperator.matvec`` checks the
-    global vector length and is not the multi-rank local-vector interface.
-    A device-capable operator additionally accepts CuPy vectors and keyword
-    ``out=buffer``, and advertises ``supports_device_matvec``.
 
     For a GPU-backed ``H``, eigensolving combines GPU matrix-vector products
     with PRIMME linear algebra steps, such as basis orthogonalization and dense
@@ -225,12 +206,26 @@ def distributed_primme_eigsh(
         energy_window=energy_window,
         resnorm_cap=resnorm_cap,
     )
-    precond_diag_local, v0_local = _local_inputs(H, precond_diag_local, v0_local)
-    backend = _load_backend()
-    use_gpu = choose_leg(H, gpu, backend)
-    callbacks = make_callbacks(use_gpu, H, options, precond_diag_local, v0_local)
+
+    def setup():
+
+        inputs = _local_inputs(H, precond_diag_local, v0_local)
+        backend = _load_backend()
+        use_gpu = choose_leg(H, gpu, backend)
+        return backend, use_gpu, _local_callbacks(use_gpu, H, options, *inputs)
+
+    backend, use_gpu, callbacks = run_on_every_rank(H._comm, "eigensolver setup", setup)
+    check_same_choice(
+        H._comm, use_gpu, "GPU leg" if use_gpu else "host leg", "eigensolver leg"
+    )
+    callbacks = _finish_callbacks(use_gpu, H, callbacks)
     started = time.perf_counter()
-    result = run_primme(backend, H, options, callbacks)
+    try:
+        result = run_primme(backend, H, options, callbacks)
+    finally:
+        if callbacks.primme_comm is not None:
+            callbacks.primme_comm.Free()
+            callbacks.primme_comm = None
     if H._comm.Get_rank() == 0:
         logger.info(
             "PRIMME solve returned: requested_eigenpairs=%d, leg=%s, elapsed=%.2f s",
@@ -244,8 +239,6 @@ def distributed_primme_eigsh(
 
 @dataclass(frozen=True)
 class EigshOptions:
-
-
     k: int
     tol: float
     maxiter: int | None
@@ -282,8 +275,6 @@ class EigshOptions:
 
 @dataclass
 class SolverCallbacks:
-
-
     precond_diag_local: np.ndarray | None
     v0_local: np.ndarray | None
     gpu_evecs: object = None
@@ -297,7 +288,6 @@ class SolverCallbacks:
 
 
 def _check_operator(H):
-
 
     if hasattr(H, "_is_primary") and not H._is_primary:
         raise RuntimeError(
@@ -313,7 +303,6 @@ def _check_operator(H):
 
 
 def _local_inputs(H, precond_diag_local, v0_local):
-
 
     n_local = int(H.n_local)
     if precond_diag_local is not None:
@@ -336,7 +325,6 @@ def _local_inputs(H, precond_diag_local, v0_local):
 
 def choose_leg(H, gpu, backend) -> bool:
 
-
     if isinstance(gpu, str):
         if gpu != "auto":
             raise ValueError(f"gpu must be True, False or 'auto', got {gpu!r}")
@@ -357,14 +345,24 @@ def make_callbacks(
     use_gpu, H, options, precond_diag_local, v0_local
 ) -> SolverCallbacks:
 
+    callbacks = _local_callbacks(use_gpu, H, options, precond_diag_local, v0_local)
+    return _finish_callbacks(use_gpu, H, callbacks)
+
+
+def _local_callbacks(
+    use_gpu, H, options, precond_diag_local, v0_local
+) -> SolverCallbacks:
 
     n_local = int(H.n_local)
     if use_gpu:
-        callbacks = _gpu_leg_callbacks(
-            H, n_local, options, precond_diag_local, v0_local
-        )
-    else:
-        callbacks = _host_leg_callbacks(H, n_local, precond_diag_local, v0_local)
+        return _gpu_leg_callbacks(H, n_local, options, precond_diag_local, v0_local)
+    return _host_leg_local(H, n_local, precond_diag_local, v0_local)
+
+
+def _finish_callbacks(use_gpu, H, callbacks) -> SolverCallbacks:
+
+    if not use_gpu:
+        _host_leg_collective(H, callbacks)
     callbacks.gpu_matvec = _abort_on_rank_error(callbacks.gpu_matvec, H._comm, "matvec")
     callbacks.gpu_precond = _abort_on_rank_error(
         callbacks.gpu_precond, H._comm, "preconditioner"
@@ -378,11 +376,10 @@ def _gpu_leg_callbacks(
     H, n_local, options, precond_diag_local, v0_local
 ) -> SolverCallbacks:
 
-
     import cupy  # noqa: PLC0415
 
     cupy.get_default_memory_pool().free_all_blocks()
-    managed_basis = _env_flag("FQ_PRIMME_MANAGED_BASIS")
+    managed_basis = bool(config.read("FQ_PRIMME_MANAGED_BASIS"))
     if options.ncv:
         _check_gpu_basis_fits(n_local, int(options.ncv), managed_basis)
     callbacks = SolverCallbacks(None, None)
@@ -401,7 +398,6 @@ def _gpu_leg_callbacks(
 
 
 def _check_gpu_basis_fits(n_local: int, ncv: int, managed_basis: bool):
-
 
     import cupy  # noqa: PLC0415
 
@@ -425,43 +421,64 @@ def _check_gpu_basis_fits(n_local: int, ncv: int, managed_basis: bool):
 
 def _host_leg_callbacks(H, n_local, precond_diag_local, v0_local) -> SolverCallbacks:
 
+    callbacks = _host_leg_local(H, n_local, precond_diag_local, v0_local)
+    _host_leg_collective(H, callbacks)
+    return callbacks
+
+
+def _host_leg_local(H, n_local, precond_diag_local, v0_local) -> SolverCallbacks:
 
     callbacks = SolverCallbacks(precond_diag_local, v0_local)
-    if precond_diag_local is not None and os.environ.get(
-        "FQ_PRIMME_GPU_PRECOND", ""
-    ).lower() in ("1", "true", "yes", "on"):
+    if precond_diag_local is not None and config.read("FQ_PRIMME_GPU_PRECOND"):
         import cupy  # noqa: PLC0415
 
         cupy.get_default_memory_pool().free_all_blocks()
-        _pc_tile = int(os.environ.get("FQ_PRIMME_GPU_PRECOND_TILE", 1 << 24))
+        _pc_tile = int(config.read("FQ_PRIMME_GPU_PRECOND_TILE"))
         callbacks.gpu_precond = _make_host_gpu_precond(
             precond_diag_local, n_local, _pc_tile
         )
         callbacks.precond_diag_local = None
     if getattr(H, "supports_device_matvec", False):
-        direct = _make_host_direct_matvec(H, n_local)
-        callbacks.gpu_matvec = direct
+        callbacks.gpu_matvec = _make_host_direct_matvec(H, n_local)
         callbacks.pinned_basis = bool(config.read("FQ_PRIMME_PINNED_BASIS"))
+    return callbacks
+
+
+def _host_leg_collective(H, callbacks) -> None:
+
+    if getattr(H, "supports_device_matvec", False):
+        direct = callbacks.gpu_matvec
         overlap, reason = _host_overlap_mode(H)
         if overlap:
             callbacks.overlap_matvec = direct
             callbacks.spec_matvec = bool(config.read("FQ_PRIMME_SPEC_MATVEC"))
             if H._comm.Get_size() > 1:
                 callbacks.primme_comm = H._comm.Dup()
+        spec_blocked = (
+            callbacks.spec_matvec
+            and callbacks.gpu_precond is not None
+            and callbacks.precond_diag_local is None
+        )
         if H._comm.Get_rank() == 0:
+            spec = "on" if callbacks.spec_matvec else "off"
+            if spec_blocked:
+                spec = "off (GPU preconditioner)"
+                logger.info(
+                    "PRIMME host leg: FQ_PRIMME_GPU_PRECOND=1 disables speculative "
+                    "matvecs (the spec pass needs the host preconditioner diagonal)",
+                    extra={"gpu_rank": 0},
+                )
             logger.info(
                 "PRIMME host leg: page_locked_basis=%s, matvec_overlap=%s (%s), spec_matvec=%s",
                 "on" if callbacks.pinned_basis else "off",
                 "on" if overlap else "off",
                 reason,
-                "on" if callbacks.spec_matvec else "off",
+                spec,
                 extra={"gpu_rank": 0},
             )
-    return callbacks
 
 
 def _host_overlap_mode(H):
-
 
     if not config.read("FQ_PRIMME_OVERLAP_MATVEC"):
         return False, "FQ_PRIMME_OVERLAP_MATVEC is off"
@@ -495,7 +512,6 @@ def _host_overlap_mode(H):
 
 
 def run_primme(backend, H, options, callbacks):
-
 
     return backend.eigsh(
         H,
@@ -533,7 +549,6 @@ def run_primme(backend, H, options, callbacks):
 
 def _host_result(result, use_gpu, options):
 
-
     if use_gpu and options.return_eigenvectors:
         import cupy  # noqa: PLC0415
 
@@ -554,7 +569,6 @@ def _host_result(result, use_gpu, options):
 
 
 def _abort_on_rank_error(fn, comm, what: str):
-
 
     if fn is None or comm.Get_size() == 1:
         return fn
@@ -587,6 +601,8 @@ def _device_vector_wrapper(n_local: int):
 
     def _wrap(ptr):
 
+        if n == 0:
+            return cupy.empty(0, dtype=cupy.float64)
         mem = cupy.cuda.UnownedMemory(int(ptr), n * 8, owner=None)
         return cupy.ndarray(
             (n,), dtype=cupy.float64, memptr=cupy.cuda.MemoryPointer(mem, 0)
@@ -597,7 +613,6 @@ def _device_vector_wrapper(n_local: int):
 
 def _make_gpu_block_matvec(H, n_local: int, stage: bool = False):
 
-
     import cupy  # noqa: PLC0415
 
     _wrap = _device_vector_wrapper(n_local)
@@ -605,7 +620,6 @@ def _make_gpu_block_matvec(H, n_local: int, stage: bool = False):
     d_y = cupy.empty(int(n_local), dtype=cupy.float64) if stage else None
 
     def _block_matvec(x_ptr, ldx, y_ptr, ldy, block_size):
-
 
         cupy.cuda.runtime.deviceSynchronize()
         for j in range(block_size):
@@ -623,8 +637,6 @@ def _make_gpu_block_matvec(H, n_local: int, stage: bool = False):
 
 
 class _HostDirectMatvec:
-
-
     def __init__(self, H, n_local: int):
 
         import ctypes  # noqa: PLC0415
@@ -656,7 +668,6 @@ class _HostDirectMatvec:
 
     def __call__(self, x_ptr, ldx, y_ptr, ldy, block_size):
 
-
         for j in range(block_size):
             self._d_x.set(self._host(int(x_ptr) + 8 * int(ldx) * j))
             self._H._matvec(self._d_x, out=self._d_y)
@@ -664,7 +675,6 @@ class _HostDirectMatvec:
             self._d_y.get(out=self._host(int(y_ptr) + 8 * int(ldy) * j))
 
     def start(self, x_ptr, y_ptr, spec=False):
-
 
         if self._thread is not None:
             raise RuntimeError("an overlapped matvec is still running")
@@ -681,7 +691,6 @@ class _HostDirectMatvec:
 
     def _run(self, x_ptr, y_ptr, spec):
 
-
         started = time.perf_counter()
         try:
             with self._cupy.cuda.Device(self._device):
@@ -694,14 +703,11 @@ class _HostDirectMatvec:
                     self._input_ready.set()
                 self._H._matvec(self._d_x, out=self._d_y)
                 if spec:
-
                     from cupy import cublas  # noqa: PLC0415
 
                     cublas.dot(self._d_x, self._d_y, out=self._d_dot)
                 self._cupy.cuda.runtime.deviceSynchronize()
                 if spec:
-
-
                     self._backend.spec_wait_output_free()
                 self._d_y.get(out=self._host(y_ptr))
                 if spec:
@@ -713,7 +719,6 @@ class _HostDirectMatvec:
             self._thread_seconds += time.perf_counter() - started
 
     def _copy_in_chunks(self, x_ptr):
-
 
         n = self._d_x.size
         chunk = max(1, int(self._backend.spec_chunk_rows()))
@@ -738,7 +743,6 @@ class _HostDirectMatvec:
 
     def wait(self, accept):
 
-
         started = time.perf_counter()
         if self._thread is not None:
             self._thread.join()
@@ -752,11 +756,14 @@ class _HostDirectMatvec:
             error, self._error = self._error, None
             raise error
 
-    def close(self):
+    def close(self, timeout=None):
 
         if self._thread is not None:
-            self._thread.join()
+            self._thread.join(timeout)
+            if self._thread.is_alive():
+                return False
             self._thread = None
+        return True
 
     def stats(self):
 
@@ -768,9 +775,28 @@ class _HostDirectMatvec:
         }
 
 
+def _abort_on_stuck_close(close, comm):
+
+    def _guarded():
+
+        timeout = float(config.read("FQ_PRIMME_CLOSE_TIMEOUT_S"))
+        if close(timeout=timeout):
+            return
+        import sys  # noqa: PLC0415
+
+        sys.stderr.write(
+            f"PRIMME overlapped matvec did not finish on rank {comm.Get_rank()} "
+            f"within {timeout:g} s after the solver stopped (a peer likely left a "
+            "collective matvec). Aborting the MPI job to prevent other ranks from "
+            "waiting indefinitely in collective operations.\n"
+        )
+        sys.stderr.flush()
+        comm.Abort(1)
+
+    return _guarded
+
+
 class _GuardedOverlap:
-
-
     def __init__(self, inner, comm):
 
         self.start = _abort_on_rank_error(inner.start, comm, "overlapped matvec")
@@ -778,19 +804,21 @@ class _GuardedOverlap:
             inner.input_done, comm, "overlapped matvec"
         )
         self.wait = _abort_on_rank_error(inner.wait, comm, "overlapped matvec")
-        self.close = inner.close
+        self.close = (
+            _abort_on_stuck_close(inner.close, comm)
+            if comm.Get_size() > 1
+            else inner.close
+        )
         self.stats = inner.stats
         self.dot = inner.dot
 
 
 def _make_host_direct_matvec(H, n_local: int):
 
-
     return _HostDirectMatvec(H, n_local)
 
 
 def _clamped_jacobi_kernel():
-
 
     import cupy  # noqa: PLC0415
 
@@ -804,7 +832,6 @@ def _clamped_jacobi_kernel():
 
 
 def _make_host_gpu_precond(precond_diag_local, n_local: int, tile_rows: int):
-
 
     import cupy
 
@@ -824,7 +851,6 @@ def _make_host_gpu_precond(precond_diag_local, n_local: int, tile_rows: int):
 
     def _block_precond(x_ptr, ldx, y_ptr, ldy, block_size, shifts):
 
-
         diag_ptr = int(diag_host.ctypes.data)
         for j in range(block_size):
             xj = int(x_ptr) + 8 * int(ldx) * j
@@ -843,7 +869,6 @@ def _make_host_gpu_precond(precond_diag_local, n_local: int, tile_rows: int):
 
 def _make_gpu_precond(precond_diag_local, n_local: int):
 
-
     import cupy  # noqa: PLC0415
 
     _wrap = _device_vector_wrapper(n_local)
@@ -851,7 +876,6 @@ def _make_gpu_precond(precond_diag_local, n_local: int):
     fused = _clamped_jacobi_kernel()
 
     def _block_precond(x_ptr, ldx, y_ptr, ldy, block_size, shifts):
-
 
         for j in range(block_size):
             d_x = _wrap(int(x_ptr) + 8 * int(ldx) * j)

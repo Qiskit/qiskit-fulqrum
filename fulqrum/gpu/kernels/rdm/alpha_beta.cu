@@ -16,7 +16,6 @@
 
 #include "launch.hpp"
 
-
 struct AlphaStage
 {
     std::int32_t source[kRdmAbStage];
@@ -24,9 +23,8 @@ struct AlphaStage
     double sign[kRdmAbStage];
 };
 
-
-__device__ __forceinline__ void load_stage(AlphaStage& stage, const RdmAbLists& lists, const std::int64_t first,
-                                           const int count)
+__device__ __forceinline__ void
+load_stage(AlphaStage& stage, const RdmAbLists& lists, const std::int64_t first, const int count)
 {
     for(int u = threadIdx.x; u < count; u += blockDim.x)
     {
@@ -36,10 +34,10 @@ __device__ __forceinline__ void load_stage(AlphaStage& stage, const RdmAbLists& 
     }
 }
 
-
-__global__ void __launch_bounds__(kRdmAbThreads) alpha_beta_kernel(const __grid_constant__ RdmAbSlabs slabs,
-                                                                    const __grid_constant__ RdmAbLists lists,
-                                                                    const __grid_constant__ RdmTensor out)
+__global__ void __launch_bounds__(kRdmAbThreads)
+    alpha_beta_kernel(const __grid_constant__ RdmAbSlabs slabs,
+                      const __grid_constant__ RdmAbLists lists,
+                      const __grid_constant__ RdmTensor out)
 {
     __shared__ AlphaStage stage;
     const std::int64_t label = blockIdx.y;
@@ -52,7 +50,8 @@ __global__ void __launch_bounds__(kRdmAbThreads) alpha_beta_kernel(const __grid_
     const std::int64_t k = std::int64_t(blockIdx.x) * blockDim.x + threadIdx.x;
     const bool live = k < lists.beta_count;
     const std::int64_t ib = live ? std::int64_t(lists.beta_source[k]) - slabs.own_column_offset : 0;
-    const std::int64_t jb = live ? std::int64_t(lists.beta_target[k]) - slabs.source_column_offset : 0;
+    const std::int64_t jb =
+        live ? std::int64_t(lists.beta_target[k]) - slabs.source_column_offset : 0;
     double acc = 0.0;
     for(std::int64_t base = begin; base < end; base += kRdmAbStage)
     {
@@ -65,7 +64,8 @@ __global__ void __launch_bounds__(kRdmAbThreads) alpha_beta_kernel(const __grid_
             {
                 const std::int64_t ia = std::int64_t(stage.source[u]) - slabs.own_row_offset;
                 const std::int64_t ja = std::int64_t(stage.target[u]) - slabs.source_row_offset;
-                acc = fma(stage.sign[u] * slabs.own[ia * slabs.own_width + ib], slabs.source[ja * slabs.source_width + jb],
+                acc = fma(stage.sign[u] * slabs.own[ia * slabs.own_width + ib],
+                          slabs.source[ja * slabs.source_width + jb],
                           acc);
             }
         }
@@ -73,22 +73,28 @@ __global__ void __launch_bounds__(kRdmAbThreads) alpha_beta_kernel(const __grid_
     }
     if(live && acc != 0.0)
     {
-        atomicAdd(out.values + lists.alpha_offset[label] + lists.beta_offset[k], lists.beta_sign[k] * acc);
+        atomicAdd(out.values + lists.alpha_offset[label] + lists.beta_offset[k],
+                  lists.beta_sign[k] * acc);
     }
 }
 
 extern "C"
 {
 
-    int rdm_launch_alpha_beta(const RdmAbSlabs* slabs, const RdmAbLists* lists, const RdmTensor* out, void* stream)
+    int rdm_launch_alpha_beta(const RdmAbSlabs* slabs,
+                              const RdmAbLists* lists,
+                              const RdmTensor* out,
+                              void* stream)
     {
         if(lists->beta_count == 0)
         {
             return static_cast<int>(cudaSuccess);
         }
         const std::int64_t blocks = (lists->beta_count + kRdmAbThreads - 1) / kRdmAbThreads;
-        const dim3 grid(static_cast<unsigned int>(blocks), static_cast<unsigned int>(out->num_orbitals * out->num_orbitals));
-        alpha_beta_kernel<<<grid, kRdmAbThreads, 0, static_cast<cudaStream_t>(stream)>>>(*slabs, *lists, *out);
+        const dim3 grid(static_cast<unsigned int>(blocks),
+                        static_cast<unsigned int>(out->num_orbitals * out->num_orbitals));
+        alpha_beta_kernel<<<grid, kRdmAbThreads, 0, static_cast<cudaStream_t>(stream)>>>(
+            *slabs, *lists, *out);
         return static_cast<int>(cudaGetLastError());
     }
 }

@@ -15,7 +15,6 @@
 
 #include <cstdint>
 
-
 struct RdmSlabPair
 {
     const double* bra;
@@ -27,7 +26,6 @@ struct RdmSlabPair
     std::int64_t bra_elem_stride;
 };
 
-
 struct RdmPairs
 {
     const std::int64_t* row_ptr;
@@ -38,7 +36,6 @@ struct RdmPairs
     std::int64_t num_bra;
 };
 
-
 struct RdmDiagonal
 {
     const double* weight;
@@ -46,7 +43,6 @@ struct RdmDiagonal
     std::int64_t bra_offset;
     std::int64_t num_bra;
 };
-
 
 struct RdmSingles
 {
@@ -57,14 +53,12 @@ struct RdmSingles
     std::int64_t count;
 };
 
-
 struct RdmTensor
 {
     double* values;
     std::int32_t num_orbitals;
     std::int32_t reserved;
 };
-
 
 struct RdmWeighted
 {
@@ -76,14 +70,12 @@ struct RdmWeighted
     std::int32_t reserved;
 };
 
-
 struct RdmRows
 {
     const std::uint64_t* row_keys;
     std::int64_t row_offset;
     std::int64_t num_rows;
 };
-
 
 struct RdmAbSlabs
 {
@@ -96,7 +88,6 @@ struct RdmAbSlabs
     std::int64_t source_row_offset;
     std::int64_t source_column_offset;
 };
-
 
 struct RdmAbLists
 {
@@ -111,7 +102,6 @@ struct RdmAbLists
     const std::int64_t* beta_offset;
     std::int64_t beta_count;
 };
-
 
 enum RdmParamStruct
 {

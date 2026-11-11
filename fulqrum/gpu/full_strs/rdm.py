@@ -24,7 +24,7 @@ from ..distributed.rank_agreement import raise_on_every_rank, run_on_every_rank
 logger = logging.getLogger(__name__)
 __all__ = ["compute_rdms_full_strs"]
 
-MAX_ORBITALS = 64
+MAX_ORBITALS = 128
 ARRAY_NAMES = (
     "gamma_alpha",
     "gamma_beta",
@@ -43,6 +43,7 @@ ARRAY_NAMES = (
 
 def _array_shapes(m):
 
+    m = int(m)
     return {
         "gamma_alpha": m * m,
         "gamma_beta": m * m,
@@ -76,7 +77,6 @@ def _check_memory(cupy, comm, need):
 
 
 def _half_visits(ham):
-
 
     layout = ham._layout
     if not all(kind[0] == kind[2] and kind[1] == kind[3] for kind in layout.kinds):
@@ -120,13 +120,13 @@ def _launch_pairs(ham, x_ext, arrays, stream, half=0):
                         stream.ptr,
                         bucket,
                         half,
+                        layout.key_words,
                     )
         if slot is not None:
             slot.released = stream.record()
 
 
 def _launch_diagonal(ham, x, arrays, stream):
-
 
     from . import kernel_launch  # noqa: PLC0415
 
@@ -140,12 +140,12 @@ def _launch_diagonal(ham, x, arrays, stream):
             sectors,
             ham.num_orbitals,
             stream.ptr,
+            ham._layout.key_words,
         )
     stream.synchronize()
 
 
 def _add_mirror(raw, m):
-
 
     for name in ("gamma_alpha", "gamma_beta"):
         g = raw[name].reshape(m, m)
@@ -159,7 +159,6 @@ def _add_mirror(raw, m):
 
 
 def _expand(raw, m):
-
 
     eye = np.arange(m)
     a, b, k = np.meshgrid(eye, eye, eye, indexing="ij")
@@ -196,17 +195,18 @@ def _expand(raw, m):
 def compute_rdms_full_strs(ham, x, *, rank=1, spin_summed=False):
     """Compute reduced density matrices from distributed full-determinant subspace.
 
-    This is the implementation used by ``FullStrsHamiltonian.compute_rdms``.
+    This is the implementation used by ``FullStrsGPUHamiltonian.compute_rdms``.
     Every rank in ``ham._comm`` must supply its local part of the same real
     state and use the same ``rank`` and ``spin_summed`` options. All ranks receive
     the full result as host NumPy ``float64`` arrays after GPU work and collective
     communication complete.
 
-    Amplitude ``x[i]`` belongs to determinant ``ham.keys[i]``, whose two uint64
-    words contain the alpha and beta occupations. Use this post-distribution
-    local key order. Pass only this rank's owned amplitudes; the operator handles
-    source-vector exchanges. The selected determinants need not form a complete
-    tensor-product subspace. The operator supports 1–64 orbitals per spin sector.
+    Amplitude ``x[i]`` belongs to determinant ``ham.keys[i]``, whose 2W uint64
+    words contain the W alpha words and then the W beta words. Use this
+    post-distribution local key order. Pass only this rank's owned amplitudes; the
+    operator handles source-vector exchanges. The selected determinants need not
+    form a complete tensor-product subspace. The operator supports 1–128 orbitals
+    per spin sector; the two-particle buffers take about ``24 m**4`` bytes.
 
     No normalization is applied. Scaling all amplitudes by a real factor scales
     every RDM by its square. For normalized RDMs, normalize the global state before
@@ -214,7 +214,7 @@ def compute_rdms_full_strs(ham, x, *, rank=1, spin_summed=False):
     ``make_rdm12s(reorder=True)``.
 
     Args:
-        ham: Constructed ``FullStrsHamiltonian`` supplying the determinant keys,
+        ham: Constructed ``FullStrsGPUHamiltonian`` supplying the determinant keys,
             local partition, communicator and GPU layout.
         x: Real NumPy or CuPy array of shape ``(ham.n_local,)`` in ``ham.keys``
             order. CuPy input must be on this rank's GPU. Pass one local
@@ -239,21 +239,23 @@ def compute_rdms_full_strs(ham, x, *, rank=1, spin_summed=False):
     import cupy  # noqa: PLC0415
 
     started = time.perf_counter()
-    if rank not in (1, 2):
-        raise ValueError(f"rank must be 1 or 2, got {rank!r}")
-    m = int(ham.num_orbitals)
-    if m > MAX_ORBITALS:
-        raise ValueError(
-            f"the RDM supports at most {MAX_ORBITALS} orbitals per sector, got {m}"
-        )
-    if tuple(x.shape) != (ham.n_local,):
-        raise ValueError(f"x must have shape ({ham.n_local},); got {tuple(x.shape)}")
     comm = ham._comm
+    m = int(ham.num_orbitals)
+    error = None
+    if rank not in (1, 2):
+        error = f"rank must be 1 or 2, got {rank!r}"
+    elif m > MAX_ORBITALS:
+        error = f"the RDM supports at most {MAX_ORBITALS} orbitals per sector, got {m}"
+    elif tuple(x.shape) != (ham.n_local,):
+        error = f"x must have shape ({ham.n_local},); got {tuple(x.shape)}"
+    raise_on_every_rank(comm, error, ValueError, "full-string RDM")
     mpi = mpi_namespace(comm)
     stream = ham._stream
     shapes = _array_shapes(m)
     _check_memory(cupy, comm, 8 * (sum(shapes.values()) + ham.n_local))
-    half = _half_visits(ham)
+    caller = cupy.cuda.get_current_stream()
+    stream.wait_event(caller.record())
+    half = min(comm.allgather(_half_visits(ham)))
 
     def allocate():
 
@@ -266,8 +268,6 @@ def compute_rdms_full_strs(ham, x, *, rank=1, spin_summed=False):
         return state, arrays
 
     state, arrays = run_on_every_rank(comm, "full-string RDM buffers", allocate)
-    caller = cupy.cuda.get_current_stream()
-    stream.wait_event(caller.record())
     x_ext = ham._rdm_input(state)
 
     def launch():

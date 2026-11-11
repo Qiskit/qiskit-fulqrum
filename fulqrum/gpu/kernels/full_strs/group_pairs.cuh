@@ -20,7 +20,6 @@
 namespace fq::full_strs::device
 {
 
-
 template <int W>
 __device__ __forceinline__ const std::uint64_t* key_of(const FsKeys& keys, const std::uint32_t row)
 {
@@ -28,8 +27,8 @@ __device__ __forceinline__ const std::uint64_t* key_of(const FsKeys& keys, const
                                : keys.halo_keys + (std::int64_t(row) - keys.num_rows) * 2 * W;
 }
 
-
-__device__ __forceinline__ int members_below(const std::uint32_t* members, const int m, const std::uint32_t bound)
+__device__ __forceinline__ int
+members_below(const std::uint32_t* members, const int m, const std::uint32_t bound)
 {
     int low = 0;
     int high = m;
@@ -48,4 +47,4 @@ __device__ __forceinline__ int members_below(const std::uint32_t* members, const
     return low;
 }
 
-}
+} // namespace fq::full_strs::device
