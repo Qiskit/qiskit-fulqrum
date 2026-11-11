@@ -17,11 +17,10 @@ import time
 import cupy
 import numpy as np
 
-from .. import config
-from ..common.wide import check_width, key_words, popcount_w
+from ..common.wide import check_width, popcount_w
 from ..distributed.rank_agreement import raise_on_every_rank, run_on_every_rank
 from .device import DeviceLayout
-from .host_words import host_module
+from .host_words import host_module, key_rows
 from .plan import LayoutPlan, agree
 from .tile_dispatch import ENGINES
 
@@ -31,40 +30,27 @@ DEFAULT_NUM_SLICES = 4
 logger = logging.getLogger(__name__)
 
 
-class FullStrsHamiltonian:
+class FullStrsGPUHamiltonian:
     """GPU-backed real type-2 Hamiltonian on an explicit set of full determinants.
 
     Use with ``distributed_primme_eigsh`` to solve eigenvalue problems on one or
-    more ranks. Each rank uses its current CUDA device; select it before
-    construction and use that device context for subsequent calls.
-    The operator must use block spin ordering, with alpha in the
+    more ranks. Full determinants must use block spin ordering, with alpha in the
     low bits and beta in the high bits, equal sector widths of 1–128 orbitals,
-    fixed sector electron counts and supported spin-conserving terms through
-    two-body order. Unsupported operator groups are rejected.
+    fixed sector electron counts and supported spin-conserving terms.
+    Unsupported operator groups are rejected.
 
-    Input ``keys`` has dtype uint64 and shape ``(n, 2W)``, where W is 1 for at
-    most 64 orbitals per sector and 2 for 65–128. Each row contains the W alpha
-    words followed by the W beta words, low word first; bit k of word w is
-    orbital 64w + k's occupation in that sector. The determinant set need not be
-    a complete tensor-product subspace.
-    Inputs may be unsorted or contain duplicates. Construction deduplicates,
-    sorts and redistributes keys according to the selected layout. Afterwards,
-    ``keys`` gives this rank's final key order, ``n_local`` its owned row count,
-    and ``row_start`` its position in the distributed ordering. Local vectors
-    and ``diag_local`` use that same order: amplitude i belongs to ``keys[i]``.
+    ``keys`` is a uint64 array of shape ``(n, 2W)``. W is 1 for up to 64
+    orbitals per spin sector and 2 for 65 to 128. Each key holds the W alpha
+    words, then the W beta words, low word first. Bit k of word w is set when
+    orbital 64w + k is occupied. The determinants need not form a complete
+    tensor-product subspace.
 
-    Construction, matvecs and RDM calculations are collective over ``comm``.
-    All ranks must participate with matching operator and shared options, while
-    supplying their own input keys or local amplitudes. ``shape`` is the global
-    square shape, ``dtype`` is float64 and ``supports_device_matvec`` is True.
-    The solver uses ``_matvec(v_local, out=buffer)``, ``n_local`` and ``_comm``.
-    Its device inputs and optional output buffer are local CuPy float64 arrays.
-
-    Public ``matvec(x)`` requires shape ``(n_local,)``. NumPy input returns a host
-    NumPy vector; CuPy input returns a device vector. Device work is asynchronous
-    but ordered on the caller's current CUDA stream. RDM calls return full host
-    NumPy arrays on every rank, using the supplied amplitudes without normalization.
-    RDM return forms and tensor indices follow PySCF ``make_rdm12s(reorder=True)``.
+    The keys can be unsorted and can contain duplicates. The constructor
+    removes duplicates, sorts the keys and distributes them for the selected
+    layout. After construction, ``keys`` holds this rank's keys in their final
+    order, ``n_local`` is the number of determinants this rank owns, and
+    ``row_start`` is the global index of its first determinant. Local vectors
+    and ``diag_local`` use the same order: entry i belongs to ``keys[i]``.
 
     Args:
         operator: Real type-2 ``QubitOperator`` in the block layout above.
@@ -72,88 +58,68 @@ class FullStrsHamiltonian:
             Input assignment and order may change during construction.
         comm: MPI or ``LocalComm`` communicator for all participating ranks.
             ``None`` uses ``MPI.COMM_SELF``.
-        num_slices: Positive number of group-data slices; defaults to 4.
-        binned: Select matvec kernels by group-size bins; defaults to True.
-            False uses the uniform group kernel.
-        residency: ``"resident"`` keeps group slices on the GPU; ``"streamed"``
-            transfers slices from host memory as needed; ``"auto"`` (default)
-            chooses residency using the device budget.
-        device_budget_bytes: Byte budget for automatic device-storage planning.
-            ``None`` derives it from free GPU memory minus reserve and buffer costs.
-        alpha_kind, beta_kind: Optional group representations, ``"intersection"``
-            or ``"union"``, independently for each spin sector. ``None`` chooses
-            automatically from the key occupations.
-        recut: Request membership-based row repartitioning with True, or ordinary
-            row cuts with False. ``None`` selects automatic load balancing for
-            distributed row-group layouts. A supplied plan controls the actual cut.
-        exchange: ``"stepped"`` (default), ``"grouped"`` or ``"two_level"``
-            source-vector exchange. Two-level exchange requires one copy per block.
-        copies: Ranks sharing a replicated connection-data block. Defaults to 1;
-            ``"auto"`` chooses a layout. An explicit positive count must divide
-            communicator size. Vector rows remain partitioned among ranks.
-        plan: Optional ``LayoutPlan`` or its dictionary representation. Overrides
-            copies, num_slices, exchange and the row-cut policy; all ranks must agree.
-        fixed_reduce: Precompute fixed row-reduction plans; defaults to True.
-            Atomic reduction disables these plans.
-        release_host_copies: Release redundant host group/halo copies after upload
-            in distributed layouts; defaults to True. Streamed data is retained.
-        domain_size: Optional positive number of contiguous ranks per two-level
-            communication domain. ``None`` uses detected node membership.
-        groups: ``"by_rows"`` (default) or ``"by_key"`` group ownership. By-key
-            grouping requires one copy and uses ordinary row cuts without a plan.
-        atomic_reduce: Accumulate contributions with GPU atomic additions;
-            defaults to False. Can change floating-point accumulation order.
-        vectors: ``"halo"`` (default) exchanges required remote amplitudes;
-            ``"full"`` exchanges the full vector internally and enables atomic
-            reduction. Full-vector mode requires by-key grouping and one copy.
-            Caller inputs still contain only ``n_local`` amplitudes.
-        engine: ``"auto"`` (default), ``"general"`` or ``"tile"``. When the
-            deduplicated keys are every combination of their alpha and beta
-            strings, ``"auto"`` uses the Cartesian tile engine on a ``1 x P``
-            grid split by beta strings. It falls back to the general engine
-            when the keys are not such a product, a general-engine option
-            above is not at its default, or the operator fails the tile
-            engine's checks. ``"tile"`` requires the tile engine and raises if
-            it cannot run; ``"general"`` always uses the general engine. The
-            chosen engine is available as the ``engine`` attribute; keys, local
-            vectors, the diagonal and RDMs keep the same order and conventions.
-            The tile engine's matvecs are much faster, but its construction can
-            take longer at high orbital counts; use ``"general"`` for workloads
-            with few matvecs.
+        engine: ``"auto"`` (default), ``"tile"`` or ``"general"``.
+            ``"tile"`` uses the faster ``TileGPUResidentHamiltonian`` and
+            needs a Cartesian-product subspace: the keys must hold every
+            alpha string paired with every beta string. ``"general"`` works
+            for any set of keys. ``"auto"`` uses ``"tile"`` when it can, and
+            ``"general"`` otherwise. ``"tile"`` raises an error when it cannot
+            run. The ``engine`` attribute shows the engine in use. Both
+            engines use the same key order. For only a few matvecs, use
+            ``"general"``: the tile engine can take longer to build at high
+            orbital counts.
 
     Raises:
-        ValueError: Keys, operator terms, storage options or layout combinations
-            are unsupported.
+        ValueError: Keys, operator terms or the engine are unsupported.
         ImportError: CuPy or required native components are unavailable.
         MemoryError: GPU allocations cannot fit in available device memory.
         RuntimeError: Device or communication setup fails.
     """
 
-    def __init__(
-        self,
-        operator,
-        keys,
-        *,
-        comm=None,
-        num_slices=DEFAULT_NUM_SLICES,
-        binned=True,
-        residency="auto",
-        device_budget_bytes=None,
-        alpha_kind=None,
-        beta_kind=None,
-        recut=None,
-        exchange="stepped",
-        copies=1,
-        plan=None,
-        fixed_reduce=True,
-        release_host_copies=True,
-        domain_size=None,
-        groups="by_rows",
-        atomic_reduce=False,
-        vectors="halo",
-        engine="auto",
-    ):
+    _DEFAULT_OPTIONS = {
+        "num_slices": DEFAULT_NUM_SLICES,
+        "binned": True,
+        "residency": "auto",
+        "device_budget_bytes": None,
+        "alpha_kind": None,
+        "beta_kind": None,
+        "recut": None,
+        "exchange": "stepped",
+        "copies": 1,
+        "plan": None,
+        "fixed_reduce": True,
+        "release_host_copies": True,
+        "domain_size": None,
+        "groups": "by_rows",
+        "atomic_reduce": False,
+        "vectors": "halo",
+    }
+
+    def __init__(self, operator, keys, *, comm=None, engine="auto", _options=None):
         started = time.perf_counter()
+        options = dict(self._DEFAULT_OPTIONS)
+        unknown = sorted(set(_options or {}) - set(options))
+        if unknown:
+            raise ValueError(f"unknown options: {', '.join(unknown)}")
+        options.update(_options or {})
+
+        num_slices = options["num_slices"]
+        binned = options["binned"]
+        residency = options["residency"]
+        device_budget_bytes = options["device_budget_bytes"]
+        alpha_kind = options["alpha_kind"]
+        beta_kind = options["beta_kind"]
+        recut = options["recut"]
+        exchange = options["exchange"]
+        copies = options["copies"]
+        plan = options["plan"]
+        fixed_reduce = options["fixed_reduce"]
+        release_host_copies = options["release_host_copies"]
+        domain_size = options["domain_size"]
+        groups = options["groups"]
+        atomic_reduce = options["atomic_reduce"]
+        vectors = options["vectors"]
+
         if engine not in ENGINES:
             raise ValueError(f"engine must be one of {ENGINES}, got {engine!r}")
         if comm is None:
@@ -167,12 +133,12 @@ class FullStrsHamiltonian:
         check_width(
             comm,
             (num_orbitals, num_orbitals),
-            "FullStrsHamiltonian",
+            "FullStrsGPUHamiltonian",
             electrons,
             max_words=MAX_KEY_WORDS,
         )
         keys = run_on_every_rank(
-            comm, "input keys", lambda: _key_rows(keys, num_orbitals)
+            comm, "input keys", lambda: key_rows(keys, num_orbitals)
         )
         self._key_words = np.shape(keys)[1] // 2
         self._tile = None
@@ -867,29 +833,6 @@ class FullStrsHamiltonian:
         d_x = cupy.asarray(np.ascontiguousarray(x, dtype=np.float64))
         y = self._matvec(d_x)
         return cupy.asnumpy(y)
-
-
-def _forced_words():
-
-    return int(config.read("FQ_FORCE_KEY_WORDS"))
-
-
-def _key_rows(keys, num_orbitals):
-
-    words = key_words(num_orbitals)
-    rows = np.asarray(keys)
-    if rows.ndim != 2 or rows.shape[1] != 2 * words:
-        raise ValueError(
-            f"keys must have shape (n, {2 * words}) for {num_orbitals} orbitals per "
-            f"sector ({words} alpha words, then {words} beta words); got {rows.shape}"
-        )
-    forced = _forced_words()
-    if forced <= words:
-        return keys
-    padded = np.zeros((rows.shape[0], 2 * forced), dtype=rows.dtype)
-    padded[:, :words] = rows[:, :words]
-    padded[:, forced : forced + words] = rows[:, words:]
-    return padded
 
 
 def _key_electrons(keys):

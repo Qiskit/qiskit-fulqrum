@@ -90,14 +90,11 @@ def DistributedMPIGPUHamiltonian(
     layout: str = "tile_resident",
     **kwargs,
 ):
-    """Create a GPU-backed Hamiltonian for distributed MPI eigenvalue solves.
+    """Create a GPU-backed real Fulqrum type-2 Hamiltonian for distributed MPI matvec.
 
     Returns a ``TileGPUResidentHamiltonian`` using the alpha and beta strings
-    stored in ``hsub``. Construct it on every communicator rank with matching
-    Hamiltonian and shared settings; each rank may select a different GPU.
-    Construction, matvecs and RDM calls are collective. Use the returned operator
-    with ``distributed_primme_eigsh``; it supplies this rank's local vector tile,
-    while its SciPy ``shape`` describes the full problem.
+    stored in ``hsub``. Use the returned operator with ``distributed_primme_eigsh``
+    for distributed eigensolving.
 
     The subspace must be ``fq.Subspace([alpha_strs, beta_strs])``, a tensor product,
     subspace with alpha in the low qubits and beta in the high qubits. Each spin-sector

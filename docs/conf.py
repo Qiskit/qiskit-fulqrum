@@ -23,6 +23,7 @@
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
+import inspect
 import os
 import shutil
 import warnings
@@ -150,6 +151,20 @@ def clean_tutorials(app, exc):
     shutil.rmtree(tutorials_dir)
 
 
+def init_signature(app, what, name, obj, options, signature, return_annotation):
+    # SciPy's LinearOperator.__new__ hides __init__, so show __init__'s parameters.
+    if what != "class" or signature != "(*args, **kwargs)":
+        return None
+    try:
+        sig = inspect.signature(obj.__init__)
+    except (TypeError, ValueError):
+        return None
+    params = [p.replace(annotation=p.empty) for p in list(sig.parameters.values())[1:]]
+    text = str(sig.replace(parameters=params, return_annotation=sig.empty))
+    return text, return_annotation
+
+
 def setup(app):
     load_tutorials(app)
     app.connect("build-finished", clean_tutorials)
+    app.connect("autodoc-process-signature", init_signature)

@@ -64,10 +64,10 @@ def squeeze_rows(keys):
 
 @requires_gpu
 def test_two_word_matvec_equals_the_core_hamiltonian():
-    from fulqrum.gpu.full_strs import FullStrsHamiltonian  # noqa: PLC0415
+    from fulqrum.gpu.full_strs import FullStrsGPUHamiltonian  # noqa: PLC0415
 
     _op, _keys, op, keys = padded(31)
-    H = FullStrsHamiltonian(op, keys, comm=LocalComm.create(1)[0])
+    H = FullStrsGPUHamiltonian(op, keys, comm=LocalComm.create(1)[0])
     assert H.keys.shape[1] == 4
     reference = cpu_reference(op, H.keys, NORB)
     x = np.random.default_rng(3).normal(size=H.n_local)
@@ -79,10 +79,10 @@ def test_two_word_matvec_equals_the_core_hamiltonian():
 @requires_gpu
 @pytest.mark.parametrize("vectors", ["halo", "full"])
 def test_two_word_ranks_equal_one_rank(vectors):
-    from fulqrum.gpu.full_strs import FullStrsHamiltonian  # noqa: PLC0415
+    from fulqrum.gpu.full_strs import FullStrsGPUHamiltonian  # noqa: PLC0415
 
     _op, _keys, op, keys = padded(37, rows=1500)
-    one = FullStrsHamiltonian(op, keys, comm=LocalComm.create(1)[0])
+    one = FullStrsGPUHamiltonian(op, keys, comm=LocalComm.create(1)[0])
     x = np.random.default_rng(5).normal(size=one.n_local)
     expected = dict(zip(map(tuple, one.keys.tolist()), one.matvec(x)))
     by_key = dict(zip(map(tuple, one.keys.tolist()), x))
@@ -93,8 +93,11 @@ def test_two_word_ranks_equal_one_rank(vectors):
         import cupy  # noqa: PLC0415
 
         cupy.cuda.Device(0).use()
-        H = FullStrsHamiltonian(
-            op, parts[comm.Get_rank()], comm=comm, groups=groups, vectors=vectors
+        H = FullStrsGPUHamiltonian(
+            op,
+            parts[comm.Get_rank()],
+            comm=comm,
+            _options={"groups": groups, "vectors": vectors},
         )
         local = np.array([by_key[tuple(row)] for row in H.keys.tolist()])
         return H.keys, H.matvec(local)
@@ -126,15 +129,15 @@ def group_multiset(H):
 
 @requires_gpu
 def test_forced_two_words_match_one_word(monkeypatch):
-    from fulqrum.gpu.full_strs import FullStrsHamiltonian  # noqa: PLC0415
+    from fulqrum.gpu.full_strs import FullStrsGPUHamiltonian  # noqa: PLC0415
 
     # Key slices hash every key word, so the zero high words move groups between
     # slices: the same groups are summed in a different order.
     op, keys, _wide_op, _wide_keys = padded(41, rows=2000)
     monkeypatch.delenv("FQ_FORCE_KEY_WORDS", raising=False)
-    narrow = FullStrsHamiltonian(op, keys, comm=LocalComm.create(1)[0])
+    narrow = FullStrsGPUHamiltonian(op, keys, comm=LocalComm.create(1)[0])
     monkeypatch.setenv("FQ_FORCE_KEY_WORDS", "2")
-    wide = FullStrsHamiltonian(op, keys, comm=LocalComm.create(1)[0])
+    wide = FullStrsGPUHamiltonian(op, keys, comm=LocalComm.create(1)[0])
     assert wide.keys.shape[1] == 4 and not wide.keys[:, [1, 3]].any()
     np.testing.assert_array_equal(wide.keys[:, [0, 2]], narrow.keys)
     x = np.random.default_rng(7).normal(size=narrow.n_local)
@@ -149,24 +152,28 @@ def test_forced_two_words_match_one_word(monkeypatch):
 
 @requires_gpu
 def test_forced_two_words_with_one_slice_match_one_word_bit_for_bit(monkeypatch):
-    from fulqrum.gpu.full_strs import FullStrsHamiltonian  # noqa: PLC0415
+    from fulqrum.gpu.full_strs import FullStrsGPUHamiltonian  # noqa: PLC0415
 
     op, keys, _wide_op, _wide_keys = padded(41, rows=2000)
     monkeypatch.delenv("FQ_FORCE_KEY_WORDS", raising=False)
-    narrow = FullStrsHamiltonian(op, keys, comm=LocalComm.create(1)[0], num_slices=1)
+    narrow = FullStrsGPUHamiltonian(
+        op, keys, comm=LocalComm.create(1)[0], _options={"num_slices": 1}
+    )
     monkeypatch.setenv("FQ_FORCE_KEY_WORDS", "2")
-    wide = FullStrsHamiltonian(op, keys, comm=LocalComm.create(1)[0], num_slices=1)
+    wide = FullStrsGPUHamiltonian(
+        op, keys, comm=LocalComm.create(1)[0], _options={"num_slices": 1}
+    )
     x = np.random.default_rng(7).normal(size=narrow.n_local)
     np.testing.assert_array_equal(wide.matvec(x), narrow.matvec(x))
 
 
 @requires_gpu
 def test_two_word_rdms_equal_the_unpadded_rdms():
-    from fulqrum.gpu.full_strs import FullStrsHamiltonian  # noqa: PLC0415
+    from fulqrum.gpu.full_strs import FullStrsGPUHamiltonian  # noqa: PLC0415
 
     small_op, small_keys, op, keys = padded(43, rows=600)
-    narrow = FullStrsHamiltonian(small_op, small_keys, comm=LocalComm.create(1)[0])
-    wide = FullStrsHamiltonian(op, keys, comm=LocalComm.create(1)[0])
+    narrow = FullStrsGPUHamiltonian(small_op, small_keys, comm=LocalComm.create(1)[0])
+    wide = FullStrsGPUHamiltonian(op, keys, comm=LocalComm.create(1)[0])
     rows = squeeze_rows(wide.keys)
     index = {(int(a), int(b)): i for i, (a, b) in enumerate(narrow.keys.tolist())}
     order = np.array([index[row] for row in rows])

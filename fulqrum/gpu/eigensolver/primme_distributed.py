@@ -96,20 +96,6 @@ def distributed_primme_eigsh(
 ):
     """Compute eigenpairs of a distributed real Hermitian operator with PRIMME.
 
-    Uses Fulqrum's native PRIMME MPI extension. Every solver rank in ``H._comm``
-    must participate with the same solver options; starting vectors and
-    preconditioner data are local to each rank. ``TileGPUResidentHamiltonian``
-    is one supported operator. Operators with separate worker ranks restrict
-    solver calls to their primary ranks; workers use the operator's worker API.
-
-    ``H`` must expose global square ``shape``, local length ``n_local``, an MPI
-    communicator ``_comm`` and ``_matvec(v_local)`` returning the local product
-    in the same row order as its input. The distributed solver calls this local
-    interface directly. Inherited SciPy ``LinearOperator.matvec`` checks the
-    global vector length and is not the multi-rank local-vector interface.
-    A device-capable operator additionally accepts CuPy vectors and keyword
-    ``out=buffer``, and advertises ``supports_device_matvec``.
-
     For a GPU-backed ``H``, eigensolving combines GPU matrix-vector products
     with PRIMME linear algebra steps, such as basis orthogonalization and dense
     operations. ``gpu=False`` runs the linear-algebra steps on the host;

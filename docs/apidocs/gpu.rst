@@ -33,7 +33,7 @@ For subspaces given as a list of full determinants.
 .. autosummary::
    :toctree: ../stubs/
 
-   FullStrsHamiltonian
+   FullStrsGPUHamiltonian
 
 Distributed eigensolver
 -----------------------
@@ -44,7 +44,6 @@ Distributed eigensolver
    :toctree: ../stubs/
 
    distributed_primme_eigsh
-   is_primme_mpi_available
 
 Configuration
 -------------
@@ -67,5 +66,3 @@ Logging and profiling
    :toctree: ../stubs/
 
    configure_gpu_logging
-   gpu_profile_record
-   write_gpu_profile

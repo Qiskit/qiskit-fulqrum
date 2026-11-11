@@ -60,11 +60,11 @@ def run(op, keys, ranks, engine, **options):
     def compute(comm):
         import cupy
 
-        from fulqrum.gpu.full_strs import FullStrsHamiltonian
+        from fulqrum.gpu.full_strs import FullStrsGPUHamiltonian
 
         cupy.cuda.Device(0).use()
-        H = FullStrsHamiltonian(
-            op, parts[comm.Get_rank()], comm=comm, engine=engine, **options
+        H = FullStrsGPUHamiltonian(
+            op, parts[comm.Get_rank()], comm=comm, engine=engine, _options=options
         )
         rows = [tuple(row) for row in H.keys.tolist()]
         x = np.array([state[row] for row in rows])

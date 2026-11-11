@@ -518,7 +518,7 @@ FLAGS = (
         TUNABLE,
         "choice",
         "1",
-        "Memory-saving level for tensor-product GPU matvecs. `0` permits all automatic optimizations and stores the diagonal. `1` recomputes eligible diagonals. `3` also selects a single-buffer ring and disables automatic label batching, source panels, class matrix multiplies and cross-term scratch. Explicit feature settings take precedence. Does not apply to FullStrsHamiltonian.",
+        "Memory-saving level for tensor-product GPU matvecs. `0` permits all automatic optimizations and stores the diagonal. `1` recomputes eligible diagonals. `3` also selects a single-buffer ring and disables automatic label batching, source panels, class matrix multiplies and cross-term scratch. Explicit feature settings take precedence. Does not apply to FullStrsGPUHamiltonian.",
         choices=("0", "1", "3"),
     ),
     _flag(
@@ -690,7 +690,7 @@ FLAGS = (
         TEST,
         "int",
         1,
-        "Test-only. With 2, `FullStrsHamiltonian` and the Cartesian operators (`GPUHamiltonian`, `TileGPUResidentHamiltonian`) store strings of at most 64 orbitals per sector as two words, the high word zero, and run their two-word code paths.",
+        "Test-only. With 2, `FullStrsGPUHamiltonian` and the Cartesian operators (`GPUHamiltonian`, `TileGPUResidentHamiltonian`) store strings of at most 64 orbitals per sector as two words, the high word zero, and run their two-word code paths.",
         minimum=1,
         maximum=2,
     ),

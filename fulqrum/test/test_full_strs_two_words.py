@@ -22,7 +22,7 @@ from fulqrum.gpu.distributed.local_comm import LocalComm, run_ranks
 from fulqrum.gpu.full_strs import host as host_w1
 from fulqrum.gpu.full_strs import host_w2
 from fulqrum.gpu.full_strs.distribute import sort_unique
-from fulqrum.gpu.full_strs.host_words import host_module
+from fulqrum.gpu.full_strs.host_words import host_module, key_rows
 from fulqrum.test.test_full_strs_coefficients import random_operator
 
 MASK = (1 << 64) - 1
@@ -250,22 +250,20 @@ def test_two_word_operator_equals_the_core_subspace_hamiltonian():
 
 
 def test_key_rows_check_the_width_and_pad_when_forced(monkeypatch):
-    from fulqrum.gpu.full_strs.hamiltonian import _key_rows  # noqa: PLC0415
-
     keys = np.array([[3, 5], [6, 9]], np.uint64)
     monkeypatch.delenv("FQ_FORCE_KEY_WORDS", raising=False)
-    np.testing.assert_array_equal(_key_rows(keys, 10), keys)
+    np.testing.assert_array_equal(key_rows(keys, 10), keys)
     with pytest.raises(ValueError, match=r"keys must have shape \(n, 4\) for 70"):
-        _key_rows(keys, 70)
+        key_rows(keys, 70)
     wide = np.array([[3, 1, 5, 2]], np.uint64)
-    np.testing.assert_array_equal(_key_rows(wide, 70), wide)
+    np.testing.assert_array_equal(key_rows(wide, 70), wide)
     with pytest.raises(ValueError, match=r"keys must have shape \(n, 2\) for 10"):
-        _key_rows(wide, 10)
+        key_rows(wide, 10)
     monkeypatch.setenv("FQ_FORCE_KEY_WORDS", "2")
     np.testing.assert_array_equal(
-        _key_rows(keys, 10), np.array([[3, 0, 5, 0], [6, 0, 9, 0]], np.uint64)
+        key_rows(keys, 10), np.array([[3, 0, 5, 0], [6, 0, 9, 0]], np.uint64)
     )
-    np.testing.assert_array_equal(_key_rows(wide, 70), wide)
+    np.testing.assert_array_equal(key_rows(wide, 70), wide)
 
 
 def test_forced_two_words_give_the_same_operator(monkeypatch):

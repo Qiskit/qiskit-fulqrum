@@ -15,6 +15,11 @@ from __future__ import annotations
 
 import importlib
 
+import numpy as np
+
+from .. import config
+from ..common.wide import key_words
+
 MODULES = {1: ".host", 2: ".host_w2"}
 
 
@@ -26,3 +31,26 @@ def host_module(key_words):
             f"full-string keys support one or two words per sector, got {words}"
         )
     return importlib.import_module(MODULES[words], __package__)
+
+
+def _forced_words():
+
+    return int(config.read("FQ_FORCE_KEY_WORDS"))
+
+
+def key_rows(keys, num_orbitals):
+
+    words = key_words(num_orbitals)
+    rows = np.asarray(keys)
+    if rows.ndim != 2 or rows.shape[1] != 2 * words:
+        raise ValueError(
+            f"keys must have shape (n, {2 * words}) for {num_orbitals} orbitals per "
+            f"sector ({words} alpha words, then {words} beta words); got {rows.shape}"
+        )
+    forced = _forced_words()
+    if forced <= words:
+        return keys
+    padded = np.zeros((rows.shape[0], 2 * forced), dtype=rows.dtype)
+    padded[:, :words] = rows[:, :words]
+    padded[:, forced : forced + words] = rows[:, words:]
+    return padded

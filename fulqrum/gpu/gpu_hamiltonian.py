@@ -65,28 +65,17 @@ def _check_gpu_preconditions(hsub, classname: str) -> None:
 
 
 class GPUHamiltonian(LinearOperator):
-    """GPU-backed real type-2 Hamiltonian for matrix-free matvec and eigensolving.
+    """GPU-accelerated real type-2 Hamiltonian for tensor-product subspace.
 
-    This SciPy ``LinearOperator`` represents the full tensor-product subspace.
-    It can be used with ``operator @ vector`` and LinearOperator-compatible
-    eigensolvers such as ``scipy.sparse.linalg.eigsh`` and ``primme.eigsh``.
-    Each entry in ``gpu_ids`` creates one worker; the wrapper partitions the
-    calculation and combines the results. MPI is not required for this wrapper.
-    For multiple processes, use ``DistributedMPIGPUHamiltonian``.
+    It performs matrix-free ``matrix @ vector`` (matvec) product and can used
+    with SciPy LinearOperator-compatible eigensolvers such as
+    ``scipy.sparse.linalg.eigsh`` and ``primme.eigsh``.
+    MPI is not required to use single or multiple GPUs on a single node via
+    this wrapper. For multiple processes, use ``DistributedMPIGPUHamiltonian``.
 
-    Supported inputs use ``fq.Subspace([alpha_strs, beta_strs])``, with alpha in
-    the low qubits and beta in the high qubits. Each spin-sector must contain 1–128
-    orbitals (bits), have a fixed electron count, and pass the GPU operator checks.
-    Verified GPU support requires at least two occupied orbitals in every half
-    string. Smaller occupations trigger ``RuntimeWarning`` and may produce
+    Requires at least two occupied orbitals in every half string.
+    Smaller occupations trigger ``RuntimeWarning`` and may produce
     incorrect results.
-
-    The LinearOperator has shape ``(N, N)`` and dtype ``float64``, where
-    ``N = n_alpha * n_beta`` and each count is the number of half strings.
-    Half strings are sorted independently. Vector index
-    ``beta_index * n_alpha + alpha_index`` identifies the corresponding product
-    state (full determinant). ``matvec`` accepts a full real host vector of shape
-    ``(N,)`` or ``(N, 1)`` and returns a NumPy ``float64`` array of the same shape.
 
     Args:
         hsub: Real type-2 ``SubspaceHamiltonian`` on the half-string/tensor product
@@ -271,9 +260,9 @@ class GPUHamiltonian(LinearOperator):
         """Compute one- and optionally two-particle reduced density matrices.
 
         Pass the full real state vector in the same sorted product order as
-        ``matvec``. The wrapper distributes it to every worker and returns the
-        combined result as host NumPy arrays after GPU work completes. Alpha
-        and beta must have equal orbital counts for this operation.
+        the tensor-product subspace. The wrapper distributes it to every worker
+        and returns the combined result as host NumPy arrays after GPU work completes.
+        Alpha and beta must have equal orbital counts for this operation.
 
         Amplitudes are used without normalization: scaling the vector by a
         real factor scales every RDM by its square. Normalize the vector before

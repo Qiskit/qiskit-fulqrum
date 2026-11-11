@@ -195,7 +195,7 @@ def _expand(raw, m):
 def compute_rdms_full_strs(ham, x, *, rank=1, spin_summed=False):
     """Compute reduced density matrices from distributed full-determinant subspace.
 
-    This is the implementation used by ``FullStrsHamiltonian.compute_rdms``.
+    This is the implementation used by ``FullStrsGPUHamiltonian.compute_rdms``.
     Every rank in ``ham._comm`` must supply its local part of the same real
     state and use the same ``rank`` and ``spin_summed`` options. All ranks receive
     the full result as host NumPy ``float64`` arrays after GPU work and collective
@@ -214,7 +214,7 @@ def compute_rdms_full_strs(ham, x, *, rank=1, spin_summed=False):
     ``make_rdm12s(reorder=True)``.
 
     Args:
-        ham: Constructed ``FullStrsHamiltonian`` supplying the determinant keys,
+        ham: Constructed ``FullStrsGPUHamiltonian`` supplying the determinant keys,
             local partition, communicator and GPU layout.
         x: Real NumPy or CuPy array of shape ``(ham.n_local,)`` in ``ham.keys``
             order. CuPy input must be on this rank's GPU. Pass one local

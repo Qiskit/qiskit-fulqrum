@@ -288,7 +288,7 @@ class DeviceLayout:
         if residency == "auto" and needed + plans > device_budget_bytes:
             raise ValueError(
                 f"The full-string layout needs {needed + plans} device bytes, the budget is "
-                f"{device_budget_bytes}; use more key slices"
+                f"{device_budget_bytes}; use more ranks or free GPU memory"
             )
         self._plan_budget = device_budget_bytes - needed
         if device_keys is None:

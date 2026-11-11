@@ -192,9 +192,9 @@ def test_gpu_hamiltonian_rejects_wide_sector():
 
 @requires_gpu
 def test_full_strs_rejects_a_sector_wider_than_two_words():
-    from fulqrum.gpu.full_strs import FullStrsHamiltonian  # noqa: PLC0415
+    from fulqrum.gpu.full_strs import FullStrsGPUHamiltonian  # noqa: PLC0415
 
     operator = _wide_operator(129)
     keys = np.zeros((2, 2 * key_words(129)), dtype=np.uint64)
-    with pytest.raises(FulqrumError, match="FullStrsHamiltonian failed: .*has 129"):
-        FullStrsHamiltonian(operator, keys, comm=LocalComm.create(1)[0])
+    with pytest.raises(FulqrumError, match="FullStrsGPUHamiltonian failed: .*has 129"):
+        FullStrsGPUHamiltonian(operator, keys, comm=LocalComm.create(1)[0])

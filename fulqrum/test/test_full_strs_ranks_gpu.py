@@ -78,7 +78,7 @@ def run_hamiltonian(
     import cupy  # noqa: PLC0415
 
     from fulqrum.gpu.distributed.local_comm import LocalComm, run_ranks  # noqa: PLC0415
-    from fulqrum.gpu.full_strs.hamiltonian import FullStrsHamiltonian  # noqa: PLC0415
+    from fulqrum.gpu.full_strs.hamiltonian import FullStrsGPUHamiltonian  # noqa: PLC0415
 
     parts = np.array_split(
         keys[np.random.default_rng(size).permutation(keys.shape[0])], size
@@ -86,15 +86,17 @@ def run_hamiltonian(
 
     def body(comm):
         cupy.cuda.Device(0).use()
-        h = FullStrsHamiltonian(
+        h = FullStrsGPUHamiltonian(
             operator,
             parts[comm.Get_rank()],
             comm=comm,
-            num_slices=3,
-            recut=recut if copies == 1 else False,
-            exchange=exchange,
-            copies=copies,
-            plan=plan,
+            _options={
+                "num_slices": 3,
+                "recut": recut if copies == 1 else False,
+                "exchange": exchange,
+                "copies": copies,
+                "plan": plan,
+            },
         )
         assert h.shape == (keys.shape[0], keys.shape[0])
         assert h._is_primary
@@ -159,7 +161,7 @@ def test_released_host_copies_give_the_same_bits(size, copies):
     import cupy  # noqa: PLC0415
 
     from fulqrum.gpu.distributed.local_comm import LocalComm, run_ranks  # noqa: PLC0415
-    from fulqrum.gpu.full_strs.hamiltonian import FullStrsHamiltonian  # noqa: PLC0415
+    from fulqrum.gpu.full_strs.hamiltonian import FullStrsGPUHamiltonian  # noqa: PLC0415
 
     operator, keys = problem(11)
     x = np.random.default_rng(8).normal(size=keys.shape[0])
@@ -169,14 +171,16 @@ def test_released_host_copies_give_the_same_bits(size, copies):
         cupy.cuda.Device(0).use()
         ys = []
         for release in (False, True):
-            h = FullStrsHamiltonian(
+            h = FullStrsGPUHamiltonian(
                 operator,
                 parts[comm.Get_rank()],
                 comm=comm,
-                num_slices=3,
-                recut=False,
-                copies=copies,
-                release_host_copies=release,
+                _options={
+                    "num_slices": 3,
+                    "recut": False,
+                    "copies": copies,
+                    "release_host_copies": release,
+                },
             )
             out = h._matvec(cupy.asarray(x[h.row_start : h.row_start + h.n_local]))
             cupy.cuda.get_current_stream().synchronize()
@@ -213,7 +217,7 @@ def run_two_level(operator, keys, size, x, domain_size, recut):
     import cupy  # noqa: PLC0415
 
     from fulqrum.gpu.distributed.local_comm import LocalComm, run_ranks  # noqa: PLC0415
-    from fulqrum.gpu.full_strs.hamiltonian import FullStrsHamiltonian  # noqa: PLC0415
+    from fulqrum.gpu.full_strs.hamiltonian import FullStrsGPUHamiltonian  # noqa: PLC0415
 
     parts = np.array_split(
         keys[np.random.default_rng(size).permutation(keys.shape[0])], size
@@ -223,14 +227,16 @@ def run_two_level(operator, keys, size, x, domain_size, recut):
         cupy.cuda.Device(0).use()
         ys, halos = [], []
         for exchange in ("stepped", "two_level"):
-            h = FullStrsHamiltonian(
+            h = FullStrsGPUHamiltonian(
                 operator,
                 parts[comm.Get_rank()],
                 comm=comm,
-                num_slices=3,
-                recut=recut,
-                exchange=exchange,
-                domain_size=domain_size if exchange == "two_level" else None,
+                _options={
+                    "num_slices": 3,
+                    "recut": recut,
+                    "exchange": exchange,
+                    "domain_size": domain_size if exchange == "two_level" else None,
+                },
             )
             out = h._matvec(cupy.asarray(x[h.row_start : h.row_start + h.n_local]))
             cupy.cuda.get_current_stream().synchronize()
@@ -259,7 +265,7 @@ def test_two_level_exchange_needs_two_domains():
     import cupy  # noqa: PLC0415
 
     from fulqrum.gpu.distributed.local_comm import LocalComm, run_ranks  # noqa: PLC0415
-    from fulqrum.gpu.full_strs.hamiltonian import FullStrsHamiltonian  # noqa: PLC0415
+    from fulqrum.gpu.full_strs.hamiltonian import FullStrsGPUHamiltonian  # noqa: PLC0415
 
     operator, keys = problem(11)
     parts = np.array_split(keys, 2)
@@ -267,13 +273,11 @@ def test_two_level_exchange_needs_two_domains():
     def body(comm):
         cupy.cuda.Device(0).use()
         with pytest.raises(ValueError, match="at least two shared-memory domains"):
-            FullStrsHamiltonian(
+            FullStrsGPUHamiltonian(
                 operator,
                 parts[comm.Get_rank()],
                 comm=comm,
-                num_slices=3,
-                exchange="two_level",
-                domain_size=2,
+                _options={"num_slices": 3, "exchange": "two_level", "domain_size": 2},
             )
         return True
 
@@ -284,7 +288,7 @@ def run_by_key(operator, keys, size, x, exchange, domain_size=None):
     import cupy  # noqa: PLC0415
 
     from fulqrum.gpu.distributed.local_comm import LocalComm, run_ranks  # noqa: PLC0415
-    from fulqrum.gpu.full_strs.hamiltonian import FullStrsHamiltonian  # noqa: PLC0415
+    from fulqrum.gpu.full_strs.hamiltonian import FullStrsGPUHamiltonian  # noqa: PLC0415
 
     parts = np.array_split(
         keys[np.random.default_rng(size).permutation(keys.shape[0])], size
@@ -294,15 +298,17 @@ def run_by_key(operator, keys, size, x, exchange, domain_size=None):
         cupy.cuda.Device(0).use()
         entries = {}
         for groups in ("by_rows", "by_key"):
-            h = FullStrsHamiltonian(
+            h = FullStrsGPUHamiltonian(
                 operator,
                 parts[comm.Get_rank()],
                 comm=comm,
-                num_slices=3,
-                recut=False,
-                exchange=exchange,
-                domain_size=domain_size,
-                groups=groups,
+                _options={
+                    "num_slices": 3,
+                    "recut": False,
+                    "exchange": exchange,
+                    "domain_size": domain_size,
+                    "groups": groups,
+                },
             )
             entries[groups] = h._layout.num_entries
         ys = []
@@ -351,12 +357,15 @@ def test_groups_by_key_equal_the_cpu(size, exchange, domain_size):
 @requires_gpu
 def test_groups_by_key_need_one_copy():
     from fulqrum.gpu.distributed.local_comm import LocalComm  # noqa: PLC0415
-    from fulqrum.gpu.full_strs.hamiltonian import FullStrsHamiltonian  # noqa: PLC0415
+    from fulqrum.gpu.full_strs.hamiltonian import FullStrsGPUHamiltonian  # noqa: PLC0415
 
     operator, keys = problem(11)
     with pytest.raises(ValueError, match="one copy per block"):
-        FullStrsHamiltonian(
-            operator, keys, comm=LocalComm.create(1)[0], copies=2, groups="by_key"
+        FullStrsGPUHamiltonian(
+            operator,
+            keys,
+            comm=LocalComm.create(1)[0],
+            _options={"copies": 2, "groups": "by_key"},
         )
 
 
@@ -374,7 +383,7 @@ def test_atomic_reduce_equals_the_cpu(size, groups, exchange, domain_size):
     import cupy  # noqa: PLC0415
 
     from fulqrum.gpu.distributed.local_comm import LocalComm, run_ranks  # noqa: PLC0415
-    from fulqrum.gpu.full_strs.hamiltonian import FullStrsHamiltonian  # noqa: PLC0415
+    from fulqrum.gpu.full_strs.hamiltonian import FullStrsGPUHamiltonian  # noqa: PLC0415
     from fulqrum.gpu.full_strs.host import HostOperator  # noqa: PLC0415
 
     operator, keys = problem(11)
@@ -389,16 +398,18 @@ def test_atomic_reduce_equals_the_cpu(size, groups, exchange, domain_size):
         cupy.cuda.Device(0).use()
         sizes = {}
         for atomic in (False, True):
-            h = FullStrsHamiltonian(
+            h = FullStrsGPUHamiltonian(
                 operator,
                 parts[comm.Get_rank()] if size > 1 else keys,
                 comm=comm,
-                num_slices=3,
-                recut=False,
-                exchange=exchange,
-                domain_size=domain_size,
-                groups=groups,
-                atomic_reduce=atomic,
+                _options={
+                    "num_slices": 3,
+                    "recut": False,
+                    "exchange": exchange,
+                    "domain_size": domain_size,
+                    "groups": groups,
+                    "atomic_reduce": atomic,
+                },
             )
             sizes[atomic] = h.device_bytes
         out = h._matvec(cupy.asarray(x[h.row_start : h.row_start + h.n_local]))
@@ -427,7 +438,7 @@ def test_full_vectors_equal_the_cpu(size):
     import cupy  # noqa: PLC0415
 
     from fulqrum.gpu.distributed.local_comm import LocalComm, run_ranks  # noqa: PLC0415
-    from fulqrum.gpu.full_strs.hamiltonian import FullStrsHamiltonian  # noqa: PLC0415
+    from fulqrum.gpu.full_strs.hamiltonian import FullStrsGPUHamiltonian  # noqa: PLC0415
     from fulqrum.gpu.full_strs.host import HostOperator  # noqa: PLC0415
 
     operator, keys = problem(11)
@@ -440,13 +451,11 @@ def test_full_vectors_equal_the_cpu(size):
 
     def body(comm):
         cupy.cuda.Device(0).use()
-        h = FullStrsHamiltonian(
+        h = FullStrsGPUHamiltonian(
             operator,
             parts[comm.Get_rank()],
             comm=comm,
-            num_slices=3,
-            groups="by_key",
-            vectors="full",
+            _options={"num_slices": 3, "groups": "by_key", "vectors": "full"},
         )
         assert (
             h._atomic_reduce and h.num_halo == comm.Get_size() * h._full[1] - h.n_local
@@ -482,7 +491,7 @@ def test_one_block_of_four_copies_gives_the_single_rank_bits(binned):
     import cupy  # noqa: PLC0415
 
     from fulqrum.gpu.distributed.local_comm import LocalComm, run_ranks  # noqa: PLC0415
-    from fulqrum.gpu.full_strs.hamiltonian import FullStrsHamiltonian  # noqa: PLC0415
+    from fulqrum.gpu.full_strs.hamiltonian import FullStrsGPUHamiltonian  # noqa: PLC0415
     from fulqrum.gpu.full_strs.host import HostOperator  # noqa: PLC0415
 
     operator, keys = problem(29)
@@ -492,13 +501,11 @@ def test_one_block_of_four_copies_gives_the_single_rank_bits(binned):
 
     def body(comm):
         cupy.cuda.Device(0).use()
-        h = FullStrsHamiltonian(
+        h = FullStrsGPUHamiltonian(
             operator,
             parts[comm.Get_rank()],
             comm=comm,
-            num_slices=3,
-            binned=binned,
-            copies=4,
+            _options={"num_slices": 3, "binned": binned, "copies": 4},
         )
         out = cupy.full(h.n_local, np.nan)
         h._matvec(cupy.asarray(x[h.row_start : h.row_start + h.n_local]), out=out)
@@ -542,7 +549,7 @@ def test_plan_round_trip_gives_the_same_bits(size, copies):
     import cupy  # noqa: PLC0415
 
     from fulqrum.gpu.distributed.local_comm import LocalComm, run_ranks  # noqa: PLC0415
-    from fulqrum.gpu.full_strs.hamiltonian import FullStrsHamiltonian  # noqa: PLC0415
+    from fulqrum.gpu.full_strs.hamiltonian import FullStrsGPUHamiltonian  # noqa: PLC0415
 
     operator, keys = problem(37)
     x = np.random.default_rng(4).normal(size=keys.shape[0])
@@ -553,14 +560,16 @@ def test_plan_round_trip_gives_the_same_bits(size, copies):
     def body(comm, plan):
         cupy.cuda.Device(0).use()
         rank = comm.Get_rank()
-        h = FullStrsHamiltonian(
+        h = FullStrsGPUHamiltonian(
             operator,
             parts[(rank + 1) % size] if plan else parts[rank],
             comm=comm,
-            num_slices=3,
-            copies=copies,
-            recut=copies == 1,
-            plan=plan,
+            _options={
+                "num_slices": 3,
+                "copies": copies,
+                "recut": copies == 1,
+                "plan": plan,
+            },
         )
         out = cupy.full(h.n_local, np.nan)
         h._matvec(cupy.asarray(x[h.row_start : h.row_start + h.n_local]), out=out)
@@ -584,7 +593,7 @@ def test_plan_round_trip_gives_the_same_bits(size, copies):
 @requires_gpu
 def test_different_plans_are_refused():
     from fulqrum.gpu.distributed.local_comm import LocalComm, run_ranks  # noqa: PLC0415
-    from fulqrum.gpu.full_strs.hamiltonian import FullStrsHamiltonian  # noqa: PLC0415
+    from fulqrum.gpu.full_strs.hamiltonian import FullStrsGPUHamiltonian  # noqa: PLC0415
     from fulqrum.gpu.full_strs.plan import LayoutPlan  # noqa: PLC0415
 
     operator, keys = problem(3)
@@ -592,8 +601,8 @@ def test_different_plans_are_refused():
 
     def body(comm):
         plan = LayoutPlan(num_slices=2 + comm.Get_rank())
-        return FullStrsHamiltonian(
-            operator, parts[comm.Get_rank()], comm=comm, plan=plan
+        return FullStrsGPUHamiltonian(
+            operator, parts[comm.Get_rank()], comm=comm, _options={"plan": plan}
         )
 
     with pytest.raises(ValueError, match="layout plan"):
@@ -635,7 +644,7 @@ def test_default_layout_is_pairs_with_balanced_shares(size, copies):
     import cupy  # noqa: PLC0415
 
     from fulqrum.gpu.distributed.local_comm import LocalComm, run_ranks  # noqa: PLC0415
-    from fulqrum.gpu.full_strs.hamiltonian import FullStrsHamiltonian  # noqa: PLC0415
+    from fulqrum.gpu.full_strs.hamiltonian import FullStrsGPUHamiltonian  # noqa: PLC0415
     from fulqrum.gpu.full_strs.host import HostOperator  # noqa: PLC0415
 
     operator, keys = problem(53)
@@ -645,8 +654,11 @@ def test_default_layout_is_pairs_with_balanced_shares(size, copies):
 
     def body(comm):
         cupy.cuda.Device(0).use()
-        h = FullStrsHamiltonian(
-            operator, parts[comm.Get_rank()], comm=comm, num_slices=3, copies=copies
+        h = FullStrsGPUHamiltonian(
+            operator,
+            parts[comm.Get_rank()],
+            comm=comm,
+            _options={"num_slices": 3, "copies": copies},
         )
         out = cupy.empty(h.n_local, dtype=np.float64)
         h._matvec(cupy.asarray(x[h.row_start : h.row_start + h.n_local]), out=out)
@@ -670,7 +682,7 @@ def test_automatic_copies():
     import cupy  # noqa: PLC0415
 
     from fulqrum.gpu.distributed.local_comm import LocalComm, run_ranks  # noqa: PLC0415
-    from fulqrum.gpu.full_strs.hamiltonian import FullStrsHamiltonian  # noqa: PLC0415
+    from fulqrum.gpu.full_strs.hamiltonian import FullStrsGPUHamiltonian  # noqa: PLC0415
     from fulqrum.gpu.full_strs.host import HostOperator  # noqa: PLC0415
 
     operator, keys = problem(59)
@@ -680,8 +692,11 @@ def test_automatic_copies():
 
     def body(comm):
         cupy.cuda.Device(0).use()
-        h = FullStrsHamiltonian(
-            operator, parts[comm.Get_rank()], comm=comm, num_slices=3, copies="auto"
+        h = FullStrsGPUHamiltonian(
+            operator,
+            parts[comm.Get_rank()],
+            comm=comm,
+            _options={"num_slices": 3, "copies": "auto"},
         )
         out = cupy.empty(h.n_local, dtype=np.float64)
         h._matvec(cupy.asarray(x[h.row_start : h.row_start + h.n_local]), out=out)

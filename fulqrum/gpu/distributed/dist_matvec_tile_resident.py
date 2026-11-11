@@ -341,31 +341,9 @@ def _owned_bytes(buffers) -> int:
 
 
 class TileGPUResidentHamiltonian(LinearOperator):
-    """GPU-backed real type-2 Hamiltonian for distributed matrix-free solves.
-
-    Construct one instance on every MPI rank. Each rank uses one CUDA
-    device and owns a rectangular tile of the tensor-product state vector.
-    Construction, each local-vector product and RDM calculation are collective:
-    all ranks must participate in the same order. The Hamiltonian, half strings,
-    process grid and shared execution settings must agree across ranks; the
-    selected CUDA device may differ by rank.
+    """GPU-backed real type-2 Hamiltonian for distributed matrix-free matvecs.
 
     Use this operator with ``distributed_primme_eigsh`` for MPI eigenvalue solves.
-    Its global LinearOperator shape is ``(N, N)`` and dtype is ``float64``, where
-    ``N = len(alpha_strs) * len(beta_strs)``. The distributed solver uses
-    ``_matvec(v_local)``, ``n_local`` and ``_comm`` to operate on each rank's
-    portion of the vector. Inherited SciPy ``matvec`` checks the global length
-    and is not the local-vector interface for a multi-rank solve.
-
-    Alpha and beta strings are sorted independently. The global vector index is
-    ``beta_index * len(alpha_strs) + alpha_index``. A local vector contains this
-    rank's tile flattened in beta-outer, alpha-inner order: local index
-    ``b * n_a_local + a`` identifies the corresponding pair of local strings.
-    ``_matvec`` accepts real NumPy-compatible or CuPy input of length ``n_local``.
-    Without ``out``, it returns a host NumPy ``float64`` vector. With keyword
-    ``out=buffer``, supply a CuPy ``float64`` array of length ``n_local`` on this
-    rank's device; the result is a flat device view of that buffer. Required GPU
-    work completes before return. ``supports_device_matvec`` exposes this capability.
 
     The subspace must be a half-string/tensor product with alpha in the low qubits and
     beta in the high qubits. Each sector must have 1–128 orbitals (bits), a fixed

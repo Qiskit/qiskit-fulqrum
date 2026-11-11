@@ -253,14 +253,14 @@ def test_hamiltonian_contract_and_eigensolve():
     import cupy  # noqa: PLC0415
 
     from fulqrum.gpu.eigensolver.primme_distributed import distributed_primme_eigsh  # noqa: PLC0415
-    from fulqrum.gpu.full_strs import FullStrsHamiltonian  # noqa: PLC0415
+    from fulqrum.gpu.full_strs import FullStrsGPUHamiltonian  # noqa: PLC0415
     from fulqrum.test.test_full_strs_coefficients import random_operator  # noqa: PLC0415
     from fulqrum.test.test_full_strs_matvec import clustered_keys, cpu_hamiltonian  # noqa: PLC0415
 
     rng = np.random.default_rng(61)
     op = random_operator(10, 62)
     keys = clustered_keys(rng, 10, 5, 4, 3000, 60)
-    H = FullStrsHamiltonian(op, keys)
+    H = FullStrsGPUHamiltonian(op, keys)
     assert H.shape == (H.n_local, H.n_local)
     assert H.supports_device_matvec and H._is_primary
     cpu = cpu_hamiltonian(op, H.keys, 10)
@@ -325,7 +325,7 @@ def test_streamed_and_resident_chunks_give_the_same_bits(binned):
 def test_too_small_device_budget_raises():
     from fulqrum.gpu.full_strs.device import DeviceLayout  # noqa: PLC0415
 
-    with pytest.raises(ValueError, match="more key slices"):
+    with pytest.raises(ValueError, match="use more ranks or free GPU memory"):
         DeviceLayout(small_host(73, num_slices=2), "auto", device_budget_bytes=1000)
 
 

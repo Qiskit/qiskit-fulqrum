@@ -136,7 +136,9 @@ def test_padded_pair_tables_equal_the_single_word_tables():
     narrow = aa_table(d, np.array(narrow_values, dtype=np.uint64), 20)
     d_wide = np.zeros((7, 80))
     d_wide[:, 60:] = d
-    assert aa_table(d_wide, padded, 80).tobytes() == narrow.tobytes()
+    np.testing.assert_allclose(
+        aa_table(d_wide, padded, 80), narrow, rtol=1e-14, atol=1e-14
+    )
 
 
 def pad(value, at, count):

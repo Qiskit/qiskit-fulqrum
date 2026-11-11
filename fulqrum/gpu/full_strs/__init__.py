@@ -15,8 +15,8 @@
 
 def __getattr__(name):
 
-    if name == "FullStrsHamiltonian":
-        from .hamiltonian import FullStrsHamiltonian  # noqa: PLC0415
+    if name == "FullStrsGPUHamiltonian":
+        from .hamiltonian import FullStrsGPUHamiltonian  # noqa: PLC0415
 
-        return FullStrsHamiltonian
+        return FullStrsGPUHamiltonian
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
