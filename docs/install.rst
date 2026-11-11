@@ -72,6 +72,22 @@ Installation on Linux is simple:
     pip install .
 
 
+GPU support (Linux)
+===================
+
+The GPU module needs NVIDIA GPUs, the CUDA toolkit, an MPI implementation
+(tested with Open MPI) with ``mpi4py`` built against it, OpenBLAS ILP64, and
+CuPy, which the ``gpu`` extra installs for CUDA 13. It is built with
+``FQ_BUILD_GPU=1``, for example:
+
+.. code-block:: bash
+
+    FQ_BUILD_GPU=1 python -m pip install "fulqrum[gpu]"
+
+See `GPU_INSTALL.md <https://github.com/qiskit-community/fulqrum/blob/update-v1/GPU_INSTALL.md>`_
+for the requirements and installation options.
+
+
 Installation on OSX
 ===================
 
