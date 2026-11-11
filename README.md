@@ -35,6 +35,7 @@ Docs: https://qiskit.github.io/qiskit-fulqrum/
 
 ## Installation
 
+The steps below install the CPU version. For distributed GPU support, see [GPU_INSTALL.md](GPU_INSTALL.md).
 
 ### Requirements
 

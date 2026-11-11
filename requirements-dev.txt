@@ -12,6 +12,7 @@ pylatexenc
 pylint
 pytest
 pytest-benchmark
+qiskit-addon-sqd
 qiskit-nature>=0.7.2
 qiskit-sphinx-theme
 qiskit>=1.2 
