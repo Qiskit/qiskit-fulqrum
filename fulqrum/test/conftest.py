@@ -22,6 +22,11 @@ from __future__ import annotations
 import functools
 import importlib
 import importlib.util
+import lzma
+import os
+from pathlib import Path
+
+import pytest
 
 
 @functools.lru_cache(maxsize=1)
@@ -115,3 +120,67 @@ def make_lih_hsub():
     strings.sort()
     hsub = fq.SubspaceHamiltonian(op, fq.Subspace([strings, list(strings)]))
     return hsub, strings, list(strings)
+
+
+MPI_RUN_HINT = "mpirun -n 4 python -m pytest -m mpi --pyargs fulqrum.test"
+
+
+def run_local_ranks(size, body, timeout=300.0):
+    """Run ``body(comm)`` on ``size`` in-process ranks sharing the current GPU; return the per-rank results."""
+    import cupy  # noqa: PLC0415
+
+    from fulqrum.gpu.distributed import _collective  # noqa: PLC0415
+    from fulqrum.gpu.distributed.local_comm import LocalComm, run_ranks  # noqa: PLC0415
+
+    _collective.reset_for_testing()
+    device = int(cupy.cuda.runtime.getDevice())
+
+    def on_device(comm):
+        with cupy.cuda.Device(device):
+            return body(comm)
+
+    return run_ranks(LocalComm.create(size, timeout=timeout), on_device)
+
+
+def assemble_tiles(pieces, n_a, n_b):
+    """Assemble per-rank ``((a0, a1, b0, b1), y)`` tiles into one ``n_b * n_a`` vector."""
+    import numpy as np  # noqa: PLC0415
+
+    out = np.zeros((n_b, n_a))
+    for (a0, a1, b0, b1), y in pieces:
+        out[b0:b1, a0:a1] = np.asarray(y).reshape(b1 - b0, a1 - a0)
+    return out.ravel()
+
+
+FULL_STRS_DATA = Path(__file__).parent / "data" / "full_strs"
+
+
+def _full_strs_root():
+    root = os.environ.get("FQ_FULL_STRS_SETS", "").strip()
+    return Path(root) if root else None
+
+
+def full_strs_set_names():
+    """Set files relative to the set directory: under FQ_FULL_STRS_SETS when set, else the shipped ones."""
+    root = _full_strs_root()
+    if root is None:
+        return sorted(
+            str(p.relative_to(FULL_STRS_DATA))[: -len(".xz")]
+            for p in FULL_STRS_DATA.rglob("*.bin.xz")
+        )
+    return sorted(str(p.relative_to(root)) for p in root.rglob("*.bin"))
+
+
+@pytest.fixture(scope="session")
+def full_strs_sets(tmp_path_factory):
+    """Directory of the full-strings test sets: FQ_FULL_STRS_SETS when set, else the shipped sets decompressed."""
+    root = _full_strs_root()
+    if root is not None:
+        return root
+    root = tmp_path_factory.mktemp("full_strs_sets")
+    for name in full_strs_set_names():
+        path = root / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with lzma.open(FULL_STRS_DATA / f"{name}.xz") as src:
+            path.write_bytes(src.read())
+    return root

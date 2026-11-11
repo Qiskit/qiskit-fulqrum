@@ -13,7 +13,6 @@
 """Stored groups of the full-string GPU path against the O(N^2) pair sets."""
 
 import itertools
-import os
 from pathlib import Path
 
 import numpy as np
@@ -21,9 +20,9 @@ import pytest
 
 from fulqrum.gpu.full_strs.host import CLASSES, KINDS, HostLayout
 
-SETS = Path(os.environ.get("FQ_FULL_STRS_SETS", "/nonexistent"))
-SMALL_SETS = sorted((SETS / "small").glob("*.bin")) if SETS.exists() else []
-SUBSAMPLES = [SETS / "sub_head.bin", SETS / "sub_uniform.bin"] if SETS.exists() else []
+from .conftest import full_strs_set_names
+
+SET_NAMES = full_strs_set_names()
 
 
 def read_set(path):
@@ -69,13 +68,8 @@ def test_default_kinds_follow_holes_and_electrons():
 
 
 @pytest.mark.long
-@pytest.mark.skipif(
-    not SMALL_SETS, reason="set FQ_FULL_STRS_SETS to the generated test sets"
-)
-@pytest.mark.parametrize(
-    "path", SMALL_SETS + SUBSAMPLES, ids=[p.stem for p in SMALL_SETS + SUBSAMPLES]
-)
+@pytest.mark.parametrize("name", SET_NAMES, ids=[Path(n).stem for n in SET_NAMES])
 @pytest.mark.parametrize("alpha_kind, beta_kind", list(itertools.product(KINDS, KINDS)))
-def test_every_connected_pair_exactly_once(path, alpha_kind, beta_kind):
-    keys, norb = read_set(path)
+def test_every_connected_pair_exactly_once(full_strs_sets, name, alpha_kind, beta_kind):
+    keys, norb = read_set(full_strs_sets / name)
     assert check_pair_sets(keys, norb, alpha_kind, beta_kind) > 0

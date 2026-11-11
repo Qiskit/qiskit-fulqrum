@@ -22,6 +22,8 @@ try:
 except ImportError:
     cupy = None
 
+from .conftest import MPI_RUN_HINT, gpu_available, run_local_ranks
+
 
 def _has_cupy() -> bool:
     return cupy is not None
@@ -224,6 +226,8 @@ def test_last_timing_populated_after_matvec():
     assert lt["d2h_bytes"] == H.n_local * 8
 
 
+@pytest.mark.mpi
+@pytest.mark.gpu
 @pytest.mark.skipif(not _has_cupy(), reason="cupy required")
 def test_backend_equivalence_host_mpi_vs_cuda_mpi():
     pytest.importorskip("mpi4py")
@@ -237,7 +241,7 @@ def test_backend_equivalence_host_mpi_vs_cuda_mpi():
     comm = MPI.COMM_WORLD
     nranks = comm.Get_size()
     if nranks != 4:
-        pytest.skip(f"test requires 4 ranks, got {nranks}")
+        pytest.skip(f"needs 4 MPI ranks, got {nranks}; run with `{MPI_RUN_HINT}`")
 
     col.reset_for_testing()
     if not col._probe_cuda_aware_mpi(comm):
@@ -273,52 +277,50 @@ def test_backend_equivalence_host_mpi_vs_cuda_mpi():
     )
 
 
-@pytest.mark.skipif(not _has_cupy(), reason="cupy required")
+@pytest.mark.gpu
+@pytest.mark.skipif(not gpu_available(), reason="GPU build / CUDA device unavailable")
 def test_construction_memory_smoke_4rank():
-    pytest.importorskip("mpi4py")
-    from mpi4py import MPI
-
-    from fulqrum.gpu.distributed import _collective as col
     from fulqrum.gpu.distributed.dist_matvec_tile_resident import (
         TileGPUResidentHamiltonian,
     )
 
-    comm = MPI.COMM_WORLD
-    nranks = comm.Get_size()
-    if nranks != 4:
-        pytest.skip(f"test requires 4 ranks, got {nranks}")
-
-    col.reset_for_testing()
     hsub, alpha_strs, beta_strs, _qop = _make_h2_hsub()
-    H = TileGPUResidentHamiltonian(
-        hsub,
-        alpha_strs,
-        beta_strs,
-        process_grid=(2, 2),
-        comm=comm,
-        comm_backend="host_mpi",
-    )
 
-    hbm = H.predicted_hbm_bytes
-    for key in (
-        "v_local",
-        "out_local",
-        "alpha_ring_total",
-        "beta_ring_total",
-        "operator",
-        "scratch",
-        "mixed_recv",
-    ):
-        assert key in hbm, f"predicted_hbm_bytes missing key {key!r}"
-        assert isinstance(hbm[key], int)
-        assert hbm[key] >= 0
+    def body(comm):
+        H = TileGPUResidentHamiltonian(
+            hsub,
+            alpha_strs,
+            beta_strs,
+            process_grid=(2, 2),
+            comm=comm,
+            comm_backend="inproc",
+        )
+        return H.predicted_hbm_bytes, H.construction_timing
 
-    total = sum(hbm.values())
-    assert total > 0
-    assert total < (2 << 30)
+    for hbm, ct in run_local_ranks(4, body):
+        for key in (
+            "v_local",
+            "out_local",
+            "alpha_ring_total",
+            "beta_ring_total",
+            "operator",
+            "scratch",
+            "mixed_recv",
+        ):
+            assert key in hbm, f"predicted_hbm_bytes missing key {key!r}"
+            assert isinstance(hbm[key], int)
+            assert hbm[key] >= 0
 
-    ct = H.construction_timing
-    for key in ("source_discovery", "mixed_neighbor_setup", "gpu_upload", "hbm_check"):
-        v = ct[key]
-        assert isinstance(v, (int, float))
-        assert 0 <= v < 60
+        total = sum(hbm.values())
+        assert total > 0
+        assert total < (2 << 30)
+
+        for key in (
+            "source_discovery",
+            "mixed_neighbor_setup",
+            "gpu_upload",
+            "hbm_check",
+        ):
+            v = ct[key]
+            assert isinstance(v, (int, float))
+            assert 0 <= v < 60

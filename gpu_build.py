@@ -713,6 +713,28 @@ def copy_primme_sources(destination):
         )
 
 
+# The PRIMME files an sdist ships to build the library; MANIFEST.in selects the same set.
+PRIMME_SDIST_PATHS = (
+    "makefile",
+    "Make_flags",
+    "include",
+    "src",
+    "COPYING.txt",
+    "README.rst",
+)
+
+
+def keep_primme_build_sources(destination):
+    """Remove everything but ``PRIMME_SDIST_PATHS`` from a PRIMME export."""
+    for path in Path(destination).iterdir():
+        if path.name in PRIMME_SDIST_PATHS:
+            continue
+        if path.is_dir() and not path.is_symlink():
+            shutil.rmtree(path)
+        else:
+            path.unlink()
+
+
 def _warn_ignored_primme_edits(source):
     head = subprocess.run(
         ["git", "-C", str(source), "rev-parse", "HEAD"], capture_output=True, text=True

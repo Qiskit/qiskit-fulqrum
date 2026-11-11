@@ -88,6 +88,7 @@ class FulqrumSdist(sdist):
                 if path.is_file():
                     path.unlink()
             gpu_build.copy_primme_sources(source)
+            gpu_build.keep_primme_build_sources(source)
 
 
 CPU_MODULES = [

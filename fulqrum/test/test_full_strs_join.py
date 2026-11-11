@@ -15,7 +15,6 @@ import itertools
 import os
 import subprocess
 import sys
-from pathlib import Path
 
 import numpy as np
 import pytest
@@ -35,9 +34,8 @@ from fulqrum.gpu.full_strs.distribute import (
 from fulqrum.gpu.full_strs.host import CLASSES, KINDS, HostLayout
 from fulqrum.test.test_full_strs_distribute import random_keys
 
-SETS = Path(os.environ.get("FQ_FULL_STRS_SETS", "/nonexistent"))
-SMALL_SETS = sorted((SETS / "small").glob("*.bin")) if SETS.exists() else []
-SUBSAMPLES = [SETS / "sub_head.bin", SETS / "sub_uniform.bin"] if SETS.exists() else []
+from .conftest import full_strs_set_names
+
 KIND_PAIRS = list(itertools.product(KINDS, KINDS))
 
 
@@ -467,15 +465,13 @@ def test_refusals():
 
 
 @pytest.mark.long
-@pytest.mark.skipif(
-    not SMALL_SETS, reason="FQ_FULL_STRS_SETS does not hold the generated sets"
-)
 @pytest.mark.parametrize("size", [2, 3, 4])
 @pytest.mark.parametrize("kinds", KIND_PAIRS)
-def test_generated_sets(kinds, size):
-    paths = SMALL_SETS + [p for p in SUBSAMPLES if p.exists()]
-    for path in paths:
-        keys, norb = read_set(path)
+def test_generated_sets(full_strs_sets, kinds, size):
+    names = full_strs_set_names()
+    assert names, f"no set files under {full_strs_sets}"
+    for name in names:
+        keys, norb = read_set(full_strs_sets / name)
         keys = sort_unique(keys)
         if keys.shape[0] < size:
             continue

@@ -206,6 +206,31 @@ backend as the intended job. Follow your scheduler's GPU-per-rank assignment.
 The first run compiles CuPy kernels once and caches them in
 `~/.cupy/kernel_cache` (default); later runs reuse them. If your home directory is not persistent or not shared across nodes, set `CUPY_CACHE_DIR` to a directory that is.
 
+## Running the tests
+
+The tests are installed with the package. With `pytest` installed, run them from a directory outside the source checkout, so that the installed build is the one imported:
+
+```bash
+python -m pytest --pyargs fulqrum.test
+```
+
+On a machine without a GPU, the GPU tests are skipped. On a GPU node the same command also runs them, including the multi-rank checks, which use in-process ranks sharing one GPU.
+
+Tests that need several MPI processes are marked `mpi` and are skipped in a single process. Run them with four ranks, one GPU per rank:
+
+```bash
+mpirun -n 4 python -m pytest -m mpi --pyargs fulqrum.test
+```
+
+One node with four GPUs is the tested layout.
+
+The device-level unit tests of the CUDA building blocks
+(`test_gpu_kernel_primitives.py`) need a small test library that is built only with `FQ_BUILD_GPU_TESTS=1` at install time; without it they are skipped. Build with it when changing the GPU kernels:
+
+```bash
+FQ_BUILD_GPU=1 FQ_BUILD_GPU_TESTS=1 python -m pip install ".[gpu]"
+```
+
 ## Optional build controls
 
 | Variable | Default | Purpose |

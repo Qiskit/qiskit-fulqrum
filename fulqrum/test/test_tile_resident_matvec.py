@@ -21,7 +21,13 @@ except ImportError:
     cupy = None
 
 from fulqrum.gpu.distributed import _collective as col
-from .conftest import make_lih_hsub
+from .conftest import (
+    MPI_RUN_HINT,
+    assemble_tiles,
+    gpu_available,
+    make_lih_hsub,
+    run_local_ranks,
+)
 
 
 def _has_cupy() -> bool:
@@ -47,6 +53,31 @@ def _make_h2_hsub():
 def _subspace_dense(hsub):
     n = hsub.shape[0]
     return np.column_stack([hsub @ unit for unit in np.eye(n)])
+
+
+def _local_rank_matvec(hsub, alpha_strs, beta_strs, v_global, grid=(2, 2)):
+    from fulqrum.gpu.distributed.dist_matvec_tile_resident import (
+        TileGPUResidentHamiltonian,
+    )
+
+    def body(comm):
+        H = TileGPUResidentHamiltonian(
+            hsub,
+            alpha_strs,
+            beta_strs,
+            process_grid=grid,
+            comm=comm,
+            comm_backend="inproc",
+        )
+        v_2d = v_global.reshape(H._n_b, H._n_a)
+        v_local = np.ascontiguousarray(v_2d[H._b0 : H._b1, H._a0 : H._a1].ravel())
+        Hv_local = H._matvec(v_local)
+        assert Hv_local.size == H.n_local
+        return (H._a0, H._a1, H._b0, H._b1), Hv_local
+
+    return assemble_tiles(
+        run_local_ranks(grid[0] * grid[1], body), len(alpha_strs), len(beta_strs)
+    )
 
 
 @pytest.mark.skipif(not _has_cupy(), reason="cupy required")
@@ -80,8 +111,10 @@ def test_matvec_single_rank_h2_matches_dense():
     np.testing.assert_allclose(Hv, ref, atol=1e-10, rtol=1e-10)
 
 
+@pytest.mark.mpi
+@pytest.mark.gpu
 @pytest.mark.skipif(not _has_cupy(), reason="cupy required")
-def test_matvec_4rank_h2_matches_dense():
+def test_matvec_4rank_h2_matches_dense_on_host_mpi():
     pytest.importorskip("mpi4py")
     from mpi4py import MPI
 
@@ -93,7 +126,7 @@ def test_matvec_4rank_h2_matches_dense():
     rank = comm.Get_rank()
     nranks = comm.Get_size()
     if nranks != 4:
-        pytest.skip(f"test requires 4 ranks, got {nranks}")
+        pytest.skip(f"needs 4 MPI ranks, got {nranks}; run with `{MPI_RUN_HINT}`")
 
     col.reset_for_testing()
     hsub, alpha_strs, beta_strs, qop = _make_h2_hsub()
@@ -147,60 +180,28 @@ def test_matvec_4rank_h2_matches_dense():
     )
 
 
-@pytest.mark.skipif(not _has_cupy(), reason="cupy required")
-def test_matvec_4rank_hv_fingerprint_smoke():
-    pytest.importorskip("mpi4py")
-    from mpi4py import MPI
-
-    from fulqrum.gpu.distributed.dist_matvec_tile_resident import (
-        TileGPUResidentHamiltonian,
-    )
-
-    comm = MPI.COMM_WORLD
-    nranks = comm.Get_size()
-    if nranks != 4:
-        pytest.skip(f"test requires 4 ranks, got {nranks}")
-
-    col.reset_for_testing()
+@pytest.mark.gpu
+@pytest.mark.skipif(not gpu_available(), reason="GPU build / CUDA device unavailable")
+def test_matvec_4rank_h2_matches_dense():
     hsub, alpha_strs, beta_strs, _qop = _make_h2_hsub()
+    n_a, n_b = len(alpha_strs), len(beta_strs)
+    v_global = np.random.default_rng(seed=4321).standard_normal(n_a * n_b)
+    Hv_global = _local_rank_matvec(hsub, alpha_strs, beta_strs, v_global)
+    err = np.max(np.abs(Hv_global - _subspace_dense(hsub) @ v_global))
+    assert err < 1e-9, f"max-abs error {err:.3e} on 4-rank H2 matvec exceeds 1e-9"
 
-    H = TileGPUResidentHamiltonian(
-        hsub,
-        alpha_strs,
-        beta_strs,
-        process_grid=(2, 2),
-        comm=comm,
-        comm_backend="host_mpi",
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not gpu_available(), reason="GPU build / CUDA device unavailable")
+def test_matvec_4rank_hv_fingerprint_smoke():
+    hsub, alpha_strs, beta_strs, _qop = _make_h2_hsub()
+    n_a, n_b = len(alpha_strs), len(beta_strs)
+    v_global = np.random.default_rng(seed=2024).standard_normal(n_a * n_b)
+    Hv = _local_rank_matvec(hsub, alpha_strs, beta_strs, v_global)
+    assert float(np.sum(Hv * Hv)) > 0.0, (
+        "Hv is identically zero -- every kernel arm missed"
     )
-
-    n_a = H._n_a
-    n_b = H._n_b
-    rng = np.random.default_rng(seed=2024)
-    v_global = rng.standard_normal(n_a * n_b).astype(np.float64)
-    v_2d = v_global.reshape(n_b, n_a)
-    v_local = np.ascontiguousarray(
-        v_2d[H._b0 : H._b1, H._a0 : H._a1].ravel(),
-        dtype=np.float64,
-    )
-
-    Hv_local = H._matvec(v_local)
-
-    local_sum = float(np.sum(Hv_local))
-    local_sumsq = float(np.sum(Hv_local * Hv_local))
-    local_min = float(np.min(Hv_local))
-    local_max = float(np.max(Hv_local))
-
-    fp = np.array(
-        [local_sum, local_sumsq, local_min, local_max],
-        dtype=np.float64,
-    )
-    g_sum_sumsq = np.zeros(2, dtype=np.float64)
-    comm.Allreduce(fp[:2].copy(), g_sum_sumsq, op=MPI.SUM)
-    g_min = comm.allreduce(local_min, op=MPI.MIN)
-    g_max = comm.allreduce(local_max, op=MPI.MAX)
-
-    assert g_sum_sumsq[1] > 0.0, "Hv is identically zero -- every kernel arm missed"
-    assert g_max > g_min, "Hv is constant -- likely a degenerate fixture or a bug"
+    assert Hv.max() > Hv.min(), "Hv is constant -- likely a degenerate fixture or a bug"
 
 
 @pytest.mark.skipif(not _has_cupy(), reason="cupy required")

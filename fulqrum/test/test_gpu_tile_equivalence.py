@@ -21,8 +21,11 @@ MPI = pytest.importorskip("mpi4py.MPI")
 
 from .conftest import (  # noqa: E402
     FE4S4_CLUSTER_PREFIXES,
+    MPI_RUN_HINT,
+    assemble_tiles,
     fe4s4_alpha_strings,
     fe4s4_fcidump,
+    run_local_ranks,
 )
 
 RECIPE = {
@@ -342,52 +345,98 @@ def test_clique_arm_matches_the_cross_formula(
 
 def test_ring_skips_peers_that_are_not_sources(fe4s4_operator):
     import fulqrum as fq
-    from fulqrum.gpu.distributed import _collective
     from fulqrum.gpu.distributed.dist_matvec_tile_resident import (
         TileGPUResidentHamiltonian,
     )
 
-    if COMM.Get_size() < 4:
-        pytest.skip("needs at least 4 ranks so that some ring peers have no coupling")
+    size = 4
     op, strings = fe4s4_operator
     half = pick_strings(strings, "clusters", 120)
     hsub = fq.SubspaceHamiltonian(op, fq.Subspace([list(half), list(half)]))
-    _collective.reset_for_testing()
-    gpu = TileGPUResidentHamiltonian(
-        hsub,
-        list(half),
-        list(half),
-        comm=COMM,
-        process_grid=(COMM.Get_size(), 1),
-        comm_backend="host_mpi",
-    )
-    launches = []
-    original = gpu._launch_source
-
-    def counting_launch(src_rank, **kwargs):
-        launches.append(src_rank)
-        return original(src_rank, **kwargs)
-
-    gpu._launch_source = counting_launch
     x = np.random.RandomState(17).uniform(-1.0, 1.0, hsub.shape[0])
-    tile = x.reshape(gpu._n_b, gpu._n_a)[gpu._b0 : gpu._b1, gpu._a0 : gpu._a1]
-    gpu._matvec(np.ascontiguousarray(tile).ravel())
-    outside = sorted(set(launches) - set(gpu.source_ranks))
-    assert all(COMM.allgather(not outside)), outside
-    tables_outside = sorted(
-        set(gpu._tile_tables.sources) - set(gpu.source_ranks) - {COMM.Get_rank()}
-    )
-    assert all(COMM.allgather(not tables_outside)), tables_outside
-    ring_peers = {
-        step.source for step in (*gpu._alpha_ring_steps, *gpu._beta_ring_steps)
-    }
-    assert any(COMM.allgather(bool(ring_peers - set(gpu.source_ranks))))
-    remote_sources = set(gpu.source_ranks) - {COMM.Get_rank()}
-    assert all(COMM.allgather(remote_sources <= set(launches)))
+
+    def body(comm):
+        gpu = TileGPUResidentHamiltonian(
+            hsub,
+            list(half),
+            list(half),
+            comm=comm,
+            process_grid=(size, 1),
+            comm_backend="inproc",
+        )
+        launches = []
+        original = gpu._launch_source
+
+        def counting_launch(src_rank, **kwargs):
+            launches.append(src_rank)
+            return original(src_rank, **kwargs)
+
+        gpu._launch_source = counting_launch
+        tile = x.reshape(gpu._n_b, gpu._n_a)[gpu._b0 : gpu._b1, gpu._a0 : gpu._a1]
+        gpu._matvec(np.ascontiguousarray(tile).ravel())
+        sources = set(gpu.source_ranks)
+        ring_peers = {
+            step.source for step in (*gpu._alpha_ring_steps, *gpu._beta_ring_steps)
+        }
+        return {
+            "outside": sorted(set(launches) - sources),
+            "tables_outside": sorted(
+                set(gpu._tile_tables.sources) - sources - {comm.Get_rank()}
+            ),
+            "idle_ring_peers": sorted(ring_peers - sources),
+            "missed": sorted(sources - {comm.Get_rank()} - set(launches)),
+        }
+
+    results = run_local_ranks(size, body)
+    assert all(not r["outside"] for r in results), results
+    assert all(not r["tables_outside"] for r in results), results
+    assert any(r["idle_ring_peers"] for r in results), results
+    assert all(not r["missed"] for r in results), results
 
 
 @pytest.mark.parametrize("domain_size", [2, 3])
 def test_two_level_exchange_matches_cpu(fe4s4_operator, monkeypatch, domain_size):
+    import fulqrum as fq
+    from fulqrum.gpu.distributed.dist_matvec_tile_resident import (
+        TileGPUResidentHamiltonian,
+    )
+
+    monkeypatch.setenv("FQ_EXCHANGE", "two_level")
+    monkeypatch.setenv("_FULQRUM_TWO_LEVEL_ANY_BACKEND", "1")
+    op, strings = fe4s4_operator
+    half = pick_strings(strings, "clusters", 120)
+    hsub = fq.SubspaceHamiltonian(op, fq.Subspace([list(half), list(half)]))
+    x = np.random.RandomState(17).uniform(-1.0, 1.0, hsub.shape[0])
+    expected = hsub @ x
+    for grid in grids_for(4):
+
+        def body(comm):
+            gpu = TileGPUResidentHamiltonian(
+                hsub,
+                list(half),
+                list(half),
+                comm=comm,
+                process_grid=grid,
+                comm_backend="inproc",
+                intra_node_size=domain_size,
+            )
+            assert gpu.construction_timing["exchange"] == "two_level"
+            tile = x.reshape(gpu._n_b, gpu._n_a)[gpu._b0 : gpu._b1, gpu._a0 : gpu._a1]
+            gpu._matvec(np.ascontiguousarray(tile).ravel())
+            local = gpu._matvec(np.ascontiguousarray(tile).ravel())
+            return (gpu._a0, gpu._a1, gpu._b0, gpu._b1), np.asarray(local)
+
+        result = assemble_tiles(run_local_ranks(4, body), len(half), len(half))
+        error = np.linalg.norm(result - expected) / np.linalg.norm(expected)
+        assert error < 1e-12, (grid, error)
+        release_gpu_memory()
+
+
+@pytest.mark.mpi
+@pytest.mark.parametrize("domain_size", [2, 3])
+def test_two_level_exchange_matches_cpu_on_host_mpi(
+    fe4s4_operator, monkeypatch, domain_size
+):
     import fulqrum as fq
     from fulqrum.gpu.distributed import _collective
     from fulqrum.gpu.distributed.dist_matvec_tile_resident import (
@@ -395,7 +444,7 @@ def test_two_level_exchange_matches_cpu(fe4s4_operator, monkeypatch, domain_size
     )
 
     if COMM.Get_size() != 4:
-        pytest.skip("needs 4 ranks: two shared-memory domains")
+        pytest.skip(f"needs 4 MPI ranks; run with `{MPI_RUN_HINT}`")
     monkeypatch.setenv("FQ_EXCHANGE", "two_level")
     monkeypatch.setenv("_FULQRUM_TWO_LEVEL_ANY_BACKEND", "1")
     op, strings = fe4s4_operator

@@ -182,7 +182,6 @@ if MPI.COMM_WORLD.Get_rank() == 0:
 """
 
 
-@pytest.mark.mpi
 @pytest.mark.skipif(
     not mpi_gpu_available(), reason="mpi4py + _primme_mpi + GPU required"
 )
