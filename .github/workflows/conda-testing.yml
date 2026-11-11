@@ -30,6 +30,7 @@ jobs:
     - name: Install dependencies
       run: |
         conda info
+        sudo apt-get update
         sudo apt-get install libblas-dev liblapack-dev
         # pyscf needs h5py, which has no cp315 wheel on PyPI yet.  Without
         # this, pip builds it from source and fails for want of HDF5.

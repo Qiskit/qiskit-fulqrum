@@ -27,6 +27,7 @@ jobs:
       - name: Install dependencies
         run: |
           conda info
+          sudo apt-get update
           sudo apt-get install libblas-dev liblapack-dev
           pip install -U -r requirements.txt
           pip install -U -r requirements-dev.txt
