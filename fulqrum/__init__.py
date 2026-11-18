@@ -24,6 +24,7 @@ from .core import (
 )
 
 import fulqrum.core.constants as constants
+import fulqrum.core.linear_operator as linear_operator
 
 __all__ = [
     "QubitOperator",
@@ -32,6 +33,7 @@ __all__ = [
     "FermionicOperator",
     "Bitset",
     "constants",
+    "linear_operator",
 ]
 
 

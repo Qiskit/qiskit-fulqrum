@@ -353,3 +353,60 @@ class CSRLikeLinearOperator(LinearOperator):
 
     def _matvec(self, x):
         return self.matvec(x)
+
+
+class TimedMatvec(LinearOperator):
+    """Sparse matrix-vector timing for a LinearOperator"""
+
+    def __init__(self, linear_operator, verbose=True):
+        """A SciPy `LinearOperator` that times the sparse matrix-vector (matvec)
+        operation
+
+        Parameters:
+            linear_operator (LinearOperator): LinearOperator for Hamiltonian
+        """
+        super().__init__(shape=linear_operator.shape, dtype=linear_operator.dtype)
+        self.matvec_times = []
+        self.linop = linear_operator
+        self.verbose = verbose
+
+    def _matvec(self, x):
+        return self.matvec(x)
+
+    def matvec(self, x):
+        t0 = time.perf_counter()
+        result = self.linop._matvec(x)
+        t1 = time.perf_counter()
+        spmv_time = t1 - t0
+        if self.verbose:
+            print(
+                f"  matvec #{len(self.matvec_times) + 1:4d} | SpMV: {spmv_time * 1000:9.2f} ms"
+            )
+        self.matvec_times.append(spmv_time)
+        return result
+
+    def num_matvecs(self):
+        """Number of matrix-vector products performed.
+
+        Returns:
+            int
+        """
+        return len(self.matvec_times)
+
+    def time_per_matvec(self):
+        """Time per matrix-vector product
+
+        Times for more than one matrix-vector product
+        discard the first one, since there is additional
+        overhead, and take the average of the remaining ones.
+
+        Returns:
+            float
+        """
+        num_matvecs = len(self.matvec_times)
+        if num_matvecs == 0:
+            return 0
+        elif num_matvecs == 1:
+            return self.matvec_times[0]
+        else:
+            return np.mean(self.matvec_times[1:])

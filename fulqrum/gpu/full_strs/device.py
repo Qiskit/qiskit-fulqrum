@@ -316,9 +316,11 @@ class DeviceLayout:
         self.num_quads = tables["num_quads"]
         scratch = cupy.empty(max(1, scan_bytes), dtype=np.uint8)
         self.chunks = [
-            ResidentChunk(views, self.upload_stream, scratch)
-            if self.resident[chunk]
-            else None
+            (
+                ResidentChunk(views, self.upload_stream, scratch)
+                if self.resident[chunk]
+                else None
+            )
             for chunk, views in enumerate(self.views)
         ]
         self.slots = (
@@ -359,9 +361,11 @@ class DeviceLayout:
         self.reduce_scratch = cupy.empty(
             max(
                 1,
-                kernel_launch.reduce_scratch_bytes(sorting, self.end_bit)
-                if sorting
-                else 1,
+                (
+                    kernel_launch.reduce_scratch_bytes(sorting, self.end_bit)
+                    if sorting
+                    else 1
+                ),
             ),
             dtype=np.uint8,
         )

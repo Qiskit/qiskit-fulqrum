@@ -33,7 +33,9 @@ ACTIVE = list(range(58, 70))
 
 
 def padded(seed, rows=800):
-    from fulqrum.test.test_full_strs_coefficients import random_operator  # noqa: PLC0415
+    from fulqrum.test.test_full_strs_coefficients import (
+        random_operator,
+    )  # noqa: PLC0415
 
     rng = random.Random(seed)
     small = len(ACTIVE)

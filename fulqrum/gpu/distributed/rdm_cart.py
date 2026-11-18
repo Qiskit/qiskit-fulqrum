@@ -1153,9 +1153,11 @@ class _Accumulator:
             return
         weights = (
             _col_sqnorm(cp, self.own_alpha.reshape(-1), 0, nal, nbl),
-            _row_sqnorm_of_columns(cp, self.own_alpha, nal, nbl)
-            if self.one_own
-            else _col_sqnorm(cp, self.own.reshape(-1), 0, nbl, nal),
+            (
+                _row_sqnorm_of_columns(cp, self.own_alpha, nal, nbl)
+                if self.one_own
+                else _col_sqnorm(cp, self.own.reshape(-1), 0, nbl, nal)
+            ),
         )
         for weight, lists, lo, hi, out in (
             (weights[0], self.alpha, self.a0, self.a1, self.blocks[0]),

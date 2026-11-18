@@ -680,7 +680,10 @@ def test_choose_copies():
 
 @pytest.mark.parametrize("size", [4, 6])
 def test_plan_copies_agrees_with_the_metrics(size):
-    from fulqrum.gpu.full_strs.distribute import layout_metrics, plan_copies  # noqa: PLC0415
+    from fulqrum.gpu.full_strs.distribute import (
+        layout_metrics,
+        plan_copies,
+    )  # noqa: PLC0415
     from fulqrum.gpu.full_strs.plan import choose_copies  # noqa: PLC0415
 
     keys = clustered_keys(np.random.default_rng(71), 10, 5, 4, 1200, 30)

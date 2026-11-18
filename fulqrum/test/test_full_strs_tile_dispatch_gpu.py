@@ -78,9 +78,11 @@ def run(op, keys, ranks, engine, **options):
             "diag": dict(zip(rows, np.asarray(H.diag_local).tolist())),
             "rdm1": H.compute_rdms(x, rank=1),
             "rdm2": H.compute_rdms(x, rank=2),
-            "tile": None
-            if H._tile is None
-            else (H._tile._alpha_bra.copy(), H._tile._beta_bra.copy()),
+            "tile": (
+                None
+                if H._tile is None
+                else (H._tile._alpha_bra.copy(), H._tile._beta_bra.copy())
+            ),
         }
 
     return run_ranks(LocalComm.create(ranks, timeout=600.0), compute)

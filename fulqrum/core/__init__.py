@@ -48,6 +48,7 @@ LinearOperators
    :toctree: ../stubs/
 
    CSRLinearOperator
+   TimedMatvec
 
 """
 
@@ -62,6 +63,7 @@ from .linear_operator import (
     SubspaceHamiltonian,
     CSRLinearOperator,
     CSRLikeLinearOperator,
+    TimedMatvec,
 )
 
 __all__ = [
@@ -72,4 +74,5 @@ __all__ = [
     "SubspaceHamiltonian",
     "CSRLinearOperator",
     "CSRLikeLinearOperator",
+    "TimedMatvec",
 ]

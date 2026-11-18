@@ -116,7 +116,9 @@ class GPUHamiltonian(LinearOperator):
         _check_gpu_preconditions(hsub, "GPUHamiltonian")
         import cupy  # noqa: PLC0415
 
-        from .distributed.dist_matvec_tile_resident import TileGPUResidentHamiltonian  # noqa: PLC0415
+        from .distributed.dist_matvec_tile_resident import (
+            TileGPUResidentHamiltonian,
+        )  # noqa: PLC0415
 
         if gpu_ids is None:
             gpu_ids = (int(cupy.cuda.runtime.getDevice()),)

@@ -480,7 +480,9 @@ def keyed_state(keys):
 
 def full_strs_rdms(operator, keys, ranks=1, **options):
     from fulqrum.gpu.distributed.local_comm import LocalComm, run_ranks  # noqa: PLC0415
-    from fulqrum.gpu.full_strs.hamiltonian import FullStrsGPUHamiltonian  # noqa: PLC0415
+    from fulqrum.gpu.full_strs.hamiltonian import (
+        FullStrsGPUHamiltonian,
+    )  # noqa: PLC0415
 
     amplitude = keyed_state(keys)
     m = operator.width // 2
@@ -588,7 +590,9 @@ def test_full_strs_rdms_on_in_process_ranks_match_the_oracle(ranks, mode):
 )
 def test_full_strs_half_visits_equal_both_visits(fe4s4, monkeypatch):
     from fulqrum.gpu.full_strs import rdm as fs_rdm  # noqa: PLC0415
-    from fulqrum.gpu.full_strs.hamiltonian import FullStrsGPUHamiltonian  # noqa: PLC0415
+    from fulqrum.gpu.full_strs.hamiltonian import (
+        FullStrsGPUHamiltonian,
+    )  # noqa: PLC0415
 
     op, half_strings, *_ = fe4s4
     keys = product_keys(half_strings[:40], half_strings[:40])
@@ -628,7 +632,9 @@ def test_full_strs_half_visits_equal_both_visits(fe4s4, monkeypatch):
 def test_full_strs_half_visits_only_where_outputs_are_sources(mode, half):
     from fulqrum.gpu.distributed.local_comm import LocalComm, run_ranks  # noqa: PLC0415
     from fulqrum.gpu.full_strs import rdm as fs_rdm  # noqa: PLC0415
-    from fulqrum.gpu.full_strs.hamiltonian import FullStrsGPUHamiltonian  # noqa: PLC0415
+    from fulqrum.gpu.full_strs.hamiltonian import (
+        FullStrsGPUHamiltonian,
+    )  # noqa: PLC0415
 
     op, alpha, beta = chain_qubit_operator(5, 1)
     keys = product_keys(alpha, beta)
@@ -722,8 +728,12 @@ def clustered_keys_with_an_isolated_block(size, seed):
 )
 def test_full_strs_rdms_with_a_halo_free_rank_match_one_rank():
     from fulqrum.gpu.distributed.local_comm import LocalComm, run_ranks  # noqa: PLC0415
-    from fulqrum.gpu.full_strs.hamiltonian import FullStrsGPUHamiltonian  # noqa: PLC0415
-    from fulqrum.test.test_full_strs_coefficients import random_operator  # noqa: PLC0415
+    from fulqrum.gpu.full_strs.hamiltonian import (
+        FullStrsGPUHamiltonian,
+    )  # noqa: PLC0415
+    from fulqrum.test.test_full_strs_coefficients import (
+        random_operator,
+    )  # noqa: PLC0415
 
     size = 3
     operator = random_operator(12, 9)
@@ -777,8 +787,12 @@ def _delay_gemms(delay):
 )
 def test_full_strs_rdms_wait_for_the_caller_stream():
     from fulqrum.gpu.full_strs.distribute import sort_unique  # noqa: PLC0415
-    from fulqrum.gpu.full_strs.hamiltonian import FullStrsGPUHamiltonian  # noqa: PLC0415
-    from fulqrum.test.test_full_strs_coefficients import random_operator  # noqa: PLC0415
+    from fulqrum.gpu.full_strs.hamiltonian import (
+        FullStrsGPUHamiltonian,
+    )  # noqa: PLC0415
+    from fulqrum.test.test_full_strs_coefficients import (
+        random_operator,
+    )  # noqa: PLC0415
 
     norb = 10
     sector = [sum(1 << o for o in occ) for occ in combinations(range(norb), 3)]

@@ -17,6 +17,7 @@ import numpy as np
 import scipy.sparse.linalg as spla
 import primme
 
+import fulqrum as fq
 from fulqrum import FermionicOperator, Subspace, SubspaceHamiltonian
 
 _path = Path(__file__).parent / "data/h2o.json"
@@ -170,3 +171,39 @@ def test_proj_indices_set():
             assert NEW_OP[kk].proj_indices.shape[0] > 0
         else:
             assert NEW_OP[kk].proj_indices.shape[0] == 0
+
+
+def test_full_dist_h20_eigenenergy_matrix_free_timed_scipy():
+    """Test full space solution against exact with timed Hamiltonian SciPy"""
+    full_dist = {}
+    for kk in range(2**14):
+        full_dist[bin(kk)[2:].zfill(14)] = None
+
+    S = Subspace([list(full_dist.keys())])
+    Hsub = SubspaceHamiltonian(NEW_OP, S)
+
+    H_timed = fq.linear_operator.TimedMatvec(Hsub, verbose=False)
+
+    evals, _ = spla.eigsh(H_timed, k=1, which="SA", v0=np.ones(len(S), dtype=float))
+    assert np.allclose(evals, GROUND_ENERGY, 1e-12)
+    assert H_timed.num_matvecs() != 0
+    assert H_timed.time_per_matvec() != 0
+
+
+def test_full_dist_h20_eigenenergy_matrix_free_timed_primme():
+    """Test full space solution against exact with timed Hamiltonian PRIMME"""
+    full_dist = {}
+    for kk in range(2**14):
+        full_dist[bin(kk)[2:].zfill(14)] = None
+
+    S = Subspace([list(full_dist.keys())])
+    Hsub = SubspaceHamiltonian(NEW_OP, S)
+
+    H_timed = fq.linear_operator.TimedMatvec(Hsub, verbose=False)
+
+    evals, _ = primme.eigsh(
+        H_timed, k=1, which="SA", v0=np.ones((len(S), 1), dtype=float)
+    )
+    assert np.allclose(evals, GROUND_ENERGY, 1e-12)
+    assert H_timed.num_matvecs() != 0
+    assert H_timed.time_per_matvec() != 0

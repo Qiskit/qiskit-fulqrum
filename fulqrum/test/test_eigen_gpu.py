@@ -37,7 +37,6 @@ import fulqrum as fq
 
 from .conftest import gpu_available, mpi_gpu_available
 
-
 # Skip the whole module at collection time when GPU isn't usable.
 pytestmark = [
     pytest.mark.skipif(
