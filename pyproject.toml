@@ -43,6 +43,7 @@ include = ["fulqrum", "fulqrum.*"]
 # Exclude a variety of commonly ignored directories.
 exclude = [
     "qiskit-addon-sqd-hpc",
+    "fulqrum/test"
 ]
 
 # Same as Black.
@@ -50,4 +51,5 @@ line-length = 88
 indent-width = 4
 
 [tool.ruff.lint]
-ignore = ["E741"]
+ignore = ["E741", "I001", "N999", "RUF022", "RUF100", 
+          "SIM102", "SIM113", "SIM115", "SIM118", "TRY002"]
