@@ -10,11 +10,13 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 # cython: c_string_type=unicode, c_string_encoding=UTF-8
+from libc.stdint cimport uint16_t
 
 
 cdef extern from "src/constants.hpp":
     cdef const size_t MAX_SIZE_T
     cdef const double ATOL
     cdef const double RTOL
-    ctypedef unsigned int width_t # The actual type here does not matter as the compiler will just figure it out
+    ctypedef uint16_t width_t # The actual type here does not matter as the compiler will just figure it out
+    cdef const uint16_t MAX_WIDTH # Max. number of supported qubits
 

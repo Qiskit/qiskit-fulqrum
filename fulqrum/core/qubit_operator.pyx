@@ -49,6 +49,8 @@ include "includes/converters.pxi"
 include "includes/io.pxi"
 include "includes/diag_header.pxi"
 
+from fulqrum.core.constants cimport MAX_WIDTH
+
 
 cdef const OperatorTerm_t EmptyOperatorTerm
 
@@ -72,6 +74,8 @@ cdef class QubitOperator():
 
     def __cinit__(self, unsigned int width,
                   object operators=None):
+        if width < 1 or width > MAX_WIDTH:
+            raise FulqrumError(f"Operator width is out of bounds: [1, {MAX_WIDTH}]")
         self.oper.width = width
         self.oper.sorted = False
         cdef object item
@@ -133,6 +137,8 @@ cdef class QubitOperator():
         Returns:
             QubitOperator: Constant operator
         """
+        if width < 1 or width > MAX_WIDTH:
+            raise FulqrumError(f"Operator width is out of bounds: [1, {MAX_WIDTH}]")
         cdef QubitOperator out = QubitOperator(width, [()])
         out.oper.terms[0].coeff = coeff
         return out

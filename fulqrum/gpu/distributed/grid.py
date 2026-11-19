@@ -295,10 +295,12 @@ def discover_sources(
     mixed_destinations = sorted(np.flatnonzero(need_send).tolist())
     raise_on_every_rank(
         comms.world,
-        None
-        if mixed_sources == mixed_destinations
-        else f"MIXED edge set asymmetric: sources={mixed_sources} destinations={mixed_destinations}. Either the "
-        f"operator is not Hermitian or the discovery misclassified an edge.",
+        (
+            None
+            if mixed_sources == mixed_destinations
+            else f"MIXED edge set asymmetric: sources={mixed_sources} destinations={mixed_destinations}. Either the "
+            f"operator is not Hermitian or the discovery misclassified an edge."
+        ),
         RuntimeError,
         "mixed source discovery",
     )

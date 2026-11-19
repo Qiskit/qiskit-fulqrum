@@ -67,12 +67,16 @@ class LayoutPlan:
             "copies": int(self.copies),
             "num_slices": int(self.num_slices),
             "exchange": self.exchange,
-            "share_starts": None
-            if self.share_starts is None
-            else [int(v) for v in self.share_starts],
-            "assignment": None
-            if self.assignment is None
-            else [[int(v) for v in row] for row in self.assignment],
+            "share_starts": (
+                None
+                if self.share_starts is None
+                else [int(v) for v in self.share_starts]
+            ),
+            "assignment": (
+                None
+                if self.assignment is None
+                else [[int(v) for v in row] for row in self.assignment]
+            ),
         }
 
     @property

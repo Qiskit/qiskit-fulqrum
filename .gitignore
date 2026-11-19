@@ -178,3 +178,5 @@ fulqrum/gpu/distributed/*.cpp
 fulqrum/gpu/full_strs/*.cpp
 fulqrum/gpu/rdm/*.cpp
 fulqrum/gpu/eigensolver/_primme_mpi.cpp
+fulqrum/gpu/cuda_build.json
+fulqrum/gpu/distributed/kernel_resources.json

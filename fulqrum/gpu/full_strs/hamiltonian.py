@@ -338,9 +338,11 @@ class FullStrsGPUHamiltonian:
         tile = self._tile
         raise_on_every_rank(
             comm,
-            None
-            if tile.n_local == block.n_local
-            else f"the tile holds {tile.n_local} rows, the key block {block.n_local}",
+            (
+                None
+                if tile.n_local == block.n_local
+                else f"the tile holds {tile.n_local} rows, the key block {block.n_local}"
+            ),
             RuntimeError,
             "tile engine layout",
         )
@@ -399,7 +401,9 @@ class FullStrsGPUHamiltonian:
         exchange,
     ):
 
-        from fulqrum.gpu.distributed.rank_agreement import run_on_every_rank  # noqa: PLC0415
+        from fulqrum.gpu.distributed.rank_agreement import (
+            run_on_every_rank,
+        )  # noqa: PLC0415
 
         from .distribute import build_distributed_groups  # noqa: PLC0415
         from .halo import HaloExchange  # noqa: PLC0415
@@ -450,7 +454,10 @@ class FullStrsGPUHamiltonian:
         domains = None
         if exchange == "two_level":
             from .distribute import fetch_halo_keys  # noqa: PLC0415
-            from .two_level import exchange_domains, extend_to_domain_union  # noqa: PLC0415
+            from .two_level import (
+                exchange_domains,
+                extend_to_domain_union,
+            )  # noqa: PLC0415
 
             domain_comm, domains = exchange_domains(comm, self._domain_size)
             extend_to_domain_union(comm, domain_comm, domains, block, receiver)
@@ -523,7 +530,9 @@ class FullStrsGPUHamiltonian:
         self, operator, block, receiver, num_orbitals, residency, device_budget_bytes
     ):
 
-        from fulqrum.gpu.distributed.rank_agreement import run_on_every_rank  # noqa: PLC0415
+        from fulqrum.gpu.distributed.rank_agreement import (
+            run_on_every_rank,
+        )  # noqa: PLC0415
 
         from .full_vectors import FullVectorExchange  # noqa: PLC0415
 
@@ -603,7 +612,9 @@ class FullStrsGPUHamiltonian:
         exchange,
     ):
 
-        from fulqrum.gpu.distributed.rank_agreement import run_on_every_rank  # noqa: PLC0415
+        from fulqrum.gpu.distributed.rank_agreement import (
+            run_on_every_rank,
+        )  # noqa: PLC0415
 
         from .distribute import plan_copy_groups  # noqa: PLC0415
         from .halo import CopyExchange, HaloExchange  # noqa: PLC0415
@@ -620,9 +631,11 @@ class FullStrsGPUHamiltonian:
         )
         self.plan.measured.update(measured)
         reference = comm.bcast(
-            block_reference(layout.block_keys, num_orbitals)
-            if comm.Get_rank() == 0
-            else None,
+            (
+                block_reference(layout.block_keys, num_orbitals)
+                if comm.Get_rank() == 0
+                else None
+            ),
             root=0,
         )
         rank_host = run_on_every_rank(
@@ -823,7 +836,8 @@ class FullStrsGPUHamiltonian:
 
     def matvec(self, x):
         """Collectively apply the operator to this rank's local vector of shape ``(n_local,)`` in
-        ``keys`` order. NumPy input returns NumPy output; CuPy input returns CuPy output."""
+        ``keys`` order. NumPy input returns NumPy output; CuPy input returns CuPy output.
+        """
         if tuple(x.shape) != (self.n_local,):
             raise ValueError(
                 f"x must have shape ({self.n_local},); got {tuple(x.shape)}"

@@ -11,13 +11,13 @@
 # that they have been altered from the originals.
 from ..core.bitset cimport bitset_t
 from libcpp.vector cimport vector
-
+from .constants cimport width_t
 
 cdef extern from "../src/elements.hpp":
 
     void accum_element(const bitset_t& row,
                        const bitset_t& col,
-                       const vector[unsigned int] inds,
+                       const vector[width_t] inds,
                        const vector[unsigned char] val,
                        const double complex& coeff,
                        const int real_phase,

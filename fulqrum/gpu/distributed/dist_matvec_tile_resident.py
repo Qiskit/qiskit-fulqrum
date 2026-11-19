@@ -1545,9 +1545,11 @@ class TileGPUResidentHamiltonian(LinearOperator):
         modes = self._comm.allgather(self._exchange_mode)
         raise_on_every_rank(
             self._comm,
-            None
-            if len(set(modes)) == 1
-            else f"FQ_EXCHANGE differs across ranks: {modes}",
+            (
+                None
+                if len(set(modes)) == 1
+                else f"FQ_EXCHANGE differs across ranks: {modes}"
+            ),
         )
         two_level_backend = self._backend_name == "nccl" or bool(
             self._config.value("_FULQRUM_TWO_LEVEL_ANY_BACKEND")
@@ -1631,11 +1633,13 @@ class TileGPUResidentHamiltonian(LinearOperator):
         plan = _hierarchical_exchange_plan(self._rank, domains, sources_by_rank)
         raise_on_every_rank(
             self._comm,
-            None
-            if node_members == plan.domain_members
-            else "two-level exchange requires node-communicator rank order to match "
-            f"domain member order; got node_members={node_members}, "
-            f"domain_members={plan.domain_members}",
+            (
+                None
+                if node_members == plan.domain_members
+                else "two-level exchange requires node-communicator rank order to match "
+                f"domain member order; got node_members={node_members}, "
+                f"domain_members={plan.domain_members}"
+            ),
         )
         check_pairing(
             self._comm,
@@ -1909,7 +1913,9 @@ class TileGPUResidentHamiltonian(LinearOperator):
         spmv = self._hsub.spmv
         if not self._cupy_available or not isinstance(spmv, FulqrumSpMV):
             return
-        from fulqrum.gpu.distributed.tile_discovery import _build_tile_connection_tables  # noqa: PLC0415
+        from fulqrum.gpu.distributed.tile_discovery import (
+            _build_tile_connection_tables,
+        )  # noqa: PLC0415
 
         steps = {}
         clock = [time.perf_counter()]
@@ -1989,7 +1995,9 @@ class TileGPUResidentHamiltonian(LinearOperator):
 
     def _read_operator_groups(self, spmv, gpu_data):
 
-        from fulqrum.gpu.distributed.tile_discovery import _group_flip_masks  # noqa: PLC0415
+        from fulqrum.gpu.distributed.tile_discovery import (
+            _group_flip_masks,
+        )  # noqa: PLC0415
 
         num_alpha = int(spmv.subspace.num_alpha_qubits)
         num_beta = int(spmv.width) - num_alpha
@@ -2143,7 +2151,9 @@ class TileGPUResidentHamiltonian(LinearOperator):
 
     def _upload_term_tables(self, gpu_data) -> None:
 
-        from fulqrum.gpu.distributed.dist_matvec import _OPER_ELEMS_HOST  # noqa: PLC0415
+        from fulqrum.gpu.distributed.dist_matvec import (
+            _OPER_ELEMS_HOST,
+        )  # noqa: PLC0415
 
         if self._has_offdiag:
             (
@@ -2485,9 +2495,9 @@ class TileGPUResidentHamiltonian(LinearOperator):
             n_beta_edges=beta["n_beta_edges"],
             n_rows=self._n_b_local,
             orbitals=int(self._num_alpha),
-            grouped_edges=beta.get("grouped_edges")
-            if arm_plan.aabb_path == ARM_CLIQUE
-            else None,
+            grouped_edges=(
+                beta.get("grouped_edges") if arm_plan.aabb_path == ARM_CLIQUE else None
+            ),
             **common,
         )
 
@@ -3496,9 +3506,11 @@ class TileGPUResidentHamiltonian(LinearOperator):
                     for a in (d_src_in, d_out, d_alpha_slot, d_beta_slot)
                 ),
                 *(_device_address(a) for a in tables),
-                single_word_strings(self._d_alpha_uniq, "diagonal")
-                if self._d_diag_Mb is not None
-                else _device_address(self._d_alpha_uniq),
+                (
+                    single_word_strings(self._d_alpha_uniq, "diagonal")
+                    if self._d_diag_Mb is not None
+                    else _device_address(self._d_alpha_uniq)
+                ),
                 int(self._num_alpha),
                 int(stream_handle),
             )
@@ -3903,9 +3915,9 @@ class TileGPUResidentHamiltonian(LinearOperator):
             beta_strings=self._d_beta_uniq,
             coefficients=self._d_aabb_g,
             cross=cross,
-            arm_events=self._recorder.arm_events
-            if self._recorder is not None
-            else None,
+            arm_events=(
+                self._recorder.arm_events if self._recorder is not None else None
+            ),
             bbbb_class=bbbb_class,
             aaaa_class=aaaa_class,
         )
@@ -4284,9 +4296,11 @@ class TileGPUResidentHamiltonian(LinearOperator):
             dict(
                 src=src_rank,
                 kind=source_class(same_alpha, same_beta),
-                path=("transposed_clique" if launch.cross.transposed else "clique")
-                if clique
-                else "baseline",
+                path=(
+                    ("transposed_clique" if launch.cross.transposed else "clique")
+                    if clique
+                    else "baseline"
+                ),
                 start=events.get("source_start"),
                 end=events.get("source_end"),
                 parent_start=events.get("parent_start"),
@@ -4791,9 +4805,11 @@ class TileGPUResidentHamiltonian(LinearOperator):
         )
         raise_on_every_rank(
             self._comm,
-            "an operator group could not be factored over the other sector"
-            if failed
-            else None,
+            (
+                "an operator group could not be factored over the other sector"
+                if failed
+                else None
+            ),
             RuntimeError,
             "arm cache build",
         )

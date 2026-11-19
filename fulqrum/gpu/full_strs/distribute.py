@@ -384,9 +384,9 @@ def join_groups(
         slices,
         fetch_keys,
         keep_local=groups == "by_key",
-        global_stride=int(np.diff(block.block_starts).max())
-        if vectors == "full"
-        else None,
+        global_stride=(
+            int(np.diff(block.block_starts).max()) if vectors == "full" else None
+        ),
     )
 
 
@@ -1049,15 +1049,17 @@ def plan_copy_groups(comm, keys, num_orbitals, plan, alpha_kind=None, beta_kind=
         if layout.copy == 0:
             assigned = layout.plan["assignment"][layout.block]
             remote = [
-                float(
-                    sum(
-                        remote_work(layout.profile, entry)[q]
-                        for q in range(len(assigned))
-                        if assigned[q] == c
+                (
+                    float(
+                        sum(
+                            remote_work(layout.profile, entry)[q]
+                            for q in range(len(assigned))
+                            if assigned[q] == c
+                        )
                     )
+                    if plan.shares == "balanced"
+                    else 0.0
                 )
-                if plan.shares == "balanced"
-                else 0.0
                 for c in range(copies)
             ]
             bounds = balanced_bounds(own_row_work(layout.profile, entry), remote)
@@ -1172,8 +1174,8 @@ def plan_copies(
         candidates[copies] = {
             "volume_max": float(volumes.max() / total),
             "volume_mean": float(volumes.mean() / total),
-            "work_imbalance": float(works.max() / works.mean())
-            if works.mean() > 0
-            else 1.0,
+            "work_imbalance": (
+                float(works.max() / works.mean()) if works.mean() > 0 else 1.0
+            ),
         }
     return choose_copies(candidates), candidates
