@@ -212,6 +212,7 @@ cdef class FulqrumSpMV():
         self.real_diag_vec = np.empty(shape=(1,), dtype=float)
         self.complex_diag_vec = np.empty(shape=(1,), dtype=complex)
 
+    @cython.boundscheck(False)
     cdef _compute_diag_via_blas(self,
                                 object alpha_strings,
                                 object beta_strings,
@@ -921,6 +922,7 @@ cdef class FulqrumSpMV():
         out += diag_alpha[None, :]
         return out.ravel()
 
+    @cython.boundscheck(False)
     def diag_separable_pieces(self,
             alpha_strings,
             beta_strings,
@@ -1036,7 +1038,7 @@ cdef void _diag_factors(int alpha_words, int beta_words,
                         const QubitOperator_t& diag_oper,
                         unsigned int num_alpha, size_t a0, size_t a1, size_t n_b,
                         double* d_alpha_out, double* d_beta_out,
-                        double* Fc_out, double* G_out) except * nogil:
+                        double* Fc_out, double* G_out) noexcept nogil:
     if alpha_words == 1 and beta_words == 1:
         compute_diag_factors[double](alpha_uint, beta_uint, diag_oper, num_alpha, a0, a1, n_b,
                                      d_alpha_out, d_beta_out, Fc_out, G_out)

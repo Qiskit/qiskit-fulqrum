@@ -91,7 +91,7 @@ UpperConnections<T> upper_connections(const SectorConnections<T>& connections)
     const std::size_t bytes =
         checked_add(checked_multiply(num_singles, sizeof(std::uint64_t) + sizeof(T)),
                     checked_multiply(num_doubles, sizeof(std::uint32_t) + sizeof(T)));
-    bytes;
+
     upper.single_packed_entries.reserve(num_singles);
     upper.single_values.reserve(num_singles);
     upper.double_columns.reserve(num_doubles);
@@ -505,7 +505,7 @@ SectorConnections<T> pack_sector_connections(const std::vector<StringConnections
     const std::size_t bytes =
         checked_add(checked_multiply(num_singles, sizeof(std::uint64_t) + sizeof(T)),
                     checked_multiply(num_doubles, sizeof(std::uint32_t) + sizeof(T)));
-    bytes;
+
     connections.single_packed_entries.reserve(num_singles);
     connections.single_values.reserve(num_singles);
     connections.double_columns.reserve(num_doubles);

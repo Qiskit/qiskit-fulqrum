@@ -5,6 +5,7 @@ from libcpp.pair cimport pair
 from libcpp.memory cimport unique_ptr
 from libcpp.vector cimport vector
 
+cimport cython
 import numpy as np
 cimport numpy as cnp
 
@@ -263,6 +264,7 @@ cdef class HostOperator:
 
         return self._apply(x, True)
 
+    @cython.boundscheck(False)
     cdef _apply(self, x, bint from_chunks):
 
 
@@ -279,6 +281,7 @@ cdef class HostOperator:
                 self.host.get().matvec(xp, &ys[0])
         return y
 
+    @cython.boundscheck(False)
     def chunk_partials(self, x, int chunk, int cls):
 
 
@@ -388,6 +391,7 @@ cdef class HostOperator:
 
         return self._elements(out_keys, source_keys, False)
 
+    @cython.boundscheck(False)
     cdef _elements(self, out_keys, source_keys, bint from_tables):
 
 
@@ -563,7 +567,7 @@ cdef cnp.ndarray word_rows(object words, int width, str name):
         raise ValueError(f"{name} must have shape (n, {width}); got {np.shape(out)}")
     return out
 
-
+@cython.boundscheck(False)
 def emit_records(keys, int64_t row_start, int num_orbitals, int alpha_kind, int beta_kind, int num_slices,
                  int index, int num_ranks):
 
@@ -582,7 +586,7 @@ def emit_records(keys, int64_t row_start, int num_orbitals, int alpha_kind, int 
         batch = cpp_emit_records(data, num_rows, row_start, num_orbitals, kinds, slice_, num_ranks)
     return take_words(batch.words, RECORD_WORDS), count_array(batch.counts)
 
-
+@cython.boundscheck(False)
 def join_runs(records, block_starts):
 
 
@@ -598,7 +602,7 @@ def join_runs(records, block_starts):
     return (take_words(batch.headers, RECORD_WORDS), count_array(batch.header_counts), take_words(batch.members, 1),
             count_array(batch.member_counts))
 
-
+@cython.boundscheck(False)
 def decode_members(members):
 
 
