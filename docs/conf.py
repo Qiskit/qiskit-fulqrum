@@ -145,10 +145,22 @@ def load_tutorials(app):
     except FileNotFoundError:
         warnings.warn("Copy tutorials failed.", RuntimeWarning)
 
+def load_examples(app):
+    dest_dir = os.path.join(app.srcdir, "_examples")
+    source_dir = os.path.dirname(app.srcdir) + "/examples"
+
+    try:
+        copy_tree(source_dir, dest_dir)
+    except FileNotFoundError:
+        warnings.warn("Copy examples failed.", RuntimeWarning)
 
 def clean_tutorials(app, exc):
     tutorials_dir = os.path.join(app.srcdir, "tutorials")
     shutil.rmtree(tutorials_dir)
+
+def clean_examples(app, exc):
+    examples_dir = os.path.join(app.srcdir, "_examples")
+    shutil.rmtree(examples_dir)
 
 
 def init_signature(app, what, name, obj, options, signature, return_annotation):
@@ -166,5 +178,7 @@ def init_signature(app, what, name, obj, options, signature, return_annotation):
 
 def setup(app):
     load_tutorials(app)
+    load_examples(app)
     app.connect("build-finished", clean_tutorials)
+    app.connect("build-finished", clean_examples)
     app.connect("autodoc-process-signature", init_signature)
