@@ -16,7 +16,6 @@ import logging as _logging
 
 from .logging import configure_gpu_logging, gpu_profile_record, write_gpu_profile
 
-
 _logging.getLogger(__name__).addHandler(_logging.NullHandler())
 
 
@@ -44,6 +43,10 @@ def __getattr__(name):
         )
 
         return TileGPUResidentHamiltonian
+    if name == "spin_penalty_expectations":
+        from .spin_penalty import spin_penalty_expectations  # noqa: PLC0415
+
+        return spin_penalty_expectations
     if name == "DistributedMPIGPUHamiltonian":
         from .distributed.dist_matvec import (  # noqa: PLC0415
             DistributedMPIGPUHamiltonian,
@@ -58,6 +61,7 @@ __all__ = [
     "distributed_primme_eigsh",
     "is_primme_mpi_available",
     "TileGPUResidentHamiltonian",
+    "spin_penalty_expectations",
     "DistributedMPIGPUHamiltonian",
     "configure_gpu_logging",
     "gpu_profile_record",

@@ -15,7 +15,6 @@ import numpy as np
 
 from ..common.hash_utils import _EMPTY_KEY, _splitmix64
 
-
 _EMPTY_KEY_U32 = np.uint32(0xFFFFFFFF)
 
 

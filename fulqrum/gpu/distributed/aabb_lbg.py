@@ -111,7 +111,11 @@ def small_cliques(
     num_alpha,
 ):
 
-    from .aabb_parents import _residual_sell, choose_parent_plan, unpack_sell  # noqa: PLC0415
+    from .aabb_parents import (
+        _residual_sell,
+        choose_parent_plan,
+        unpack_sell,
+    )  # noqa: PLC0415
 
     rows, words = unpack_sell(residual_off, residual_lengths, residual_pack)
     if residual_order is not None:
@@ -247,9 +251,11 @@ def build_plan(
                 cupy.asnumpy(cross.residual_off),
                 cupy.asnumpy(cross.residual_lengths),
                 cupy.asnumpy(cross.residual_pack),
-                None
-                if cross.residual_order is None
-                else cupy.asnumpy(cross.residual_order),
+                (
+                    None
+                    if cross.residual_order is None
+                    else cupy.asnumpy(cross.residual_order)
+                ),
                 num_alpha,
             )
         except ValueError as error:

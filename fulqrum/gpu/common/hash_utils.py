@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import numpy as np
 
-
 _EMPTY_KEY = np.uint64(0xFFFFFFFFFFFFFFFF)
 _SM64_M1 = int(0xBF58476D1CE4E5B9)
 _SM64_M2 = int(0x94D049BB133111EB)

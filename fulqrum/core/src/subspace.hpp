@@ -72,7 +72,7 @@ typedef struct Subspace
     static void validate_strings(const std::vector<std::string>& strings, std::size_t width)
     {
         if(width == 0 || width > MAX_WIDTH)
-            throw std::invalid_argument("Bitstring width must be between 1 and 65535.");
+            throw std::invalid_argument("Bitstring width must be between 1 and 8192.");
         for(std::size_t i = 0; i < strings.size(); i++)
         {
             if(strings[i].size() != width ||

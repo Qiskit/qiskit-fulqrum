@@ -284,6 +284,27 @@ struct FqDoublesBuildTables
     double* values;
 };
 
+/**
+ * Opposite-direction corrections of alpha-beta doubles that move one orbital pair in both sectors.
+ *
+ * alpha_moves[(row * alpha_electrons + k) * (num_orbitals - alpha_electrons) + m] is, for this rank's
+ * output alpha string ``row``, its k-th occupied orbital j and m-th empty orbital i:
+ * sign * (index of row - j + i, plus 1), or 0 outside the subspace; likewise beta_moves. corrections is
+ * indexed by fq::pair_index::gpu_pair.
+ */
+struct FqSpinFlipTables
+{
+    const std::uint64_t* alpha_strings;
+    const std::uint64_t* beta_strings;
+    const std::int32_t* alpha_moves;
+    const std::int32_t* beta_moves;
+    const double* corrections;
+    std::int32_t num_orbitals;
+    std::int32_t alpha_electrons;
+    std::int32_t beta_electrons;
+    std::int32_t reserved;
+};
+
 enum FqParamStruct : int
 {
     kFqTileGeometry = 0,
@@ -305,7 +326,8 @@ enum FqParamStruct : int
     kFqAlphaDoubleClassTables = 16,
     kFqCrossLbgTables = 17,
     kFqCrossRslTables = 18,
-    kFqParamStructCount = 19
+    kFqSpinFlipTables = 19,
+    kFqParamStructCount = 20
 };
 
 static_assert(sizeof(FqTileGeometry) == 56, "FqTileGeometry layout changed");
@@ -329,3 +351,4 @@ static_assert(sizeof(FqBetaDoubleClassTables) == 56, "FqBetaDoubleClassTables la
 static_assert(sizeof(FqAlphaDoubleClassTables) == 120, "FqAlphaDoubleClassTables layout changed");
 static_assert(sizeof(FqCrossLbgTables) == 56, "FqCrossLbgTables layout changed");
 static_assert(sizeof(FqCrossRslTables) == 96, "FqCrossRslTables layout changed");
+static_assert(sizeof(FqSpinFlipTables) == 56, "FqSpinFlipTables layout changed");

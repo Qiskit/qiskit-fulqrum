@@ -44,7 +44,12 @@ from . import _collective
 from .exchange import ExchangeExecutor
 from .recorder import MatvecRecorder, RecorderSettings
 from .grid import GridComms, TileGrid, discover_sources
-from .operator_check import DIRECTION_TOLERANCE, unsupported_groups
+from .operator_check import (
+    DIRECTION_TOLERANCE,
+    spin_flip_corrections,
+    unsupported_groups,
+)
+from .spin_flip import build_spin_flip
 from .local_comm import LocalComm, mpi_namespace
 from .rank_agreement import (
     check_same_choice,
@@ -96,6 +101,7 @@ from .launch import (
     build_source_caches,
     cross_ready,
     launch_cross,
+    launch_spin_flip,
     launch_steady_arms,
     single_word_strings,
 )
@@ -251,7 +257,7 @@ def tile_operator_error(spmv, gpu_data, num_alpha, key_words):
     grp_oi = np.ascontiguousarray(gpu_data["grp_offdiag_inds"])
     grp_os = np.ascontiguousarray(gpu_data["grp_offdiag_sizes"])
     grp4_direct = _direct_integrals(gpu_data, num_alpha)
-    found = unsupported_groups(spmv, num_alpha, grp4_direct)
+    found = unsupported_groups(spmv, num_alpha, grp4_direct, spin_flips=True)
     if found:
         return f"{len(found)} operator group(s) are not supported ({found[0][2]})", None
     for check in (
@@ -872,6 +878,7 @@ class TileGPUResidentHamiltonian(LinearOperator):
         self._d_oper_elems = None
 
         self._d_aabb_g = None
+        self._spin_flip = None
         self._d_grp2_ht_keys = None
         self._d_grp2_ht_vals = None
         self._d_grp2_ht_bitset = None
@@ -1545,9 +1552,11 @@ class TileGPUResidentHamiltonian(LinearOperator):
         modes = self._comm.allgather(self._exchange_mode)
         raise_on_every_rank(
             self._comm,
-            None
-            if len(set(modes)) == 1
-            else f"FQ_EXCHANGE differs across ranks: {modes}",
+            (
+                None
+                if len(set(modes)) == 1
+                else f"FQ_EXCHANGE differs across ranks: {modes}"
+            ),
         )
         two_level_backend = self._backend_name == "nccl" or bool(
             self._config.value("_FULQRUM_TWO_LEVEL_ANY_BACKEND")
@@ -1631,11 +1640,13 @@ class TileGPUResidentHamiltonian(LinearOperator):
         plan = _hierarchical_exchange_plan(self._rank, domains, sources_by_rank)
         raise_on_every_rank(
             self._comm,
-            None
-            if node_members == plan.domain_members
-            else "two-level exchange requires node-communicator rank order to match "
-            f"domain member order; got node_members={node_members}, "
-            f"domain_members={plan.domain_members}",
+            (
+                None
+                if node_members == plan.domain_members
+                else "two-level exchange requires node-communicator rank order to match "
+                f"domain member order; got node_members={node_members}, "
+                f"domain_members={plan.domain_members}"
+            ),
         )
         check_pairing(
             self._comm,
@@ -1667,7 +1678,7 @@ class TileGPUResidentHamiltonian(LinearOperator):
 
     def _validate_operator_groups(self, spmv, num_alpha: int, grp4_direct) -> None:
 
-        found = unsupported_groups(spmv, num_alpha, grp4_direct)
+        found = unsupported_groups(spmv, num_alpha, grp4_direct, spin_flips=True)
         self._construction_timing["operator_groups_checked"] = len(grp4_direct)
         if not found:
             return
@@ -1909,7 +1920,9 @@ class TileGPUResidentHamiltonian(LinearOperator):
         spmv = self._hsub.spmv
         if not self._cupy_available or not isinstance(spmv, FulqrumSpMV):
             return
-        from fulqrum.gpu.distributed.tile_discovery import _build_tile_connection_tables  # noqa: PLC0415
+        from fulqrum.gpu.distributed.tile_discovery import (
+            _build_tile_connection_tables,
+        )  # noqa: PLC0415
 
         steps = {}
         clock = [time.perf_counter()]
@@ -1989,7 +2002,9 @@ class TileGPUResidentHamiltonian(LinearOperator):
 
     def _read_operator_groups(self, spmv, gpu_data):
 
-        from fulqrum.gpu.distributed.tile_discovery import _group_flip_masks  # noqa: PLC0415
+        from fulqrum.gpu.distributed.tile_discovery import (
+            _group_flip_masks,
+        )  # noqa: PLC0415
 
         num_alpha = int(spmv.subspace.num_alpha_qubits)
         num_beta = int(spmv.width) - num_alpha
@@ -2143,7 +2158,9 @@ class TileGPUResidentHamiltonian(LinearOperator):
 
     def _upload_term_tables(self, gpu_data) -> None:
 
-        from fulqrum.gpu.distributed.dist_matvec import _OPER_ELEMS_HOST  # noqa: PLC0415
+        from fulqrum.gpu.distributed.dist_matvec import (
+            _OPER_ELEMS_HOST,
+        )  # noqa: PLC0415
 
         if self._has_offdiag:
             (
@@ -2192,7 +2209,10 @@ class TileGPUResidentHamiltonian(LinearOperator):
 
         if grp4_direct is None:
             return
-        if self._host_arms:
+        corrections = spin_flip_corrections(spmv, self._num_alpha)
+        if self._host_arms or corrections:
+            # The exact same-direction values; with corrections, the first-term
+            # values of grp4_direct do not hold for the direction-dependent groups.
             g_dense = aabb_coefficients(
                 cross_sector_table(spmv), self._num_alpha, self._num_beta
             )
@@ -2206,6 +2226,19 @@ class TileGPUResidentHamiltonian(LinearOperator):
             )
         self._d_aabb_g = _to_device(g_dense, np.float64)
         self._aabb_csr_bytes += int(self._d_aabb_g.nbytes)
+        self._spin_flip = build_spin_flip(
+            corrections,
+            self._alpha_uniq,
+            self._beta_uniq,
+            (self._a0, self._a0 + self._n_a_local),
+            (self._b0, self._b0 + self._n_b_local),
+            self._num_alpha,
+            self._num_beta,
+            _to_device,
+        )
+        if self._spin_flip is not None:
+            self._aabb_csr_bytes += self._spin_flip.nbytes
+            self._construction_timing["spin_flip_pairs"] = len(corrections)
 
     def _free_term_tables(self) -> None:
 
@@ -2485,9 +2518,9 @@ class TileGPUResidentHamiltonian(LinearOperator):
             n_beta_edges=beta["n_beta_edges"],
             n_rows=self._n_b_local,
             orbitals=int(self._num_alpha),
-            grouped_edges=beta.get("grouped_edges")
-            if arm_plan.aabb_path == ARM_CLIQUE
-            else None,
+            grouped_edges=(
+                beta.get("grouped_edges") if arm_plan.aabb_path == ARM_CLIQUE else None
+            ),
             **common,
         )
 
@@ -3496,9 +3529,11 @@ class TileGPUResidentHamiltonian(LinearOperator):
                     for a in (d_src_in, d_out, d_alpha_slot, d_beta_slot)
                 ),
                 *(_device_address(a) for a in tables),
-                single_word_strings(self._d_alpha_uniq, "diagonal")
-                if self._d_diag_Mb is not None
-                else _device_address(self._d_alpha_uniq),
+                (
+                    single_word_strings(self._d_alpha_uniq, "diagonal")
+                    if self._d_diag_Mb is not None
+                    else _device_address(self._d_alpha_uniq)
+                ),
                 int(self._num_alpha),
                 int(stream_handle),
             )
@@ -3903,11 +3938,12 @@ class TileGPUResidentHamiltonian(LinearOperator):
             beta_strings=self._d_beta_uniq,
             coefficients=self._d_aabb_g,
             cross=cross,
-            arm_events=self._recorder.arm_events
-            if self._recorder is not None
-            else None,
+            arm_events=(
+                self._recorder.arm_events if self._recorder is not None else None
+            ),
             bbbb_class=bbbb_class,
             aaaa_class=aaaa_class,
+            spin_flip=self._spin_flip,
         )
         self._add_aabb_events(launch, src_rank, same_alpha, same_beta)
         try:
@@ -3923,6 +3959,7 @@ class TileGPUResidentHamiltonian(LinearOperator):
                     stream_handle,
                 )
             launch_steady_arms(launch)
+            launch_spin_flip(launch)
         except RuntimeError as error:
             raise RuntimeError(
                 f"rank {self._rank} source {src_rank} ({source_class(same_alpha, same_beta)}): "
@@ -4284,9 +4321,11 @@ class TileGPUResidentHamiltonian(LinearOperator):
             dict(
                 src=src_rank,
                 kind=source_class(same_alpha, same_beta),
-                path=("transposed_clique" if launch.cross.transposed else "clique")
-                if clique
-                else "baseline",
+                path=(
+                    ("transposed_clique" if launch.cross.transposed else "clique")
+                    if clique
+                    else "baseline"
+                ),
                 start=events.get("source_start"),
                 end=events.get("source_end"),
                 parent_start=events.get("parent_start"),
@@ -4791,9 +4830,11 @@ class TileGPUResidentHamiltonian(LinearOperator):
         )
         raise_on_every_rank(
             self._comm,
-            "an operator group could not be factored over the other sector"
-            if failed
-            else None,
+            (
+                "an operator group could not be factored over the other sector"
+                if failed
+                else None
+            ),
             RuntimeError,
             "arm cache build",
         )

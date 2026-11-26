@@ -141,10 +141,12 @@ class _HostMpiBackend(_Backend):
         sizes = comm.allgather(self._piece_bytes)
         raise_on_every_rank(
             comm,
-            None
-            if len(set(sizes)) == 1
-            else f"FQ_HOST_MPI_CHUNK_MiB differs across ranks: "
-            f"{sorted(set(sizes))} bytes",
+            (
+                None
+                if len(set(sizes)) == 1
+                else f"FQ_HOST_MPI_CHUNK_MiB differs across ranks: "
+                f"{sorted(set(sizes))} bytes"
+            ),
             what="host_mpi settings",
         )
         from ._ipc import IpcPeers  # noqa: PLC0415
@@ -319,7 +321,12 @@ class _HostMpiBackend(_Backend):
         import cupy  # noqa: PLC0415
         from mpi4py import MPI  # noqa: PLC0415
 
-        from ._ipc import _DESCRIPTOR, _DESCRIPTOR_TAG, _DONE_TAG, describe  # noqa: PLC0415
+        from ._ipc import (
+            _DESCRIPTOR,
+            _DESCRIPTOR_TAG,
+            _DONE_TAG,
+            describe,
+        )  # noqa: PLC0415
 
         ipc = self._ipc
         rt = cupy.cuda.runtime

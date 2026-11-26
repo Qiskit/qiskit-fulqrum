@@ -49,6 +49,8 @@ include "includes/converters.pxi"
 include "includes/io.pxi"
 include "includes/diag_header.pxi"
 
+from fulqrum.core.constants cimport MAX_WIDTH
+
 
 cdef const OperatorTerm_t EmptyOperatorTerm
 
@@ -72,6 +74,8 @@ cdef class QubitOperator():
 
     def __cinit__(self, unsigned int width,
                   object operators=None):
+        if width < 1 or width > MAX_WIDTH:
+            raise FulqrumError(f"Operator width is out of bounds: [1, {MAX_WIDTH}]")
         self.oper.width = width
         self.oper.sorted = False
         cdef object item
@@ -133,6 +137,8 @@ cdef class QubitOperator():
         Returns:
             QubitOperator: Constant operator
         """
+        if width < 1 or width > MAX_WIDTH:
+            raise FulqrumError(f"Operator width is out of bounds: [1, {MAX_WIDTH}]")
         cdef QubitOperator out = QubitOperator(width, [()])
         out.oper.terms[0].coeff = coeff
         return out
@@ -498,6 +504,28 @@ cdef class QubitOperator():
         for kk in range(out.oper.terms.size()):
             out.oper.terms[kk].coeff *= other
         return out
+
+    def multiply(self, QubitOperator other):
+        """Operator product of two QubitOperators.
+
+        Note:
+            Not implemented yet. To build a product of operators, construct
+            it at the `fulqrum.core.fermi_operator.FermionicOperator` level
+            (which supports ``multiply`` / ``@``) and then apply
+            ``extended_jw_transformation``.
+
+        Raises:
+            NotImplementedError: Always.
+        """
+        raise NotImplementedError(
+            "QubitOperator operator-operator multiplication is not implemented. "
+            "Build the product as a FermionicOperator (which supports `@`) and "
+            "then call `extended_jw_transformation()`."
+        )
+
+    def __matmul__(self, QubitOperator other):
+        """Operator product ``self @ other`` (see :meth:`multiply`)."""
+        return self.multiply(other)
 
     @cython.boundscheck(False)
     def __repr__(self):

@@ -417,9 +417,10 @@ def _pair_ids(orbitals: int) -> tuple:
 
     high = np.array([q for q in range(orbitals) for _ in range(q)], dtype=np.int64)
     low = np.array([p for q in range(orbitals) for p in range(q)], dtype=np.int64)
-    return low * (2 * orbitals - low - 1) // 2 + (high - low - 1), high * (
-        high - 1
-    ) // 2 + low
+    return (
+        low * (2 * orbitals - low - 1) // 2 + (high - low - 1),
+        high * (high - 1) // 2 + low,
+    )
 
 
 def _row_keys(offsets, columns, width: int) -> np.ndarray:

@@ -86,7 +86,9 @@ def _copy_bit_range(target, source, low, high):
 
 def extend_to_domain_union(comm, domain_comm, domains, block, receiver):
 
-    from fulqrum.gpu.distributed.rank_agreement import run_on_every_rank  # noqa: PLC0415
+    from fulqrum.gpu.distributed.rank_agreement import (
+        run_on_every_rank,
+    )  # noqa: PLC0415
 
     rank = comm.Get_rank()
     own_domain = next(domain for domain in domains if rank in domain)
@@ -142,10 +144,12 @@ class TwoLevelExchange:
 
         ask = np.array(
             [
-                lengths[q]
-                if q != rank
-                and (domain_of[q] == mine or delegate(q, own_domain) == rank)
-                else 0
+                (
+                    lengths[q]
+                    if q != rank
+                    and (domain_of[q] == mine or delegate(q, own_domain) == rank)
+                    else 0
+                )
                 for q in range(size)
             ],
             dtype=np.int64,
@@ -347,9 +351,11 @@ class TwoLevelExchange:
         receives = sorted(entry for _, r in everything for entry in r)
         raise_on_every_rank(
             comm,
-            None
-            if sends == receives
-            else "the two-level messages do not pair across ranks",
+            (
+                None
+                if sends == receives
+                else "the two-level messages do not pair across ranks"
+            ),
             what="two-level exchange",
         )
 

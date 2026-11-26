@@ -88,6 +88,7 @@ def _default_2d_process_grid(size: int) -> tuple[int, int]:
 def DistributedMPIGPUHamiltonian(
     hsub,
     layout: str = "tile_resident",
+    spin_penalty: float | None = None,
     **kwargs,
 ):
     """Wrapper for distributed GPU-backed real type-2 Hamiltonian implementations.
@@ -106,6 +107,11 @@ def DistributedMPIGPUHamiltonian(
     Args:
         hsub: Real type-2 ``SubspaceHamiltonian`` on the half-string product.
         layout: Must be ``"tile_resident"`` (default).
+        spin_penalty: Optional weight ``lam``. The operator becomes
+            ``H + lam * (S^2 - s(s+1))`` for the lowest spin of the sector,
+            ``s = |N_alpha - N_beta| / 2``. Pass the returned operator to
+            ``fulqrum.gpu.spin_penalty_expectations`` for ``<S^2>`` and ``<H>``
+            of an eigenvector.
         **kwargs: Optional constructor settings listed below. Other keyword
             names raise TypeError. Sector strings are supplied from ``hsub``.
 
@@ -158,6 +164,16 @@ def DistributedMPIGPUHamiltonian(
         TileGPUResidentHamiltonian,
     )
 
-    return TileGPUResidentHamiltonian(
+    sector = None
+    if spin_penalty:
+        from ..spin_penalty import penalized_hamiltonian  # noqa: PLC0415
+
+        hsub, sector = penalized_hamiltonian(hsub, spin_penalty)
+    ham = TileGPUResidentHamiltonian(
         hsub, subspace.alpha_strs, subspace.beta_strs, **kwargs
     )
+    ham.spin_penalty = spin_penalty
+    ham.spin_penalty_sector = sector
+    ham.spin_penalty_subspace = subspace
+    ham.spin_penalty_kwargs = dict(kwargs)
+    return ham

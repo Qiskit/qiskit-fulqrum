@@ -133,6 +133,7 @@ class SourceLaunch:
     arm_events: object = None
     bbbb_class: object = None
     aaaa_class: object = None
+    spin_flip: object = None
 
 
 def _check(launch_call, arm: str, launch=None) -> None:
@@ -752,6 +753,35 @@ def launch_steady_arms(launch: SourceLaunch) -> None:
     _beta_doubles(kernel_launch, launch)
     _beta_singles(kernel_launch, launch)
     _cross(kernel_launch, launch)
+
+
+def launch_spin_flip(launch: SourceLaunch) -> None:
+    """Add this source's opposite-direction corrections (``spin_flip.py``), if the operator has any."""
+    flip = launch.spin_flip
+    if flip is None:
+        return
+    from . import kernel_launch  # noqa: PLC0415
+
+    _check(
+        lambda: kernel_launch.launch_spin_flip(
+            launch.geometry,
+            launch.src_in,
+            launch.out,
+            launch.alpha_slot,
+            launch.beta_slot,
+            single_word_strings(launch.alpha_strings, "spin-flip"),
+            single_word_strings(launch.beta_strings, "spin-flip"),
+            address(flip.alpha_moves),
+            address(flip.beta_moves),
+            address(flip.corrections),
+            flip.num_orbitals,
+            flip.alpha_electrons,
+            flip.beta_electrons,
+            launch.stream,
+        ),
+        "spin flip",
+        launch,
+    )
 
 
 def launch_cross(launch: SourceLaunch) -> None:

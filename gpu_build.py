@@ -380,6 +380,7 @@ KERNEL_SOURCES = [
         "cross_direct.cu",
         "cross_clique.cu",
         "cross_lbg.cu",
+        "spin_flip.cu",
         "cache_build.cu",
         "param_sizes.cu",
     )

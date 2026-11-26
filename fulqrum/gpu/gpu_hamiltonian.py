@@ -86,6 +86,11 @@ class GPUHamiltonian(LinearOperator):
         threads_per_block: CUDA threads per kernel block; defaults to 256.
         verbose: Emit a DEBUG log describing wrapper construction. Configure
             the GPU logger at DEBUG level to display it.
+        spin_penalty: Optional weight ``lam``. The operator becomes
+            ``H + lam * (S^2 - s(s+1))`` for the lowest spin of the sector,
+            ``s = |N_alpha - N_beta| / 2`` (PySCF's linear ``fix_spin_``).
+            ``spin_penalty_expectations`` gives ``<S^2>`` and ``<H>`` of an
+            eigenvector.
 
     Raises:
         NotImplementedError: The Hamiltonian has complex values.
@@ -97,12 +102,27 @@ class GPUHamiltonian(LinearOperator):
         RuntimeError: Construction checks or predicted device-memory checks fail.
     """
 
-    def __init__(self, hsub, gpu_ids=None, threads_per_block=256, verbose=False):
+    def __init__(
+        self,
+        hsub,
+        gpu_ids=None,
+        threads_per_block=256,
+        verbose=False,
+        spin_penalty=None,
+    ):
 
         if not hsub.spmv.is_real:
             raise NotImplementedError(
                 "GPUHamiltonian currently supports real-valued operators only."
             )
+        self.spin_penalty = spin_penalty
+        self.spin_penalty_sector = None
+        self.spin_penalty_subspace = None
+        if spin_penalty:
+            from .spin_penalty import penalized_hamiltonian  # noqa: PLC0415
+
+            hsub, self.spin_penalty_sector = penalized_hamiltonian(hsub, spin_penalty)
+            self.spin_penalty_subspace = hsub.spmv.subspace
         spmv = hsub.spmv
         if isinstance(spmv, FulqrumSpMV):
             num_alpha = int(spmv.subspace.num_alpha_qubits)
@@ -116,7 +136,9 @@ class GPUHamiltonian(LinearOperator):
         _check_gpu_preconditions(hsub, "GPUHamiltonian")
         import cupy  # noqa: PLC0415
 
-        from .distributed.dist_matvec_tile_resident import TileGPUResidentHamiltonian  # noqa: PLC0415
+        from .distributed.dist_matvec_tile_resident import (
+            TileGPUResidentHamiltonian,
+        )  # noqa: PLC0415
 
         if gpu_ids is None:
             gpu_ids = (int(cupy.cuda.runtime.getDevice()),)
@@ -163,6 +185,23 @@ class GPUHamiltonian(LinearOperator):
                 self._ranks[0].construction_timing,
                 extra={"gpu_rank": 0},
             )
+
+    def spin_penalty_expectations(self, eigenvalue, vector) -> dict:
+        """``<S^2>`` and ``<H>`` of an eigenvector.
+
+        Args:
+            eigenvalue: Eigenvalue of this operator for ``vector``.
+            vector: The eigenvector.
+
+        Returns:
+            ``{"s2", "energy"}``.
+
+        Raises:
+            ValueError: The operator was built without ``spin_penalty``.
+        """
+        from .spin_penalty import spin_penalty_expectations  # noqa: PLC0415
+
+        return spin_penalty_expectations(self, eigenvalue, vector)
 
     @property
     def gpu_ids(self) -> tuple:

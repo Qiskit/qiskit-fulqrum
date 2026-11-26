@@ -18,7 +18,7 @@ Fulqrum can utilize both CPU and GPU (Nvidia only) computing resources. However,
 | Feature | CPU-compatible | GPU-compatible |
 | --- | --- | --- |
 | Distributed (multi-node)| ✗ | ✓ |
-| Max. qubits | 65,536 | 256 |
+| Max. qubits | 8,192 | 256 |
 | Cartesian Subspace (TPB) | ✓ | ✓ |
 | General Subspace (GDB) | ✓ | ✓ |
 | 1-RDM and 2-RDM | ✗ | ✓ |

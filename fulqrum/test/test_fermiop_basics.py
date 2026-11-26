@@ -12,8 +12,11 @@
 # pylint: disable=no-name-in-module
 """Test basic core functionality"""
 
+import pytest
 import numpy as np
 from fulqrum import FermionicOperator
+from fulqrum.exceptions import FulqrumError
+from fulqrum.core.constants import MAX_QUBITS
 
 
 def test_empty_fermioperator():
@@ -112,13 +115,6 @@ def test_fermioperator_subtraction():
     assert fop1[1].coeff == fop2[1].coeff
 
 
-def test_fermioperator_from_label():
-    """Test Fermi from label construction"""
-    fop1 = FermionicOperator.from_label(5, "+:0 1:2 -:3", -5 + 3j)
-    fop2 = FermionicOperator(5, [("+1-", (0, 2, 3), -5 + 3j)])
-    assert fop1.operators == fop2.operators
-
-
 def test_fermionoperator_copy():
     """Test fermi operator copy"""
     N = 6
@@ -129,3 +125,22 @@ def test_fermionoperator_copy():
     assert fop2[0].operators == fop1[0].operators
     assert fop2[1].operators == fop1[1].operators
     assert np.allclose(fop2.coefficients(), fop1.coefficients())
+
+
+def test_fermionoperator_max_width():
+    """Validate that max width is obeyed and throws if over"""
+    with pytest.raises(FulqrumError):
+        FermionicOperator(MAX_QUBITS + 1)
+
+
+def test_fermioperator_from_label():
+    """Test Fermi from label construction"""
+    fop1 = FermionicOperator.from_label(5, "+:0 1:2 -:3", -5 + 3j)
+    fop2 = FermionicOperator(5, [("+1-", (0, 2, 3), -5 + 3j)])
+    assert fop1.operators == fop2.operators
+
+
+def test_empty_fermiop_gets_correct_coeff():
+    """Coeff for an empty fermiop still gets applied"""
+    fop = FermionicOperator(5, [("", [], 0.0)])
+    assert fop.coeff == 0.0

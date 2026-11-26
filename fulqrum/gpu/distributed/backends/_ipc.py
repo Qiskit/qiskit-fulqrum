@@ -53,9 +53,11 @@ class IpcPeers:
             return cls(False, None, None, "FQ_HOST_MPI_USE_CUDA_IPC is off")
         raise_on_every_rank(
             comm,
-            None
-            if all(wants)
-            else f"FQ_HOST_MPI_USE_CUDA_IPC differs across ranks: {wants}",
+            (
+                None
+                if all(wants)
+                else f"FQ_HOST_MPI_USE_CUDA_IPC differs across ranks: {wants}"
+            ),
             what="host_mpi IPC settings",
         )
         import cupy  # noqa: PLC0415

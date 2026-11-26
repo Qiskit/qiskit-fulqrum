@@ -105,10 +105,11 @@ typedef struct FermionicOperator
         {
             term = self.terms[kk];
             os << "{";
-            for(jj = 0; jj < term.indices.size(); jj++)
+            for(jj = 0; jj < term.size(); jj++)
             {
-                os << rev_oper_map[term.values[jj]] << ":" << term.indices[jj];
-                if(jj != term.indices.size() - 1)
+                auto [ind, val] = unpack_indval(term.data[jj]);
+                os << rev_oper_map[val] << ":" << ind;
+                if(jj != term.size() - 1)
                 {
                     os << " ";
                 }
@@ -260,6 +261,45 @@ typedef struct FermionicOperator
         return out;
     }
     /**
+     * Operator product with another FermionicOperator.
+     *
+     * @param[in] other The right-hand operator.
+     * @return The product operator (this * other).
+     * @throw Error if operators do not share the same width.
+     */
+    FermionicOperator operator*(FermionicOperator other) const
+    {
+        return this->multiply(other);
+    }
+    /**
+     * Operator product with another FermionicOperator (named form).
+     *
+     * Equivalent to ``operator*`` but exposed under a name so it can be called
+     * from Cython.
+     *
+     * @param[in] other The right-hand operator.
+     * @return The product operator (this * other).
+     * @throw Error if operators do not share the same width.
+     */
+    FermionicOperator multiply(FermionicOperator other) const
+    {
+        if(other.width != this->width)
+        {
+            throw std::runtime_error("Operators must have the same width");
+        }
+        FermionicOperator out = FermionicOperator(this->width);
+        out.terms.reserve(this->size() * other.size());
+        for(std::size_t ii = 0; ii < this->size(); ii++)
+        {
+            for(std::size_t jj = 0; jj < other.size(); jj++)
+            {
+                out.terms.push_back(this->terms[ii].multiply(other.terms[jj]));
+            }
+        }
+        out.combined = 0;
+        return out;
+    }
+    /**
      * Return the size of the operator
      */
     std::size_t size() const
@@ -293,13 +333,13 @@ typedef struct FermionicOperator
             tbb::parallel_sort(terms.begin(),
                                terms.end(),
                                [](const FermionicTerm& term1, const FermionicTerm& term2) {
-                                   return term1.indices.size() < term2.indices.size();
+                                   return term1.size() < term2.size();
                                });
 #else
             boost::sort::pdqsort(terms.begin(),
                                  terms.end(),
                                  [](const FermionicTerm& term1, const FermionicTerm& term2) {
-                                     return term1.indices.size() < term2.indices.size();
+                                     return term1.size() < term2.size();
                                  });
 #endif
             set_fermi_sorting_flags(*this, "weight");
@@ -371,7 +411,7 @@ typedef struct FermionicOperator
         }
         std::vector<std::size_t> ptrs;
         set_offdiag_structure_ptrs(terms, ptrs);
-        combine_terms(this->terms, out.terms, ptrs, atol);
+        combine_terms_fermi(this->terms, out.terms, ptrs, atol);
         this->unique_terms = 1;
         return out;
     }

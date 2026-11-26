@@ -12,9 +12,12 @@
 # pylint: disable=no-name-in-module
 """Test basic core functionality"""
 
+import pytest
 import numpy as np
 import fulqrum as fq
 from fulqrum import QubitOperator
+from fulqrum.exceptions import FulqrumError
+from fulqrum.core.constants import MAX_QUBITS
 
 
 def test_empty_qubitoperator():
@@ -249,3 +252,9 @@ def test_matrix_elements_index_gt_31():
     op = fq.QubitOperator(N, [("X", N - 1, 1.0)])
     val = op.matrix_element("0".zfill(N), "1" + "0".zfill(N - 1))
     assert val == 1.0
+
+
+def test_qubitop_max_width():
+    """Validate that max width is obeyed and throws if over"""
+    with pytest.raises(FulqrumError):
+        QubitOperator(MAX_QUBITS + 1)
