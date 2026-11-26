@@ -131,6 +131,11 @@ extern "C"
 
     const char* fq_error_name(int status);
 
+    int fq_launch_spin_flip(const FqTileGeometry* geometry,
+                            const FqVectors* vectors,
+                            const FqSpinFlipTables* tables,
+                            void* stream);
+
     std::size_t fq_param_struct_size(int which);
 
     int fq_probe_fp64_mma(int iterations,

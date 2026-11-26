@@ -207,6 +207,17 @@ cdef extern from "../kernels/formats/params.hpp":
         int32_t orbitals
         int32_t members_per_clique
 
+    cdef struct FqSpinFlipTables:
+        const uint64_t* alpha_strings
+        const uint64_t* beta_strings
+        const int32_t* alpha_moves
+        const int32_t* beta_moves
+        const double* corrections
+        int32_t num_orbitals
+        int32_t alpha_electrons
+        int32_t beta_electrons
+        int32_t reserved
+
     cdef struct FqTermTables:
         const double* term_header
         const uint64_t* term_inds_vals
@@ -275,6 +286,7 @@ cdef extern from "../kernels/formats/params.hpp":
         kFqAlphaDoubleClassTables
         kFqCrossLbgTables
         kFqCrossRslTables
+        kFqSpinFlipTables
         kFqParamStructCount
 
 
@@ -322,6 +334,8 @@ cdef extern from "../kernels/launch.hpp":
                             const FqCrossCliqueTables* tables, const FqCrossLbgTables* lbg, void* stream) nogil
     int fq_launch_cross_rsl(const FqTileGeometry* geometry, const FqVectors* vectors,
                             const FqCrossRslTables* rsl, void* stream) nogil
+    int fq_launch_spin_flip(const FqTileGeometry* geometry, const FqVectors* vectors,
+                            const FqSpinFlipTables* tables, void* stream) nogil
     size_t fq_param_struct_size(int which)
     const char* fq_error_name(int status)
 
@@ -348,6 +362,7 @@ def _check_struct_sizes():
         kFqAlphaDoubleClassTables: sizeof(FqAlphaDoubleClassTables),
         kFqCrossLbgTables: sizeof(FqCrossLbgTables),
         kFqCrossRslTables: sizeof(FqCrossRslTables),
+        kFqSpinFlipTables: sizeof(FqSpinFlipTables),
     }
     for which, size in sizes.items():
         if fq_param_struct_size(which) != size:
@@ -975,3 +990,27 @@ def build_beta_singles(tuple geometry, tuple terms, tuple tables, uintptr_t stre
         status = fq_launch_build_beta_singles(&tile, &term_tables, &build, <void*> stream)
     if status:
         raise _launch_error("beta singles build launch", status)
+
+
+def launch_spin_flip(tuple geometry, uintptr_t src_in, uintptr_t out_local, uintptr_t alpha_slot,
+                     uintptr_t beta_slot, uintptr_t alpha_strings, uintptr_t beta_strings,
+                     uintptr_t alpha_moves, uintptr_t beta_moves, uintptr_t corrections, int num_orbitals,
+                     int alpha_electrons, int beta_electrons, uintptr_t stream):
+    """Add the opposite-direction corrections of one source tile (see ``spin_flip.py``)."""
+    cdef FqTileGeometry tile = _geometry(geometry)
+    cdef FqVectors vectors = _vectors(src_in, out_local, alpha_slot, beta_slot)
+    cdef FqSpinFlipTables tables
+    memset(&tables, 0, sizeof(tables))
+    tables.alpha_strings = <const uint64_t*> alpha_strings
+    tables.beta_strings = <const uint64_t*> beta_strings
+    tables.alpha_moves = <const int32_t*> alpha_moves
+    tables.beta_moves = <const int32_t*> beta_moves
+    tables.corrections = <const double*> corrections
+    tables.num_orbitals = num_orbitals
+    tables.alpha_electrons = alpha_electrons
+    tables.beta_electrons = beta_electrons
+    cdef int status
+    with nogil:
+        status = fq_launch_spin_flip(&tile, &vectors, &tables, <void*> stream)
+    if status:
+        raise _launch_error("spin-flip correction kernel launch", status)

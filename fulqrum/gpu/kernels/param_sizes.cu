@@ -65,6 +65,8 @@ extern "C"
             return sizeof(FqCrossLbgTables);
         case kFqCrossRslTables:
             return sizeof(FqCrossRslTables);
+        case kFqSpinFlipTables:
+            return sizeof(FqSpinFlipTables);
         default:
             return 0;
         }

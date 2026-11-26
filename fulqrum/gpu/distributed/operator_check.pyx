@@ -124,9 +124,33 @@ def cross_group_values(FulqrumSpMV spmv, int num_alpha_qubits):
     return values
 
 
-def unsupported_groups(FulqrumSpMV spmv, int num_alpha_qubits, gpu_coefficients=None):
+def _spin_flip_pair(values, flips, int num_alpha_qubits):
+    """The orbital pair of a direction-dependent group that the spin-flip correction can carry, else None.
+
+    The group must be real and Hermitian (patterns 0 and 3 equal, patterns 1 and 2 equal), and its alpha and
+    beta flips must move the same orbital pair. The GPU tables then hold the same-direction value and the
+    correction adds the difference on opposite-direction connections.
+    """
+    scale = max(abs(value) for value in values)
+    if (
+        abs(values[0] - values[3]) > DIRECTION_TOLERANCE * scale
+        or abs(values[1] - values[2]) > DIRECTION_TOLERANCE * scale
+    ):
+        return None
+    alpha = sorted(qubit for qubit in flips if qubit < num_alpha_qubits)
+    beta = sorted(qubit - num_alpha_qubits for qubit in flips if qubit >= num_alpha_qubits)
+    if len(alpha) != 2 or alpha != beta:
+        return None
+    return alpha[0], alpha[1]
 
 
+def unsupported_groups(FulqrumSpMV spmv, int num_alpha_qubits, gpu_coefficients=None, spin_flips=False):
+    """Operator groups the GPU operator cannot evaluate, as (group, flips, reason).
+
+    With ``spin_flips``, direction-dependent groups that ``spin_flip_corrections`` carries are accepted; the
+    GPU coefficient table then holds their exact same-direction value (``cross_sector_table``), so
+    ``gpu_coefficients`` is not compared for them.
+    """
     cdef size_t group
     cdef int pattern
     cdef CheckTables tables
@@ -152,7 +176,10 @@ def unsupported_groups(FulqrumSpMV spmv, int num_alpha_qubits, gpu_coefficients=
             continue
         scale = max(abs(value) for value in values)
         if any(abs(value - values[0]) > DIRECTION_TOLERANCE * scale for value in values):
-            found.append((group, flips, "direction_dependent_cross_value"))
+            if not (spin_flips and _spin_flip_pair(values, flips, num_alpha_qubits) is not None):
+                found.append((group, flips, "direction_dependent_cross_value"))
+            # Accepted: the GPU then builds its table from the exact cross values, so the
+            # first-term coefficients in gpu_coefficients do not apply to this group.
             continue
         if gpu_coefficients is None:
             continue
@@ -160,3 +187,35 @@ def unsupported_groups(FulqrumSpMV spmv, int num_alpha_qubits, gpu_coefficients=
         if abs(expected - scale) > DIRECTION_TOLERANCE * max(expected, scale):
             found.append((group, flips, "gpu_coefficient_mismatch"))
     return found
+
+
+def spin_flip_corrections(FulqrumSpMV spmv, int num_alpha_qubits):
+    """Opposite-direction corrections of the direction-dependent alpha-beta groups, as {(p, q): o - s}.
+
+    Covers the groups that ``unsupported_groups(..., spin_flips=True)`` accepts: real, Hermitian, and moving
+    the same orbital pair p < q in both sectors (for example the spin-flip terms of S^2). Here s is the
+    same-direction value and o the opposite-direction value. Groups whose values do not depend on the
+    direction are left out, so the result is empty for operators the GPU took before.
+    """
+    cdef size_t group
+    cdef int pattern
+    cdef CheckTables tables
+    cdef CheckGroupData plan
+    if spmv.oper.type != 2 or spmv.num_groups == 0:
+        return {}
+    tables = block_tables(spmv, num_alpha_qubits)
+    corrections = {}
+    for group in range(tables.num_groups()):
+        plan = tables.group(group)
+        if <int>plan.tier != TIER_CROSS:
+            continue
+        values = [complex(plan.cross_values[pattern]) for pattern in range(4)]
+        if any(value.imag != 0.0 for value in values):
+            continue
+        scale = max(abs(value) for value in values)
+        if all(abs(value - values[0]) <= DIRECTION_TOLERANCE * scale for value in values):
+            continue
+        pair = _spin_flip_pair(values, list(spmv.group_offdiag_inds[group]), num_alpha_qubits)
+        if pair is not None:
+            corrections[pair] = values[1].real - values[0].real
+    return corrections
