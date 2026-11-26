@@ -69,7 +69,9 @@ def test_device_layout_round_trip():
 
     from fulqrum.gpu.full_strs.device import TABLE_ARRAYS, DeviceLayout  # noqa: PLC0415
     from fulqrum.gpu.full_strs.host import HostOperator  # noqa: PLC0415
-    from fulqrum.test.test_full_strs_coefficients import random_operator  # noqa: PLC0415
+    from fulqrum.test.test_full_strs_coefficients import (
+        random_operator,
+    )  # noqa: PLC0415
     from fulqrum.test.test_full_strs_matvec import clustered_keys  # noqa: PLC0415
 
     rng = np.random.default_rng(21)
@@ -111,7 +113,9 @@ def small_host(
 ):
     """Return a host build with chunks of a random operator on clustered random rows."""
     from fulqrum.gpu.full_strs.host import HostOperator  # noqa: PLC0415
-    from fulqrum.test.test_full_strs_coefficients import random_operator  # noqa: PLC0415
+    from fulqrum.test.test_full_strs_coefficients import (
+        random_operator,
+    )  # noqa: PLC0415
     from fulqrum.test.test_full_strs_matvec import clustered_keys  # noqa: PLC0415
 
     rng = np.random.default_rng(seed)
@@ -130,7 +134,9 @@ def dense_host(norb, alpha_kind=None, beta_kind=None):
     import itertools  # noqa: PLC0415
 
     from fulqrum.gpu.full_strs.host import HostOperator  # noqa: PLC0415
-    from fulqrum.test.test_full_strs_coefficients import random_operator  # noqa: PLC0415
+    from fulqrum.test.test_full_strs_coefficients import (
+        random_operator,
+    )  # noqa: PLC0415
 
     alphas = [
         sum(1 << k for k in combo) for combo in itertools.combinations(range(norb), 4)
@@ -252,10 +258,17 @@ def test_gpu_matvec_of_large_groups_equals_the_cpu(norb):
 def test_hamiltonian_contract_and_eigensolve():
     import cupy  # noqa: PLC0415
 
-    from fulqrum.gpu.eigensolver.primme_distributed import distributed_primme_eigsh  # noqa: PLC0415
+    from fulqrum.gpu.eigensolver.primme_distributed import (
+        distributed_primme_eigsh,
+    )  # noqa: PLC0415
     from fulqrum.gpu.full_strs import FullStrsGPUHamiltonian  # noqa: PLC0415
-    from fulqrum.test.test_full_strs_coefficients import random_operator  # noqa: PLC0415
-    from fulqrum.test.test_full_strs_matvec import clustered_keys, cpu_hamiltonian  # noqa: PLC0415
+    from fulqrum.test.test_full_strs_coefficients import (
+        random_operator,
+    )  # noqa: PLC0415
+    from fulqrum.test.test_full_strs_matvec import (
+        clustered_keys,
+        cpu_hamiltonian,
+    )  # noqa: PLC0415
 
     rng = np.random.default_rng(61)
     op = random_operator(10, 62)
@@ -382,7 +395,9 @@ def test_split_output_kinds_give_the_same_bits(seed, binned):
 def test_split_source_kinds_equal_the_cpu(seed, binned):
     """Two kinds that split the source rows (the own and remote shape) equal the CPU matvec to 1e-14."""
     from fulqrum.gpu.full_strs.host import HostOperator  # noqa: PLC0415
-    from fulqrum.test.test_full_strs_coefficients import random_operator  # noqa: PLC0415
+    from fulqrum.test.test_full_strs_coefficients import (
+        random_operator,
+    )  # noqa: PLC0415
     from fulqrum.test.test_full_strs_matvec import clustered_keys  # noqa: PLC0415
 
     host = small_host(seed, num_slices=3)
@@ -457,7 +472,9 @@ def test_fixed_reduce_with_split_kinds():
 @pytest.mark.parametrize("num_slices", [1, 3])
 def test_kernel_calibration_runs_on_buckets_with_many_members(num_slices):
     from fulqrum.gpu.full_strs.probe import kernel_coefficients  # noqa: PLC0415
-    from fulqrum.test.test_full_strs_coefficients import random_operator  # noqa: PLC0415
+    from fulqrum.test.test_full_strs_coefficients import (
+        random_operator,
+    )  # noqa: PLC0415
     from fulqrum.test.test_full_strs_matvec import clustered_keys  # noqa: PLC0415
 
     rng = np.random.default_rng(71)

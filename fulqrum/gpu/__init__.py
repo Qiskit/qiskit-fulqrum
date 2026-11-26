@@ -16,7 +16,6 @@ import logging as _logging
 
 from .logging import configure_gpu_logging, gpu_profile_record, write_gpu_profile
 
-
 _logging.getLogger(__name__).addHandler(_logging.NullHandler())
 
 

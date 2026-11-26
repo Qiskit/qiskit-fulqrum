@@ -23,6 +23,13 @@ cimport numpy as np
 
 
 cdef extern from "../src/base.hpp":
+    # Packing functions
+    width_t pack_indval(width_t ind, unsigned char val)
+    width_t unpack_ind(width_t packed_data)
+    unsigned char unpack_val(width_t packed_data)
+    pair[width_t, unsigned char] unpack_indval(width_t packed_data)
+    
+    # structures
     ctypedef struct OperatorTerm_t:
         double complex coeff
         vector[width_t] indices
@@ -103,8 +110,7 @@ cdef extern from "../src/base.hpp":
 
     ctypedef struct FermionicTerm_t:
         double complex coeff
-        vector[width_t] indices
-        vector[unsigned char] values
+        vector[width_t] data
         vector[width_t] proj_indices
         vector[width_t] proj_bits
         width_t offdiag_weight
@@ -122,6 +128,7 @@ cdef extern from "../src/base.hpp":
         FermionicOperator_t copy()
         FermionicOperator_t from_json(string) except +
         FermionicOperator_t& combine_repeat_indices() nogil
+        FermionicOperator_t multiply(FermionicOperator_t) except +
         FermionicOperator_t weight_sort() nogil
         FermionicOperator_t offdiag_structure_sort() nogil
         FermionicOperator_t& combine_repeat_terms(double)

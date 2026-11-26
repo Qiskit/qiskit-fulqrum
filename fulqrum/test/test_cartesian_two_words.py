@@ -185,7 +185,10 @@ def test_mixed_sector_widths_equal_the_core_diagonal():
 
 
 def test_single_word_diagonal_keeps_its_results():
-    from fulqrum.test.test_gpu_contract import _half_strings, _lih_operator  # noqa: PLC0415
+    from fulqrum.test.test_gpu_contract import (
+        _half_strings,
+        _lih_operator,
+    )  # noqa: PLC0415
 
     op = _lih_operator()
     half = op.width // 2

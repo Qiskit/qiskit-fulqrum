@@ -69,9 +69,11 @@ class ExchangeExecutor:
                         self.comm,
                         stream=self.copy_stream,
                         send_pinned=send_pinned,
-                        recv_pinned=None
-                        if receive_pinned is None
-                        else receive_pinned[step.slot],
+                        recv_pinned=(
+                            None
+                            if receive_pinned is None
+                            else receive_pinned[step.slot]
+                        ),
                     )
             else:
                 count = int(receive_count(step))
@@ -128,15 +130,19 @@ class ExchangeExecutor:
                     slot if receives else slot[:0],
                     np.asarray([count], dtype=np.int64) if receives else empty64,
                     zero if receives else empty64,
-                    np.asarray([step.receive_from], dtype=np.int32)
-                    if receives
-                    else empty32,
+                    (
+                        np.asarray([step.receive_from], dtype=np.int32)
+                        if receives
+                        else empty32
+                    ),
                     self.comm,
                     stream=self.copy_stream,
                     send_pinned=send_pinned if sends else None,
-                    recv_pinned=receive_pinned[step.slot]
-                    if receives and receive_pinned is not None
-                    else None,
+                    recv_pinned=(
+                        receive_pinned[step.slot]
+                        if receives and receive_pinned is not None
+                        else None
+                    ),
                 )
             seconds += time.perf_counter() - started
             received_bytes += count * 8
